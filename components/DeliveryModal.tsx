@@ -48,7 +48,7 @@ export default function DeliveryModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg animate-slide-up max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg animate-slide-up max-h-[92vh] md:max-h-[85vh] overflow-y-auto md:shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white rounded-t-2xl">
           <div className="flex items-center gap-2">

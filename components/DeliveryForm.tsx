@@ -64,7 +64,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg animate-slide-up max-h-[95vh] flex flex-col">
+      <div className="relative bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg animate-slide-up max-h-[95vh] md:max-h-[90vh] flex flex-col md:shadow-2xl">
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white rounded-t-2xl">
           <h2 className="font-bold text-gray-800 text-lg">
             {initial?.id ? '✏️ 予定を編集' : '➕ 納入予定を追加'}
