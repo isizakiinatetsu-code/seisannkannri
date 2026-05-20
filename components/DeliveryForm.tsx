@@ -1,0 +1,185 @@
+'use client';
+import { useState } from 'react';
+import { Delivery } from '@/lib/db';
+import { ITEM_CATEGORIES } from '@/lib/constants';
+
+const LOCATIONS = [
+  '第1工場', '第2工場南（表）', '第2工場北（裏）', '第3工場', '第4工場',
+  '第3工場（宅急便）', '事務所', '事務所前',
+];
+
+const VENDORS = [
+  '丸杉様', '八木鋼材 様', '三重鋼業様', '三原商事様', 'コンドーテック様',
+  'フルサト工業様', '加藤工業様', 'トーワエレックス様',
+];
+
+interface Props {
+  initial?: Partial<Delivery>;
+  defaultDate?: string;
+  onSave: (data: Partial<Delivery>) => void;
+  onCancel: () => void;
+}
+
+export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }: Props) {
+  const [form, setForm] = useState({
+    delivery_date: initial?.delivery_date ?? defaultDate ?? new Date().toISOString().split('T')[0],
+    delivery_time: initial?.delivery_time ?? '',
+    project_name: initial?.project_name ?? '',
+    item: initial?.item ?? '',
+    specification: initial?.specification ?? '',
+    vendor: initial?.vendor ?? '',
+    unload_location: initial?.unload_location ?? '',
+    storage_location: initial?.storage_location ?? '',
+    quantity: initial?.quantity?.toString() ?? '',
+    unit: initial?.unit ?? '',
+    order_number: initial?.order_number ?? '',
+    notes: initial?.notes ?? '',
+  });
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(f => ({ ...f, [key]: e.target.value }));
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.delivery_date || !form.project_name || !form.item || !form.vendor || !form.unload_location) {
+      alert('★必須項目をすべて入力してください');
+      return;
+    }
+    onSave({
+      delivery_date: form.delivery_date,
+      delivery_time: form.delivery_time || null,
+      project_name: form.project_name,
+      item: form.item,
+      specification: form.specification || null,
+      vendor: form.vendor,
+      unload_location: form.unload_location,
+      storage_location: form.storage_location || null,
+      quantity: form.quantity ? parseFloat(form.quantity) : null,
+      unit: form.unit || null,
+      order_number: form.order_number || null,
+      notes: form.notes || null,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
+      <div className="relative bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg animate-slide-up max-h-[95vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white rounded-t-2xl">
+          <h2 className="font-bold text-gray-800 text-lg">
+            {initial?.id ? '✏️ 予定を編集' : '➕ 納入予定を追加'}
+          </h2>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-xl font-bold">×</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 space-y-3 flex-1">
+          <FormRow label="★ 納入予定日">
+            <input type="date" value={form.delivery_date} onChange={set('delivery_date')} required className="input" />
+          </FormRow>
+
+          <FormRow label="　 納入予定時刻">
+            <input type="text" value={form.delivery_time} onChange={set('delivery_time')} placeholder="例: 14:00 / 午前中" className="input" />
+          </FormRow>
+
+          <FormRow label="★ 物件名">
+            <input type="text" value={form.project_name} onChange={set('project_name')} placeholder="物件名を入力" required className="input" />
+          </FormRow>
+
+          <FormRow label="★ 品目">
+            <select value={form.item} onChange={set('item')} required className="input">
+              <option value="">品目を選択...</option>
+              {ITEM_CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </FormRow>
+
+          <FormRow label="★ 内容・規格">
+            <input type="text" value={form.specification} onChange={set('specification')} placeholder="H-500x200 等" className="input" />
+          </FormRow>
+
+          <FormRow label="★ 業者名">
+            <input list="vendor-list" type="text" value={form.vendor} onChange={set('vendor')} placeholder="業者名" required className="input" />
+            <datalist id="vendor-list">
+              {VENDORS.map(v => <option key={v} value={v} />)}
+            </datalist>
+          </FormRow>
+
+          <FormRow label="★ 降し場所">
+            <select value={form.unload_location} onChange={set('unload_location')} required className="input">
+              <option value="">場所を選択...</option>
+              {LOCATIONS.map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+              <option value="その他">その他</option>
+            </select>
+          </FormRow>
+
+          <FormRow label="　 保管場所">
+            <input type="text" value={form.storage_location} onChange={set('storage_location')} placeholder="A棟3番ラック 等" className="input" />
+          </FormRow>
+
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <FormRow label="　 数量">
+                <input type="number" value={form.quantity} onChange={set('quantity')} placeholder="0" className="input" step="any" />
+              </FormRow>
+            </div>
+            <div className="w-24">
+              <FormRow label="　 単位">
+                <input type="text" value={form.unit} onChange={set('unit')} placeholder="P/t/本" className="input" />
+              </FormRow>
+            </div>
+          </div>
+
+          <FormRow label="　 発注番号">
+            <input type="text" value={form.order_number} onChange={set('order_number')} placeholder="PO-2025-001" className="input" />
+          </FormRow>
+
+          <FormRow label="　 備考">
+            <textarea value={form.notes} onChange={set('notes')} placeholder="備考" className="input h-16 resize-none" />
+          </FormRow>
+        </form>
+
+        <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-white">
+          <button type="button" onClick={onCancel} className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold">
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            className="flex-1 py-3 rounded-xl text-white font-bold"
+            style={{ background: '#1a2744' }}
+          >
+            {initial?.id ? '更新する' : '登録する'}
+          </button>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .input {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.15s;
+        }
+        .input:focus {
+          border-color: #3b6fd4;
+          box-shadow: 0 0 0 2px rgba(59, 111, 212, 0.15);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
