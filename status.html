@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>納入管理システム — 現状レポート</title>
+  <style>
+    :root {
+      --navy: #1a2744;
+      --blue: #3b6fd4;
+      --green: #16a34a;
+      --orange: #d97706;
+      --red: #dc2626;
+      --gray: #6b7280;
+      --bg: #f3f4f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; background: var(--bg); color: #111; line-height: 1.6; }
+
+    header {
+      background: var(--navy);
+      color: white;
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    header .icon { font-size: 2.4rem; }
+    header h1 { font-size: 1.4rem; font-weight: bold; }
+    header .sub { font-size: 0.8rem; opacity: 0.55; margin-top: 2px; }
+    header .badge {
+      margin-left: auto;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    .section { margin-bottom: 32px; }
+    .section-title {
+      font-size: 1rem;
+      font-weight: bold;
+      color: var(--navy);
+      border-left: 4px solid var(--blue);
+      padding-left: 10px;
+      margin-bottom: 14px;
+    }
+
+    /* Summary cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 32px; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .card .label { font-size: 0.75rem; color: var(--gray); margin-bottom: 6px; }
+    .card .value { font-size: 1.5rem; font-weight: bold; }
+    .card .note { font-size: 0.72rem; color: var(--gray); margin-top: 4px; }
+    .card.ok   .value { color: var(--green); }
+    .card.warn .value { color: var(--orange); }
+    .card.info .value { color: var(--blue); }
+
+    /* Tech stack table */
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    th { background: #f9fafb; text-align: left; padding: 10px 16px; font-size: 0.78rem; color: var(--gray); border-bottom: 1px solid #e5e7eb; }
+    td { padding: 10px 16px; font-size: 0.85rem; border-bottom: 1px solid #f3f4f6; }
+    tr:last-child td { border-bottom: none; }
+
+    /* Status checklist */
+    .checklist { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .check-item:last-child { border-bottom: none; }
+    .check-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .check-body { flex: 1; }
+    .check-title { font-weight: 600; font-size: 0.88rem; }
+    .check-desc { font-size: 0.78rem; color: var(--gray); margin-top: 2px; }
+    .phase-label {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: bold;
+      border-radius: 6px;
+      padding: 1px 7px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .phase-done  { background: #dcfce7; color: var(--green); }
+    .phase-next  { background: #dbeafe; color: var(--blue); }
+    .phase-later { background: #f3f4f6; color: var(--gray); }
+
+    /* File tree */
+    .filetree {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 12px;
+      padding: 18px 20px;
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 0.8rem;
+      line-height: 1.9;
+      overflow-x: auto;
+    }
+    .filetree .dir { color: #93c5fd; font-weight: bold; }
+    .filetree .key { color: #fbbf24; }
+    .filetree .dim { color: #64748b; }
+
+    /* Problem list */
+    .problems { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; }
+    .problem-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid #f3f4f6;
+      align-items: flex-start;
+    }
+    .problem-item:last-child { border-bottom: none; }
+    .problem-icon { font-size: 1rem; flex-shrink: 0; margin-top: 2px; }
+    .problem-text { font-size: 0.85rem; }
+    .problem-text strong { display: block; font-size: 0.88rem; margin-bottom: 2px; }
+    .problem-text span { color: var(--gray); font-size: 0.78rem; }
+
+    /* Next steps */
+    .steps { list-style: none; counter-reset: step; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      background: white;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .steps li::before {
+      content: counter(step);
+      background: var(--blue);
+      color: white;
+      font-size: 0.78rem;
+      font-weight: bold;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .steps li .step-body { flex: 1; font-size: 0.85rem; }
+    .steps li .step-title { font-weight: 600; }
+    .steps li .step-desc { color: var(--gray); font-size: 0.78rem; margin-top: 2px; }
+
+    footer {
+      text-align: center;
+      color: var(--gray);
+      font-size: 0.75rem;
+      padding: 24px;
+      border-top: 1px solid #e5e7eb;
+      background: white;
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 18px 16px; flex-wrap: wrap; }
+      header .badge { margin-left: 0; }
+      .container { padding: 20px 12px 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="icon">📦</span>
+  <div>
+    <h1>納入管理システム</h1>
+    <div class="sub">Delivery Management System — 現状レポート</div>
+  </div>
+  <span class="badge">作成日: 2026-05-21</span>
+</header>
+
+<div class="container">
+
+  <!-- ======= サマリカード ======= -->
+  <div class="cards">
+    <div class="card ok">
+      <div class="label">動作状態</div>
+      <div class="value">動作中</div>
+      <div class="note">ローカル環境のみ</div>
+    </div>
+    <div class="card warn">
+      <div class="label">共有対応</div>
+      <div class="value">未対応</div>
+      <div class="note">SQLiteはローカル専用</div>
+    </div>
+    <div class="card warn">
+      <div class="label">認証</div>
+      <div class="value">なし</div>
+      <div class="note">誰でも閲覧・編集可能</div>
+    </div>
+    <div class="card info">
+      <div class="label">移行先</div>
+      <div class="value">Supabase</div>
+      <div class="note">Vercel でホスティング予定</div>
+    </div>
+  </div>
+
+  <!-- ======= 技術スタック ======= -->
+  <div class="section">
+    <div class="section-title">技術スタック</div>
+    <table>
+      <thead>
+        <tr><th>カテゴリ</th><th>現状</th><th>移行後</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>フレームワーク</td><td>Next.js 16.2.6 + React 19</td><td>変更なし</td></tr>
+        <tr><td>言語</td><td>TypeScript 5</td><td>変更なし</td></tr>
+        <tr><td>スタイリング</td><td>Tailwind CSS v4</td><td>変更なし</td></tr>
+        <tr><td>データベース</td><td>SQLite (<code>better-sqlite3</code>)</td><td>Supabase (PostgreSQL)</td></tr>
+        <tr><td>画像保存</td><td>ローカル <code>public/uploads/</code></td><td>Supabase Storage</td></tr>
+        <tr><td>認証</td><td>なし</td><td>Supabase Auth</td></tr>
+        <tr><td>ホスティング</td><td>localhost:8080</td><td>Vercel（サーバーレス）</td></tr>
+        <tr><td>Excel取込</td><td>xlsx ライブラリ (実装済み)</td><td>変更なし</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ======= ファイル構成 ======= -->
+  <div class="section">
+    <div class="section-title">主要ファイル構成</div>
+    <div class="filetree">
+<span class="dir">seisannkannri/</span>
+├── <span class="dir">app/</span>
+│   ├── <span class="key">page.tsx</span>          <span class="dim"># メイン画面（カレンダー/一覧/OCRタブ）</span>
+│   ├── layout.tsx           <span class="dim"># ルートレイアウト</span>
+│   ├── globals.css
+│   └── <span class="dir">api/</span>
+│       ├── <span class="dir">deliveries/</span>    <span class="dim"># CRUD API（一覧・作成・更新・削除）</span>
+│       ├── <span class="dir">excel/</span>         <span class="dim"># Excelインポート API</span>
+│       └── <span class="dir">upload/</span>        <span class="dim"># 納品書画像アップロード API</span>
+├── <span class="dir">components/</span>
+│   ├── <span class="key">CalendarView.tsx</span>   <span class="dim"># カレンダー表示</span>
+│   ├── <span class="key">ListView.tsx</span>       <span class="dim"># 一覧表示</span>
+│   ├── <span class="key">DeliveryForm.tsx</span>   <span class="dim"># 登録・編集フォーム</span>
+│   ├── <span class="key">DeliveryModal.tsx</span>  <span class="dim"># 詳細モーダル</span>
+│   ├── SearchPanel.tsx      <span class="dim"># 絞り込み検索</span>
+│   └── OcrTab.tsx           <span class="dim"># OCRタブ（画像保存のみ、OCR未実装）</span>
+├── <span class="dir">lib/</span>
+│   ├── <span class="key">db.ts</span>              <span class="dim"># SQLiteラッパー・スキーマ定義</span>
+│   └── constants.ts
+└── <span class="dir">data/</span>              <span class="dim"># deliveries.db（ローカルのみ）</span>
+    </div>
+  </div>
+
+  <!-- ======= 現状の問題点 ======= -->
+  <div class="section">
+    <div class="section-title">現状の問題点（共有運用できない理由）</div>
+    <div class="problems">
+      <div class="problem-item">
+        <span class="problem-icon">🔴</span>
+        <div class="problem-text">
+          <strong>SQLite はサーバーレスで動かない</strong>
+          <span>Vercel はファイルシステムへの書き込み不可。DB を Supabase (PostgreSQL) に移行が必要。</span>
+        </div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">🔴</span>
+        <div class="problem-text">
+          <strong>画像がサーバーレスで消える</strong>
+          <span><code>public/uploads/</code> はデプロイごとにリセット。Supabase Storage への移行が必要。</span>
+        </div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">🔴</span>
+        <div class="problem-text">
+          <strong>認証なし</strong>
+          <span>誰でも全データの閲覧・編集・削除が可能。操作者の記録もない。</span>
+        </div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">🟡</span>
+        <div class="problem-text">
+          <strong>同時編集の競合制御なし</strong>
+          <span><code>updated_at</code> カラムはあるが楽観ロック未使用。複数人が同時編集すると上書き発生のリスク。</span>
+        </div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">🟡</span>
+        <div class="problem-text">
+          <strong>OCR は未実装</strong>
+          <span>OCRタブは「画像保存のみ」。納品書の自動読み取りは実装されていない。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 実装計画チェックリスト ======= -->
+  <div class="section">
+    <div class="section-title">Supabase 移行計画（実装チェックリスト）</div>
+    <div class="checklist">
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">① DB層を Supabase (PostgreSQL) へ移植<span class="phase-label phase-next">最優先</span></div>
+          <div class="check-desc"><code>lib/db.ts</code> の置換、スキーマSQL作成、SQLite→Postgres方言調整</div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">② API を Supabase クライアント経由に書き換え<span class="phase-label phase-next">最優先</span></div>
+          <div class="check-desc"><code>app/api/deliveries/*</code>、<code>app/api/excel/route.ts</code> を Supabase SDK 経由に</div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">③ 画像を Supabase Storage へ移行<span class="phase-label phase-next">最優先</span></div>
+          <div class="check-desc"><code>app/api/upload/route.ts</code> を Storage 経由に変更、URLをDBに保存</div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">④ 認証追加（Supabase Auth）<span class="phase-label phase-later">次フェーズ</span></div>
+          <div class="check-desc">ログインページ作成、<code>middleware.ts</code> で未認証をリダイレクト、各APIでユーザー検証</div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">⑤ 操作者記録・監査ログ<span class="phase-label phase-later">次フェーズ</span></div>
+          <div class="check-desc"><code>created_by</code>/<code>updated_by</code> カラム追加、変更履歴テーブル、UI表示</div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">⑥ 同時編集対策（楽観ロック）<span class="phase-label phase-later">次フェーズ</span></div>
+          <div class="check-desc"><code>updated_at</code> による競合検出、上書き警告 UI</div>
+        </div>
+      </div>
+      <div class="check-item">
+        <span class="check-icon">⬜</span>
+        <div class="check-body">
+          <div class="check-title">⑦ 環境変数化・Vercel デプロイ設定<span class="phase-label phase-later">次フェーズ</span></div>
+          <div class="check-desc"><code>.env.example</code> 作成、Vercel プロジェクト設定手順のドキュメント化</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 次のアクション ======= -->
+  <div class="section">
+    <div class="section-title">次に必要なアクション</div>
+    <ul class="steps">
+      <li>
+        <div class="step-body">
+          <div class="step-title">Supabase プロジェクトを作成する（ユーザー側の作業）</div>
+          <div class="step-desc">supabase.com で無料プロジェクトを作成 → Project URL と anon key を取得</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">npm install を実行して依存パッケージをインストール</div>
+          <div class="step-desc"><code>node_modules</code> が未インストール状態のため、開発開始前に必要</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">DB層の移行コードを実装（①〜③）</div>
+          <div class="step-desc"><code>lib/db.ts</code> を Supabase SDK 版に置き換え、スキーマ SQL を Supabase で実行</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">Vercel にデプロイして動作確認</div>
+          <div class="step-desc">環境変数（SUPABASE_URL / SUPABASE_ANON_KEY）を Vercel に設定してデプロイ</div>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <div class="step-title">認証・監査ログを追加（④〜⑥）</div>
+          <div class="step-desc">基本的な共有動作が確認できてから実装する</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ======= DBスキーマ ======= -->
+  <div class="section">
+    <div class="section-title">現在の DB スキーマ（deliveries テーブル）</div>
+    <table>
+      <thead><tr><th>カラム</th><th>型</th><th>説明</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>INTEGER PK</td><td>自動採番</td></tr>
+        <tr><td><code>delivery_date</code></td><td>TEXT (NOT NULL)</td><td>納入予定日 (YYYY-MM-DD)</td></tr>
+        <tr><td><code>delivery_time</code></td><td>TEXT</td><td>納入予定時刻</td></tr>
+        <tr><td><code>project_name</code></td><td>TEXT (NOT NULL)</td><td>工事名・現場名</td></tr>
+        <tr><td><code>item</code></td><td>TEXT (NOT NULL)</td><td>品目</td></tr>
+        <tr><td><code>specification</code></td><td>TEXT</td><td>規格・仕様</td></tr>
+        <tr><td><code>vendor</code></td><td>TEXT (NOT NULL)</td><td>仕入先・業者名</td></tr>
+        <tr><td><code>unload_location</code></td><td>TEXT (NOT NULL)</td><td>荷降ろし場所</td></tr>
+        <tr><td><code>storage_location</code></td><td>TEXT</td><td>保管場所</td></tr>
+        <tr><td><code>quantity</code></td><td>REAL</td><td>数量</td></tr>
+        <tr><td><code>unit</code></td><td>TEXT</td><td>単位</td></tr>
+        <tr><td><code>order_number</code></td><td>TEXT</td><td>注文番号</td></tr>
+        <tr><td><code>notes</code></td><td>TEXT</td><td>備考</td></tr>
+        <tr><td><code>status</code></td><td>TEXT (NOT NULL)</td><td>'予定' または '納入済み'</td></tr>
+        <tr><td><code>delivered_at</code></td><td>TEXT</td><td>実際の納入日時</td></tr>
+        <tr><td><code>slip_image_path</code></td><td>TEXT</td><td>納品書画像パス</td></tr>
+        <tr><td><code>created_at</code></td><td>TEXT</td><td>作成日時</td></tr>
+        <tr><td><code>updated_at</code></td><td>TEXT</td><td>更新日時</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  納入管理システム 現状レポート &nbsp;|&nbsp; 2026-05-21 &nbsp;|&nbsp; Next.js 16 + React 19 + TypeScript + Tailwind CSS v4
+</footer>
+
+</body>
+</html>
