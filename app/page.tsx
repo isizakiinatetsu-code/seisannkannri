@@ -199,11 +199,6 @@ export default function HomePage() {
           ))}
         </nav>
         <div className="p-3 space-y-2 border-t border-white/10">
-          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors">
-            <span>{importing ? '⏳' : '📊'}</span>
-            <span>Excel インポート</span>
-            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
-          </label>
           <button
             onClick={handleGsSync}
             disabled={gsSyncing}
@@ -233,10 +228,6 @@ export default function HomePage() {
             <h1 className="font-bold text-base">納入予定管理</h1>
           </div>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg cursor-pointer text-xs font-medium border border-white/30 hover:bg-white/10">
-              {importing ? '⏳' : '📊'} Excel
-              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
-            </label>
             <button
               onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 border border-white/30"
@@ -271,10 +262,6 @@ export default function HomePage() {
           </div>
           {/* アクションボタン */}
           <div className="flex items-center gap-2 py-2">
-            <label className="flex items-center gap-1 px-3 py-1.5 rounded-lg cursor-pointer text-sm font-medium border border-white/30 hover:bg-white/10 whitespace-nowrap">
-              {importing ? '⏳' : '📊'} Excel
-              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
-            </label>
             <button
               onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold bg-white/20 hover:bg-white/30 border border-white/30 whitespace-nowrap"
