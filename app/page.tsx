@@ -42,6 +42,7 @@ export default function HomePage() {
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   const [importMsg, setImportMsg] = useState('');
   const [importing, setImporting] = useState(false);
+  const [gsSyncing, setGsSyncing] = useState(false);
 
   const buildQuery = useCallback((f: SearchFilters) => {
     const params = new URLSearchParams();
@@ -133,6 +134,26 @@ export default function HomePage() {
     }
   }
 
+  async function handleGsSync() {
+    setGsSyncing(true);
+    setImportMsg('');
+    try {
+      const res = await fetch('/api/gsheets', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+        setImportMsg(`❌ ${data.error}`);
+      } else {
+        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加 (重複スキップ: ${data.skipped}件)`);
+        fetchDeliveries(filters);
+      }
+    } catch {
+      setImportMsg('❌ 同期に失敗しました');
+    } finally {
+      setGsSyncing(false);
+      setTimeout(() => setImportMsg(''), 6000);
+    }
+  }
+
   function handleSlipUploaded(id: number, path: string) {
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, slip_image_path: path } : d));
     if (selectedDelivery?.id === id) {
@@ -183,6 +204,14 @@ export default function HomePage() {
             <span>Excel インポート</span>
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
           </label>
+          <button
+            onClick={handleGsSync}
+            disabled={gsSyncing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+          >
+            <span>{gsSyncing ? '⏳' : '🔄'}</span>
+            <span>{gsSyncing ? '同期中...' : 'Sheets 同期'}</span>
+          </button>
           <button
             onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-colors"
