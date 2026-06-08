@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Delivery } from '@/lib/db';
+import { Delivery } from '@/lib/supabase';
 import CalendarView from '@/components/CalendarView';
 import ListView from '@/components/ListView';
 import OcrTab from '@/components/OcrTab';
@@ -41,7 +41,6 @@ export default function HomePage() {
   const [showSearch, setShowSearch] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   const [importMsg, setImportMsg] = useState('');
-  const [importing, setImporting] = useState(false);
   const [gsSyncing, setGsSyncing] = useState(false);
 
   const buildQuery = useCallback((f: SearchFilters) => {
@@ -107,31 +106,6 @@ export default function HomePage() {
     });
     setEditDelivery(null);
     fetchDeliveries(filters);
-  }
-
-  async function handleExcelImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    setImporting(true);
-    setImportMsg('');
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/excel', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.error) {
-        setImportMsg(`❌ ${data.error}`);
-      } else {
-        setImportMsg(`✅ ${data.imported}件インポート完了 (スキップ: ${data.skipped}件)`);
-        fetchDeliveries(filters);
-      }
-    } catch {
-      setImportMsg('❌ インポートに失敗しました');
-    } finally {
-      setImporting(false);
-      setTimeout(() => setImportMsg(''), 6000);
-    }
   }
 
   async function handleGsSync() {

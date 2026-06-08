@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB } from '@/lib/db';
+import { getSupabase } from '@/lib/supabase';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const db = getDB();
+    const supabase = getSupabase();
     const { id } = await params;
-    const row = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id);
-    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json(row);
+    const { data, error } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(data);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
@@ -22,26 +23,33 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const db = getDB();
+    const supabase = getSupabase();
     const { id } = await params;
     const body = await req.json();
 
-    const existing = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id) as Record<string, unknown> | undefined;
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const fields: Record<string, unknown> = {};
+    for (const k of Object.keys(body)) {
+      if (k === 'id' || k === 'created_at' || k === 'updated_at') continue;
+      fields[k] = body[k];
+    }
 
-    const fields = Object.keys(body)
-      .filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at')
-      .map(k => `${k} = @${k}`)
-      .join(', ');
+    if (Object.keys(fields).length === 0) {
+      const { data: existing, error: existingError } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
+      if (existingError) throw existingError;
+      if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return NextResponse.json(existing);
+    }
 
-    if (!fields) return NextResponse.json(existing);
+    const { data, error } = await supabase
+      .from('deliveries')
+      .update(fields)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
 
-    db.prepare(`
-      UPDATE deliveries SET ${fields}, updated_at = datetime('now', 'localtime') WHERE id = @id
-    `).run({ ...body, id });
-
-    const updated = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id);
-    return NextResponse.json(updated);
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(data);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
@@ -53,10 +61,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const db = getDB();
+    const supabase = getSupabase();
     const { id } = await params;
-    const result = db.prepare('DELETE FROM deliveries WHERE id = ?').run(id);
-    if (result.changes === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const { data, error } = await supabase.from('deliveries').delete().eq('id', id).select().maybeSingle();
+    if (error) throw error;
+    if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error(e);

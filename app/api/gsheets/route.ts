@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { getDB } from '@/lib/db';
+import { getSupabase } from '@/lib/supabase';
 
 export async function POST() {
   try {
@@ -37,50 +37,48 @@ export async function POST() {
     const idxUnload = header.indexOf('降し場所');
     const idxNotes = header.indexOf('備考');
 
-    const db = getDB();
-    const exists = db.prepare(`
-      SELECT id FROM deliveries
-      WHERE delivery_date=@delivery_date AND project_name=@project_name AND item=@item
-      LIMIT 1
-    `);
-    const insert = db.prepare(`
-      INSERT INTO deliveries
-        (delivery_date, delivery_time, project_name, item, specification,
-         vendor, unload_location, notes, status)
-      VALUES
-        (@delivery_date, @delivery_time, @project_name, @item, @specification,
-         @vendor, @unload_location, @notes, @status)
-    `);
+    const supabase = getSupabase();
 
     let imported = 0;
     let skipped = 0;
+    const toInsert: Record<string, unknown>[] = [];
 
-    const run = db.transaction(() => {
-      for (const row of rows.slice(1)) {
-        const dateVal = idxDate >= 0 ? (row[idxDate] ?? '').trim() : '';
-        const project = idxProject >= 0 ? (row[idxProject] ?? '').trim() : '';
-        const item = idxItem >= 0 ? (row[idxItem] ?? '').trim() : '';
-        if (!dateVal || !project || !item) { skipped++; continue; }
+    for (const row of rows.slice(1)) {
+      const dateVal = idxDate >= 0 ? (row[idxDate] ?? '').trim() : '';
+      const project = idxProject >= 0 ? (row[idxProject] ?? '').trim() : '';
+      const item = idxItem >= 0 ? (row[idxItem] ?? '').trim() : '';
+      if (!dateVal || !project || !item) { skipped++; continue; }
 
-        const dup = exists.get({ delivery_date: dateVal, project_name: project, item });
-        if (dup) { skipped++; continue; }
+      const { data: dup, error: dupError } = await supabase
+        .from('deliveries')
+        .select('id')
+        .eq('delivery_date', dateVal)
+        .eq('project_name', project)
+        .eq('item', item)
+        .limit(1)
+        .maybeSingle();
+      if (dupError) throw dupError;
+      if (dup) { skipped++; continue; }
 
-        insert.run({
-          delivery_date: dateVal,
-          delivery_time: idxTime >= 0 ? (row[idxTime] ?? null) || null : null,
-          project_name: project,
-          item,
-          specification: idxSpec >= 0 ? (row[idxSpec] ?? null) || null : null,
-          vendor: (idxVendor >= 0 ? row[idxVendor] : '') || '未設定',
-          unload_location: (idxUnload >= 0 ? row[idxUnload] : '') || '未設定',
-          notes: idxNotes >= 0 ? (row[idxNotes] ?? null) || null : null,
-          status: '予定',
-        });
-        imported++;
-      }
-    });
+      toInsert.push({
+        delivery_date: dateVal,
+        delivery_time: idxTime >= 0 ? (row[idxTime] ?? null) || null : null,
+        project_name: project,
+        item,
+        specification: idxSpec >= 0 ? (row[idxSpec] ?? null) || null : null,
+        vendor: (idxVendor >= 0 ? row[idxVendor] : '') || '未設定',
+        unload_location: (idxUnload >= 0 ? row[idxUnload] : '') || '未設定',
+        notes: idxNotes >= 0 ? (row[idxNotes] ?? null) || null : null,
+        status: '予定',
+      });
+      imported++;
+    }
 
-    run();
+    if (toInsert.length > 0) {
+      const { error: insertError } = await supabase.from('deliveries').insert(toInsert);
+      if (insertError) throw insertError;
+    }
+
     return NextResponse.json({ imported, skipped });
   } catch (e) {
     console.error(e);

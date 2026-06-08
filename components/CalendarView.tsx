@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Delivery } from '@/lib/db';
+import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
 type CalViewMode = '月' | '週' | '日' | '一覧';

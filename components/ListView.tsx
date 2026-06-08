@@ -1,5 +1,5 @@
 'use client';
-import { Delivery } from '@/lib/db';
+import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
 interface Props {
