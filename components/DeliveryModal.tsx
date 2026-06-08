@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Delivery } from '@/lib/db';
+import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
 interface Props {

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Delivery } from '@/lib/db';
+import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
 type CalViewMode = '月' | '週' | '日' | '一覧';
@@ -61,7 +61,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
               onClick={() => setMode(m)}
               className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
               style={mode === m
-                ? { background: '#1a2744', color: 'white' }
+                ? { background: '#0d2c66', color: 'white' }
                 : { background: '#f3f4f6', color: '#374151' }
               }
             >
@@ -316,7 +316,7 @@ function AllListView({ deliveries, onSelectDelivery }: { deliveries: Delivery[];
         const delivered = items.filter(i => i.status === '納入済み').length;
         return (
           <div key={date}>
-            <div className="sticky top-0 px-3 py-2 text-sm font-bold text-white flex justify-between items-center rounded-t-lg z-10" style={{ background: '#1a2744' }}>
+            <div className="sticky top-0 px-3 py-2 text-sm font-bold text-white flex justify-between items-center rounded-t-lg z-10" style={{ background: '#0d2c66' }}>
               <span>{formatDateLabel(date)}</span>
               <span className="text-xs font-normal opacity-70">{delivered}/{items.length}件 納入済み</span>
             </div>

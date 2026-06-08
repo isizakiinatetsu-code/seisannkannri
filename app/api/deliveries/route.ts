@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB, DeliveryInput } from '@/lib/db';
+import { getSupabase, DeliveryInput } from '@/lib/supabase';
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getDB();
+    const supabase = getSupabase();
     const { searchParams } = new URL(req.url);
     const projectName = searchParams.get('project_name');
     const item = searchParams.get('item');
@@ -14,46 +14,24 @@ export async function GET(req: NextRequest) {
     const dateTo = searchParams.get('date_to');
     const month = searchParams.get('month'); // YYYY-MM
 
-    let query = 'SELECT * FROM deliveries WHERE 1=1';
-    const params: (string | number)[] = [];
+    let query = supabase.from('deliveries').select('*');
 
-    if (projectName) {
-      query += ' AND project_name LIKE ?';
-      params.push(`%${projectName}%`);
-    }
-    if (item) {
-      query += ' AND item LIKE ?';
-      params.push(`%${item}%`);
-    }
-    if (vendor) {
-      query += ' AND vendor LIKE ?';
-      params.push(`%${vendor}%`);
-    }
-    if (unloadLocation) {
-      query += ' AND unload_location LIKE ?';
-      params.push(`%${unloadLocation}%`);
-    }
-    if (status) {
-      query += ' AND status = ?';
-      params.push(status);
-    }
-    if (dateFrom) {
-      query += ' AND delivery_date >= ?';
-      params.push(dateFrom);
-    }
-    if (dateTo) {
-      query += ' AND delivery_date <= ?';
-      params.push(dateTo);
-    }
-    if (month) {
-      query += ' AND delivery_date LIKE ?';
-      params.push(`${month}%`);
-    }
+    if (projectName) query = query.ilike('project_name', `%${projectName}%`);
+    if (item) query = query.ilike('item', `%${item}%`);
+    if (vendor) query = query.ilike('vendor', `%${vendor}%`);
+    if (unloadLocation) query = query.ilike('unload_location', `%${unloadLocation}%`);
+    if (status) query = query.eq('status', status);
+    if (dateFrom) query = query.gte('delivery_date', dateFrom);
+    if (dateTo) query = query.lte('delivery_date', dateTo);
+    if (month) query = query.like('delivery_date', `${month}%`);
 
-    query += ' ORDER BY delivery_date ASC, delivery_time ASC NULLS LAST';
+    query = query
+      .order('delivery_date', { ascending: true })
+      .order('delivery_time', { ascending: true, nullsFirst: false });
 
-    const rows = db.prepare(query).all(...params);
-    return NextResponse.json(rows);
+    const { data, error } = await query;
+    if (error) throw error;
+    return NextResponse.json(data);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
@@ -62,40 +40,33 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDB();
+    const supabase = getSupabase();
     const body: DeliveryInput = await req.json();
 
-    const stmt = db.prepare(`
-      INSERT INTO deliveries
-        (delivery_date, delivery_time, project_name, item, specification,
-         vendor, unload_location, storage_location, quantity, unit,
-         order_number, notes, status, delivered_at, slip_image_path)
-      VALUES
-        (@delivery_date, @delivery_time, @project_name, @item, @specification,
-         @vendor, @unload_location, @storage_location, @quantity, @unit,
-         @order_number, @notes, @status, @delivered_at, @slip_image_path)
-    `);
+    const { data, error } = await supabase
+      .from('deliveries')
+      .insert({
+        delivery_date: body.delivery_date,
+        delivery_time: body.delivery_time ?? null,
+        project_name: body.project_name,
+        item: body.item,
+        specification: body.specification ?? null,
+        vendor: body.vendor,
+        unload_location: body.unload_location,
+        storage_location: body.storage_location ?? null,
+        quantity: body.quantity ?? null,
+        unit: body.unit ?? null,
+        order_number: body.order_number ?? null,
+        notes: body.notes ?? null,
+        status: body.status ?? '予定',
+        delivered_at: body.delivered_at ?? null,
+        slip_image_path: body.slip_image_path ?? null,
+      })
+      .select()
+      .single();
 
-    const result = stmt.run({
-      delivery_date: body.delivery_date,
-      delivery_time: body.delivery_time ?? null,
-      project_name: body.project_name,
-      item: body.item,
-      specification: body.specification ?? null,
-      vendor: body.vendor,
-      unload_location: body.unload_location,
-      storage_location: body.storage_location ?? null,
-      quantity: body.quantity ?? null,
-      unit: body.unit ?? null,
-      order_number: body.order_number ?? null,
-      notes: body.notes ?? null,
-      status: body.status ?? '予定',
-      delivered_at: body.delivered_at ?? null,
-      slip_image_path: body.slip_image_path ?? null,
-    });
-
-    const newRow = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(result.lastInsertRowid);
-    return NextResponse.json(newRow, { status: 201 });
+    if (error) throw error;
+    return NextResponse.json(data, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });

@@ -1,5 +1,5 @@
 'use client';
-import { Delivery } from '@/lib/db';
+import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
 interface Props {
@@ -31,7 +31,7 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
         const delivered = items.filter(i => i.status === '納入済み').length;
         return (
           <div key={date} className="mb-3">
-            <div className="sticky top-0 px-4 py-2 flex justify-between items-center z-10" style={{ background: '#1a2744' }}>
+            <div className="sticky top-0 px-4 py-2 flex justify-between items-center z-10" style={{ background: '#0d2c66' }}>
               <span className="text-white font-bold text-sm">{formatDateLabel(date)}</span>
               <span className="text-xs text-white/70">{delivered}/{items.length}件 納入済み</span>
             </div>
