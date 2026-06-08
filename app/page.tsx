@@ -3,12 +3,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Delivery } from '@/lib/supabase';
 import CalendarView from '@/components/CalendarView';
 import ListView from '@/components/ListView';
-import OcrTab from '@/components/OcrTab';
 import DeliveryModal from '@/components/DeliveryModal';
 import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
 
-type Tab = 'calendar' | 'list' | 'ocr';
+type Tab = 'calendar' | 'list';
 
 interface SearchFilters {
   project_name: string;
@@ -140,7 +139,6 @@ export default function HomePage() {
   const tabItems: { id: Tab; icon: string; label: string }[] = [
     { id: 'calendar', icon: '📅', label: 'カレンダー' },
     { id: 'list',     icon: '📋', label: '一覧' },
-    { id: 'ocr',      icon: '📸', label: 'OCR照合' },
   ];
 
   return (
@@ -327,7 +325,6 @@ export default function HomePage() {
                 {tab === 'list' && (
                   <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
                 )}
-                {tab === 'ocr' && <OcrTab />}
               </>
             )}
 
