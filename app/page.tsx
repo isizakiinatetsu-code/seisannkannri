@@ -138,7 +138,7 @@ export default function HomePage() {
 
   const tabItems: { id: Tab; icon: string; label: string }[] = [
     { id: 'calendar', icon: '📅', label: 'カレンダー' },
-    { id: 'list',     icon: '📋', label: '一覧' },
+    { id: 'list',     icon: '🔍', label: '検索' },
   ];
 
   return (

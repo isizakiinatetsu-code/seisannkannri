@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
-type CalViewMode = '月' | '週' | '日' | '一覧';
+type CalViewMode = '月' | '週' | '日';
 
 interface Props {
   deliveries: Delivery[];
@@ -55,7 +55,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       {/* コントロールバー */}
       <div className="flex items-center gap-1 px-3 py-2 bg-white border-b flex-shrink-0 flex-wrap gap-y-2">
         <div className="flex gap-1">
-          {(['月','週','日','一覧'] as CalViewMode[]).map(m => (
+          {(['月','週','日'] as CalViewMode[]).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -79,16 +79,15 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
         </div>
       </div>
 
+      {/* 凡例 */}
+      <CategoryLegend />
+
       {/* カレンダー本体 */}
       <div className="flex-1 overflow-y-auto">
         {mode === '月' && <MonthView current={current} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} onDateClick={(d) => { setCurrent(new Date(d)); setMode('日'); onDateClick?.(d); }} fmt={fmt} />}
         {mode === '週' && <WeekView current={current} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} fmt={fmt} getWeekStart={getWeekStart} />}
         {mode === '日' && <DayView current={current} deliveries={deliveriesForDate(fmt(current))} onSelectDelivery={onSelectDelivery} />}
-        {mode === '一覧' && <AllListView deliveries={deliveries} onSelectDelivery={onSelectDelivery} />}
       </div>
-
-      {/* 凡例 */}
-      <CategoryLegend />
     </div>
   );
 }
@@ -301,53 +300,6 @@ function DayView({ current, deliveries, onSelectDelivery }: {
   );
 }
 
-function AllListView({ deliveries, onSelectDelivery }: { deliveries: Delivery[]; onSelectDelivery: (d: Delivery) => void }) {
-  const grouped: Record<string, Delivery[]> = {};
-  for (const d of deliveries) {
-    if (!grouped[d.delivery_date]) grouped[d.delivery_date] = [];
-    grouped[d.delivery_date].push(d);
-  }
-  const dates = Object.keys(grouped).sort();
-
-  return (
-    <div className="space-y-1 p-2 md:p-4">
-      {dates.map(date => {
-        const items = grouped[date];
-        const delivered = items.filter(i => i.status === '納入済み').length;
-        return (
-          <div key={date}>
-            <div className="sticky top-0 px-3 py-2 text-sm font-bold text-white flex justify-between items-center rounded-t-lg z-10" style={{ background: '#0d2c66' }}>
-              <span>{formatDateLabel(date)}</span>
-              <span className="text-xs font-normal opacity-70">{delivered}/{items.length}件 納入済み</span>
-            </div>
-            <div className="bg-white rounded-b-lg shadow-sm divide-y divide-gray-100 mb-3">
-              {items.map(item => (
-                <button key={item.id} onClick={() => onSelectDelivery(item)} className="w-full text-left px-3 py-2.5 flex items-start gap-3 hover:bg-gray-50 transition-colors">
-                  <div className="w-1 self-stretch rounded-full flex-shrink-0" style={{ background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item) }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-800 text-sm">{item.project_name}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">🕐 {item.delivery_time ?? '未定'} · {item.vendor} · {item.unload_location}</div>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: getCategoryColor(item.item) }}>{item.item}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: item.status === '納入済み' ? '#9ca3af' : '#d97706' }}>{item.status}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-      {dates.length === 0 && (
-        <div className="text-center py-16 text-gray-400">
-          <div className="text-4xl mb-3">📭</div>
-          <div className="font-medium">データがありません</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function CategoryLegend() {
   const items = [
     { label: '型板', color: '#dc2626' },
@@ -361,7 +313,7 @@ function CategoryLegend() {
     { label: '納入済み', color: '#9ca3af' },
   ];
   return (
-    <div className="bg-white border-t px-3 py-2 flex flex-wrap gap-x-3 gap-y-1 flex-shrink-0">
+    <div className="bg-white border-b px-3 py-2 flex flex-wrap gap-x-3 gap-y-1 flex-shrink-0">
       {items.map(it => (
         <div key={it.label} className="flex items-center gap-1">
           <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: it.color }} />
@@ -370,10 +322,4 @@ function CategoryLegend() {
       ))}
     </div>
   );
-}
-
-function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr);
-  const days = ['日','月','火','水','木','金','土'];
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${days[d.getDay()]}）`;
 }
