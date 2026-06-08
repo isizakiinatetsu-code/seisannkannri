@@ -147,9 +147,10 @@ export default function HomePage() {
     <div className="flex h-screen bg-gray-100 overflow-hidden">
 
       {/* ============ PC: 左サイドバー (lg以上) ============ */}
-      <aside className="hidden lg:flex flex-col w-60 xl:w-64 flex-shrink-0 text-white" style={{ background: '#1a2744' }}>
+      <aside className="hidden lg:flex flex-col w-60 xl:w-64 flex-shrink-0 text-white" style={{ background: '#0d2c66' }}>
         <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
-          <span className="text-2xl">📦</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-8 h-8 object-contain rounded bg-white p-0.5" />
           <div>
             <div className="font-bold text-sm leading-tight">納入予定管理</div>
             <div className="text-xs text-white/50">Delivery Management</div>
@@ -184,7 +185,7 @@ export default function HomePage() {
           <button
             onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-colors"
-            style={{ background: '#3b6fd4' }}
+            style={{ background: '#2f8fcf' }}
           >
             ＋ 予定を追加
           </button>
@@ -196,9 +197,10 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* ---- スマホ用ヘッダー (md未満) ---- */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 text-white flex-shrink-0" style={{ background: '#1a2744' }}>
+        <header className="md:hidden flex items-center justify-between px-4 py-3 text-white flex-shrink-0" style={{ background: '#0d2c66' }}>
           <div className="flex items-center gap-2">
-            <span className="text-xl">📦</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
             <h1 className="font-bold text-base">納入予定管理</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -212,9 +214,10 @@ export default function HomePage() {
         </header>
 
         {/* ---- iPad用 上部タブバー (md以上 lg未満) ---- */}
-        <header className="hidden md:flex lg:hidden items-center text-white flex-shrink-0 px-4 gap-2" style={{ background: '#1a2744' }}>
+        <header className="hidden md:flex lg:hidden items-center text-white flex-shrink-0 px-4 gap-2" style={{ background: '#0d2c66' }}>
           <div className="flex items-center gap-2 py-3 mr-4">
-            <span className="text-xl">📦</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
             <span className="font-bold text-sm whitespace-nowrap">納入予定管理</span>
           </div>
           {/* タブ */}
@@ -354,11 +357,11 @@ export default function HomePage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className="flex-1 flex flex-col items-center py-2 text-xs font-medium transition-colors relative"
-              style={{ color: tab === t.id ? '#1a2744' : '#9ca3af' }}
+              style={{ color: tab === t.id ? '#0d2c66' : '#9ca3af' }}
             >
               <span className="text-xl mb-0.5">{t.icon}</span>
               <span>{t.label}</span>
-              {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t" style={{ background: '#1a2744' }} />}
+              {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t" style={{ background: '#0d2c66' }} />}
             </button>
           ))}
         </nav>

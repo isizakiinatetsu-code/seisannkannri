@@ -149,7 +149,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
             type="submit"
             onClick={handleSubmit}
             className="flex-1 py-3 rounded-xl text-white font-bold"
-            style={{ background: '#1a2744' }}
+            style={{ background: '#0d2c66' }}
           >
             {initial?.id ? '更新する' : '登録する'}
           </button>
@@ -167,7 +167,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
           transition: border-color 0.15s;
         }
         .input:focus {
-          border-color: #3b6fd4;
+          border-color: #2f8fcf;
           box-shadow: 0 0 0 2px rgba(59, 111, 212, 0.15);
         }
       `}</style>

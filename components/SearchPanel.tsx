@@ -116,7 +116,7 @@ export default function SearchPanel({ filters, onChange, onClose, total }: Props
       <style jsx>{`
         .label { display: block; font-size: 12px; color: #6b7280; font-weight: 500; margin-bottom: 4px; }
         .input { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; }
-        .input:focus { border-color: #3b6fd4; }
+        .input:focus { border-color: #2f8fcf; }
       `}</style>
     </div>
   );

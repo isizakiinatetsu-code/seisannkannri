@@ -109,7 +109,7 @@ export default function OcrTab() {
           onClick={handleUpload}
           disabled={!file || uploading}
           className="w-full py-3 rounded-xl text-white font-bold text-sm transition-opacity disabled:opacity-40"
-          style={{ background: '#1a2744' }}
+          style={{ background: '#0d2c66' }}
         >
           {uploading ? '⏳ アップロード中...' : '📤 伝票をアップロード'}
         </button>
