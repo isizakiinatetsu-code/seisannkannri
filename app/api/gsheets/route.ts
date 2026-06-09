@@ -39,6 +39,11 @@ export async function POST() {
 
     const supabase = getSupabase();
 
+    // 直近3か月の範囲でのみインポート
+    const now = new Date();
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    const minDate = threeMonthsAgo.toISOString().slice(0, 10);
+
     let imported = 0;
     let skipped = 0;
     const toInsert: Record<string, unknown>[] = [];
@@ -48,6 +53,8 @@ export async function POST() {
       const project = idxProject >= 0 ? (row[idxProject] ?? '').trim() : '';
       const item = idxItem >= 0 ? (row[idxItem] ?? '').trim() : '';
       if (!dateVal || !project || !item) { skipped++; continue; }
+      // 直近3か月より古いデータはスキップ
+      if (dateVal < minDate) { skipped++; continue; }
 
       const { data: dup, error: dupError } = await supabase
         .from('deliveries')
