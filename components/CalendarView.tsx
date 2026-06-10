@@ -131,7 +131,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
       {weeks.map((week, wi) => (
         <div key={wi} className="grid border-t border-gray-200" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
           {week.map((day, di) => {
-            if (!day) return <div key={di} className="min-h-[60px] md:min-h-[100px] bg-gray-50/50" />;
+            if (!day) return <div key={di} className="min-h-[60px] md:min-h-[100px] bg-gray-50/50 min-w-0" />;
             const dateStr = fmt(day);
             const items = deliveriesForDate(dateStr);
             const isToday = dateStr === fmt(today);
@@ -141,7 +141,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
             return (
               <div
                 key={di}
-                className="min-h-[60px] md:min-h-[100px] p-0.5 md:p-1 cursor-pointer hover:bg-blue-50 transition-colors border-r border-gray-100 last:border-r-0"
+                className="min-h-[60px] md:min-h-[100px] p-0.5 md:p-1 cursor-pointer hover:bg-blue-50 transition-colors border-r border-gray-100 last:border-r-0 overflow-hidden min-w-0"
                 onClick={() => onDateClick(dateStr)}
               >
                 <div className={`text-xs font-bold mb-0.5 md:mb-1 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full mx-auto
