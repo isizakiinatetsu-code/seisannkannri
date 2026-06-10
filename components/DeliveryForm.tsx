@@ -28,16 +28,20 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
     item: initial?.item ?? '',
     specification: initial?.specification ?? '',
     vendor: initial?.vendor ?? '',
+    is_postal: initial?.notes?.startsWith('[郵送]') ?? false,
     unload_location: initial?.unload_location ?? '',
     storage_location: initial?.storage_location ?? '',
     quantity: initial?.quantity?.toString() ?? '',
     unit: initial?.unit ?? '',
     order_number: initial?.order_number ?? '',
-    notes: initial?.notes ?? '',
+    notes: initial?.notes?.startsWith('[郵送] ') ? initial.notes.slice(5) : (initial?.notes ?? ''),
   });
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const setPostal = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm(f => ({ ...f, is_postal: e.target.checked }));
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,6 +49,9 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
       alert('★必須項目をすべて入力してください');
       return;
     }
+    const notesValue = form.is_postal
+      ? `[郵送] ${form.notes}`.trimEnd()
+      : form.notes || null;
     onSave({
       delivery_date: form.delivery_date,
       delivery_time: form.delivery_time || null,
@@ -57,7 +64,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
       quantity: form.quantity ? parseFloat(form.quantity) : null,
       unit: form.unit || null,
       order_number: form.order_number || null,
-      notes: form.notes || null,
+      notes: notesValue,
     });
   }
 
@@ -105,6 +112,16 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
             </datalist>
           </FormRow>
 
+          {form.vendor && (
+            <div className="flex items-center gap-3 py-2">
+              <label className="text-xs font-medium text-gray-600">郵送</label>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={form.is_postal} onChange={setPostal} className="sr-only peer" />
+                <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
+              </label>
+            </div>
+          )}
+
           <FormRow label="★ 降し場所">
             <select value={form.unload_location} onChange={set('unload_location')} required className="input">
               <option value="">場所を選択...</option>
@@ -115,7 +132,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
             </select>
           </FormRow>
 
-          <FormRow label="　 保管場所">
+          <FormRow label="　 納入場所">
             <input type="text" value={form.storage_location} onChange={set('storage_location')} placeholder="A棟3番ラック 等" className="input" />
           </FormRow>
 

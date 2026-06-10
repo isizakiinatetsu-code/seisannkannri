@@ -120,7 +120,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   return (
     <div className="p-1 md:p-3">
       {/* 曜日ヘッダー */}
-      <div className="grid grid-cols-7 mb-1">
+      <div className="grid mb-1" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
         {dayNames.map((d, i) => (
           <div key={d} className={`text-center text-xs py-1 font-medium ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-500'}`}>
             {d}
@@ -129,7 +129,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
       </div>
       {/* 日付グリッド */}
       {weeks.map((week, wi) => (
-        <div key={wi} className="grid grid-cols-7 border-t border-gray-200">
+        <div key={wi} className="grid border-t border-gray-200" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
           {week.map((day, di) => {
             if (!day) return <div key={di} className="min-h-[60px] md:min-h-[100px] bg-gray-50/50" />;
             const dateStr = fmt(day);
@@ -192,52 +192,45 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
   return (
-    <div className="p-2">
-      <div className="grid grid-cols-7 border-b border-gray-200 mb-1">
-        {days.map((day, i) => {
-          const isToday = fmt(day) === fmt(today);
-          const isSat = i === 5;
-          const isSun = i === 6;
-          return (
-            <div key={i} className="text-center py-2">
-              <div className={`text-xs ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-500'}`}>{dayNames[i]}</div>
-              <div className={`text-sm font-bold mx-auto w-7 h-7 flex items-center justify-center rounded-full
-                ${isToday ? 'bg-blue-600 text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}
+    <div className="divide-y divide-gray-100">
+      {days.map((day, i) => {
+        const dateStr = fmt(day);
+        const items = deliveriesForDate(dateStr);
+        const isToday = dateStr === fmt(today);
+        const isSat = i === 5;
+        const isSun = i === 6;
+        return (
+          <div key={i} className={`flex gap-3 p-3 ${isSat || isSun ? 'bg-gray-50/70' : 'bg-white'}`}>
+            <div className="w-12 flex-shrink-0 text-center">
+              <div className={`text-xs font-medium ${isSun ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-500'}`}>{dayNames[i]}</div>
+              <div className={`text-lg font-bold mx-auto w-8 h-8 flex items-center justify-center rounded-full
+                ${isToday ? 'text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-800'}`}
+                style={isToday ? {background:'#0d2c66'} : {}}
               >
                 {day.getDate()}
               </div>
             </div>
-          );
-        })}
-      </div>
-      <div className="grid grid-cols-7 min-h-[120px]">
-        {days.map((day, i) => {
-          const items = deliveriesForDate(fmt(day));
-          return (
-            <div key={i} className="p-0.5 border-r border-gray-100 last:border-r-0">
+            <div className="flex-1 flex flex-wrap gap-1.5 items-start py-1 min-h-[44px]">
+              {items.length === 0 && <span className="text-xs text-gray-300 self-center">-</span>}
               {items.map(item => (
                 <button
                   key={item.id}
-                  className="w-full text-left rounded-sm text-white mb-0.5 block"
-                  style={{
-                    background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item),
-                    fontSize: '10px',
-                    padding: '2px 4px',
-                  }}
+                  className="text-left rounded-lg text-white text-xs px-2 py-1 max-w-full"
+                  style={{background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item)}}
                   onClick={() => onSelectDelivery(item)}
                 >
                   <span className="block truncate">[{item.status === '納入済み' ? '済' : '未'}] {item.project_name}</span>
                 </button>
               ))}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function DayView({ current, deliveries, onSelectDelivery }: {
+function DayView({ current: _current, deliveries, onSelectDelivery }: {
   current: Date;
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
