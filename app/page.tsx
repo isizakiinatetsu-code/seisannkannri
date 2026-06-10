@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Delivery } from '@/lib/supabase';
 import CalendarView from '@/components/CalendarView';
 import ListView from '@/components/ListView';
@@ -134,6 +134,19 @@ export default function HomePage() {
     }
   }
 
+  const vendorOptions = useMemo(() =>
+    [...new Set(deliveries.map(d => d.vendor).filter(Boolean))].sort() as string[],
+    [deliveries]
+  );
+  const projectOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return deliveries
+      .slice()
+      .sort((a, b) => b.delivery_date.localeCompare(a.delivery_date))
+      .map(d => d.project_name)
+      .filter(p => { if (seen.has(p)) return false; seen.add(p); return true; });
+  }, [deliveries]);
+
   const hasFilters = Object.values(filters).some(v => v !== '');
 
   const tabItems: { id: Tab; icon: string; label: string }[] = [
@@ -183,7 +196,7 @@ export default function HomePage() {
           <button
             onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-colors"
-            style={{ background: '#2f8fcf' }}
+            style={{ background: '#f5c000', color: '#0d2c66' }}
           >
             ＋ 予定を追加
           </button>
@@ -304,7 +317,7 @@ export default function HomePage() {
         )}
 
         {/* ---- コンテンツ本体 ---- */}
-        <main className="flex-1 overflow-hidden flex min-h-0">
+        <main className="flex-1 overflow-hidden flex min-h-0 pb-16 md:pb-0">
           <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
             {loading ? (
               <div className="flex items-center justify-center flex-1">
@@ -333,7 +346,7 @@ export default function HomePage() {
               <>
                 <div className="absolute inset-0 bg-black/20 z-20 lg:hidden" onClick={() => setShowSearch(false)} />
                 <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 lg:hidden">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} />
+                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} />
                 </div>
               </>
             )}
@@ -342,23 +355,23 @@ export default function HomePage() {
           {/* PC: 検索パネルをサイド表示 */}
           {tab === 'list' && showSearch && (
             <div className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
-              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} />
+              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} />
             </div>
           )}
         </main>
 
         {/* ---- スマホ用 ボトムナビ (md未満) ---- */}
-        <nav className="md:hidden flex bg-white border-t flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-40" style={{paddingBottom: 'env(safe-area-inset-bottom)'}}>
           {tabItems.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex-1 flex flex-col items-center py-2 text-xs font-medium transition-colors relative"
-              style={{ color: tab === t.id ? '#0d2c66' : '#9ca3af' }}
+              className="flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors"
+              style={tab === t.id ? {color: '#0d2c66'} : {color: '#9ca3af'}}
             >
-              <span className="text-xl mb-0.5">{t.icon}</span>
-              <span>{t.label}</span>
-              {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t" style={{ background: '#0d2c66' }} />}
+              <span className="text-xl">{t.icon}</span>
+              <span className="text-xs font-medium">{t.label}</span>
+              {tab === t.id && <div className="w-4 h-0.5 rounded-full" style={{background:'#0d2c66'}} />}
             </button>
           ))}
         </nav>

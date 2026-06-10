@@ -15,6 +15,8 @@ interface Props {
   onChange: (filters: SearchFilters) => void;
   onClose: () => void;
   total: number;
+  vendors?: string[];
+  projects?: string[];
 }
 
 const ITEM_CATEGORIES = [
@@ -22,7 +24,7 @@ const ITEM_CATEGORIES = [
   'スプライス', 'ブレース', 'ボルト', '支給品', '現場用ボルト', 'ハイベース', 'その他',
 ];
 
-export default function SearchPanel({ filters, onChange, onClose, total }: Props) {
+export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [] }: Props) {
   const set = (key: keyof SearchFilters) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => onChange({ ...filters, [key]: e.target.value });
@@ -30,6 +32,7 @@ export default function SearchPanel({ filters, onChange, onClose, total }: Props
   function handleClear() {
     onChange({ project_name: '', item: '', vendor: '', unload_location: '', date_from: '', date_to: '', status: '' });
   }
+
 
   const hasFilters = Object.values(filters).some(v => v !== '');
 
@@ -47,13 +50,12 @@ export default function SearchPanel({ filters, onChange, onClose, total }: Props
 
       <div>
         <label className="label">物件名</label>
-        <input
-          type="text"
-          value={filters.project_name}
-          onChange={set('project_name')}
-          placeholder="物件名で検索..."
-          className="input"
-        />
+        <select value={filters.project_name} onChange={set('project_name')} className="input">
+          <option value="">すべて</option>
+          {projects.map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
       </div>
 
       <div>
@@ -66,25 +68,13 @@ export default function SearchPanel({ filters, onChange, onClose, total }: Props
       </div>
 
       <div>
-        <label className="label">納入場所（降し場所）</label>
-        <input
-          type="text"
-          value={filters.unload_location}
-          onChange={set('unload_location')}
-          placeholder="場所で検索..."
-          className="input"
-        />
-      </div>
-
-      <div>
         <label className="label">業者名</label>
-        <input
-          type="text"
-          value={filters.vendor}
-          onChange={set('vendor')}
-          placeholder="業者名で検索..."
-          className="input"
-        />
+        <select value={filters.vendor} onChange={set('vendor')} className="input">
+          <option value="">すべて</option>
+          {vendors.map(v => (
+            <option key={v} value={v}>{v}</option>
+          ))}
+        </select>
       </div>
 
       <div className="flex gap-2">
