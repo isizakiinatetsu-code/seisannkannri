@@ -68,6 +68,7 @@ export default function HomePage() {
   }, [buildQuery]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeliveries(filters);
   }, [filters, fetchDeliveries]);
 

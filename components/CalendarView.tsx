@@ -230,7 +230,7 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   );
 }
 
-function DayView({ current, deliveries, onSelectDelivery }: {
+function DayView({ current: _current, deliveries, onSelectDelivery }: {
   current: Date;
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
