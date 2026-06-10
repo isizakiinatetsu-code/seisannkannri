@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 
+export async function GET() {
+  try {
+    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+    const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!spreadsheetId || !keyJson) return NextResponse.json({ error: '環境変数未設定' }, { status: 500 });
+    const credentials = JSON.parse(keyJson);
+    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'] });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A1:Z1' });
+    return NextResponse.json({ headers: res.data.values?.[0] ?? [] });
+  } catch (e) {
+    return NextResponse.json({ error: `${e}` }, { status: 500 });
+  }
+}
+
 export async function POST() {
   try {
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
@@ -28,6 +43,7 @@ export async function POST() {
     }
 
     const header = rows[0];
+    console.log('Spreadsheet headers:', JSON.stringify(header));
     const idxDate = header.indexOf('納入予定日');
     const idxTime = header.indexOf('納入予定時刻');
     const idxProject = header.indexOf('物件名');
