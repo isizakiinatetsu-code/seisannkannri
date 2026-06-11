@@ -17,6 +17,7 @@ interface Props {
   total: number;
   vendors?: string[];
   projects?: string[];
+  unloadLocations?: string[];
 }
 
 const ITEM_CATEGORIES = [
@@ -24,7 +25,7 @@ const ITEM_CATEGORIES = [
   'スプライス', 'ブレース', 'ボルト', '支給品', '現場用ボルト', 'ハイベース', 'その他',
 ];
 
-export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [] }: Props) {
+export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [] }: Props) {
   const set = (key: keyof SearchFilters) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => onChange({ ...filters, [key]: e.target.value });
@@ -39,10 +40,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
   return (
     <div className="bg-white border rounded-2xl shadow-lg p-4 space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <span className="font-bold text-gray-700 flex items-center gap-1">
-          🔍 絞り込み検索
-          <span className="ml-2 text-sm text-blue-600 font-normal">{total}件</span>
-        </span>
+        <span className="text-sm text-blue-600 font-normal">{total}件</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 rounded-lg hover:bg-gray-100">
           閉じる
         </button>
@@ -73,6 +71,16 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
           <option value="">すべて</option>
           {vendors.map(v => (
             <option key={v} value={v}>{v}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="label">降し場所</label>
+        <select value={filters.unload_location} onChange={set('unload_location')} className="input">
+          <option value="">すべて</option>
+          {unloadLocations.map(l => (
+            <option key={l} value={l}>{l}</option>
           ))}
         </select>
       </div>
