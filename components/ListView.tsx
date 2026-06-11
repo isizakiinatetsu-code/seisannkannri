@@ -20,9 +20,8 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
     <div className="flex-1 overflow-y-auto">
       {dates.length === 0 && (
         <div className="text-center py-16 text-gray-400">
-          <div className="text-4xl mb-3">📦</div>
-          <div className="font-medium">納入予定がありません</div>
-          <div className="text-sm mt-1">Excelをインポートするか、手動で追加してください</div>
+          <div className="text-4xl mb-3">🔍</div>
+          <div className="font-medium">上の検索条件で絞り込んでください</div>
         </div>
       )}
 
@@ -40,7 +39,7 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
                 <button
                   key={item.id}
                   onClick={() => onSelectDelivery(item)}
-                  className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-blue-50 transition-colors"
+                  className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-blue-50 transition-colors ${item.status === '納入済み' ? 'bg-gray-50 opacity-60' : ''}`}
                 >
                   {/* Color bar */}
                   <div
@@ -50,7 +49,7 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-bold text-gray-800 text-sm leading-snug">{item.project_name}</span>
+                      <span className={`font-bold text-sm leading-snug ${item.status === '納入済み' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.project_name}</span>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <span
                           className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
