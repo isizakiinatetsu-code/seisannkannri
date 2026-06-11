@@ -82,6 +82,15 @@ export default function HomePage() {
     fetchDeliveries(filters);
   }
 
+  async function handleRevertDelivered(id: number) {
+    await fetch(`/api/deliveries/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: '予定', delivered_at: null }),
+    });
+    fetchDeliveries(filters);
+  }
+
   async function handleDelete(id: number) {
     await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
     fetchDeliveries(filters);
@@ -396,6 +405,7 @@ export default function HomePage() {
           delivery={selectedDelivery}
           onClose={() => setSelectedDelivery(null)}
           onMarkDelivered={handleMarkDelivered}
+          onRevertDelivered={handleRevertDelivered}
           onEdit={(d) => { setEditDelivery(d); setSelectedDelivery(null); }}
           onDelete={handleDelete}
           onSlipUploaded={handleSlipUploaded}
@@ -406,6 +416,8 @@ export default function HomePage() {
           defaultDate={addDefaultDate}
           onSave={handleAdd}
           onCancel={() => setShowAddForm(false)}
+          vendors={vendorOptions}
+          projects={projectOptions}
         />
       )}
       {editDelivery && (
@@ -413,6 +425,8 @@ export default function HomePage() {
           initial={editDelivery}
           onSave={handleEdit}
           onCancel={() => setEditDelivery(null)}
+          vendors={vendorOptions}
+          projects={projectOptions}
         />
       )}
     </div>

@@ -7,6 +7,7 @@ interface Props {
   delivery: Delivery;
   onClose: () => void;
   onMarkDelivered: (id: number) => void;
+  onRevertDelivered: (id: number) => void;
   onEdit: (delivery: Delivery) => void;
   onDelete: (id: number) => void;
   onSlipUploaded: (id: number, path: string) => void;
@@ -16,6 +17,7 @@ export default function DeliveryModal({
   delivery,
   onClose,
   onMarkDelivered,
+  onRevertDelivered,
   onEdit,
   onDelete,
   onSlipUploaded,
@@ -149,13 +151,21 @@ export default function DeliveryModal({
 
         {/* Actions */}
         <div className="p-4 space-y-2 border-t sticky bottom-0 bg-white">
-          {delivery.status !== '納入済み' && (
+          {delivery.status !== '納入済み' ? (
             <button
               onClick={() => { onMarkDelivered(delivery.id); onClose(); }}
               className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
               style={{ background: '#16a34a' }}
             >
               ✓ 納入済みにする
+            </button>
+          ) : (
+            <button
+              onClick={() => { if (confirm('納入済みを「予定」に戻しますか？')) { onRevertDelivered(delivery.id); onClose(); } }}
+              className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
+              style={{ background: '#d97706' }}
+            >
+              ↩ 予定に戻す
             </button>
           )}
           <button

@@ -8,9 +8,9 @@ const LOCATIONS = [
   '第3工場（宅急便）', '事務所', '事務所前',
 ];
 
-const VENDORS = [
-  '丸杉様', '八木鋼材 様', '三重鋼業様', '三原商事様', 'コンドーテック様',
-  'フルサト工業様', '加藤工業様', 'トーワエレックス様',
+const TIME_OPTIONS = [
+  '午前中', '午後', '9:00', '10:00', '11:00', '12:00',
+  '13:00', '14:00', '15:00', '16:00', '17:00',
 ];
 
 interface Props {
@@ -18,9 +18,11 @@ interface Props {
   defaultDate?: string;
   onSave: (data: Partial<Delivery>) => void;
   onCancel: () => void;
+  vendors?: string[];
+  projects?: string[];
 }
 
-export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }: Props) {
+export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, vendors = [], projects = [] }: Props) {
   const [form, setForm] = useState({
     delivery_date: initial?.delivery_date ?? defaultDate ?? new Date().toISOString().split('T')[0],
     delivery_time: initial?.delivery_time ?? '',
@@ -85,11 +87,17 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
           </FormRow>
 
           <FormRow label="　 納入予定時刻">
-            <input type="text" value={form.delivery_time} onChange={set('delivery_time')} placeholder="例: 14:00 / 午前中" className="input" />
+            <select value={form.delivery_time} onChange={set('delivery_time')} className="input">
+              <option value="">未定</option>
+              {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </FormRow>
 
           <FormRow label="★ 物件名">
-            <input type="text" value={form.project_name} onChange={set('project_name')} placeholder="物件名を入力" required className="input" />
+            <input list="project-list" type="text" value={form.project_name} onChange={set('project_name')} placeholder="物件名を入力または選択" required className="input" />
+            <datalist id="project-list">
+              {projects.map(p => <option key={p} value={p} />)}
+            </datalist>
           </FormRow>
 
           <FormRow label="★ 品目">
@@ -106,10 +114,11 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel }:
           </FormRow>
 
           <FormRow label="★ 業者名">
-            <input list="vendor-list" type="text" value={form.vendor} onChange={set('vendor')} placeholder="業者名" required className="input" />
-            <datalist id="vendor-list">
-              {VENDORS.map(v => <option key={v} value={v} />)}
-            </datalist>
+            <select value={form.vendor} onChange={set('vendor')} required className="input">
+              <option value="">業者名を選択...</option>
+              {vendors.map(v => <option key={v} value={v}>{v}</option>)}
+              <option value="その他">その他</option>
+            </select>
           </FormRow>
 
           {form.vendor && (
