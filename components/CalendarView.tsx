@@ -280,15 +280,28 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
                 {items.slice(0, maxShow).map(item => (
                   <button
                     key={item.id}
-                    className="w-full text-left rounded text-white mb-0.5 block overflow-hidden"
-                    style={{
-                      background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item),
-                      fontSize: '10px',
-                      padding: '1px 3px',
-                    }}
+                    className="w-full text-left mb-0.5 flex items-center gap-0.5 overflow-hidden"
+                    style={{ fontSize: '10px' }}
                     onClick={e => { e.stopPropagation(); onSelectDelivery(item); }}
                   >
-                    <span className="block truncate">[{item.status === '納入済み' ? '済' : '未'}] {item.project_name}</span>
+                    {/* 品目カラーの●（納入済みは灰色） */}
+                    <span
+                      className="flex-shrink-0 rounded-full"
+                      style={{
+                        width: 7, height: 7,
+                        background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item),
+                      }}
+                    />
+                    {/* 物件名（納入済みは打ち消し線＋薄グレー） */}
+                    <span
+                      className="truncate leading-tight"
+                      style={{
+                        color: item.status === '納入済み' ? '#9ca3af' : '#1f2937',
+                        textDecoration: item.status === '納入済み' ? 'line-through' : 'none',
+                      }}
+                    >
+                      {item.project_name}
+                    </span>
                   </button>
                 ))}
                 {items.length > maxShow && (
