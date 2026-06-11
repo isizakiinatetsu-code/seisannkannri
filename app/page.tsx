@@ -337,7 +337,19 @@ export default function HomePage() {
                   />
                 )}
                 {tab === 'list' && (
-                  <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
+                  hasFilters
+                    ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
+                    : <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+                        <div className="text-5xl">🔍</div>
+                        <div className="font-medium text-base">検索条件を選択してください</div>
+                        <button
+                          onClick={() => setShowSearch(true)}
+                          className="mt-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm"
+                          style={{ background: '#0d2c66' }}
+                        >
+                          絞り込み検索を開く
+                        </button>
+                      </div>
                 )}
               </>
             )}
