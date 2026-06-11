@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
@@ -16,6 +16,10 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
   const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const [sliding, setSliding] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   function fmt(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -25,12 +29,56 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     return deliveries.filter(d => d.delivery_date === dateStr);
   }
 
-  function navigate(delta: number) {
-    const d = new Date(current);
-    if (mode === '月') d.setMonth(d.getMonth() + delta);
-    else if (mode === '週') d.setDate(d.getDate() + delta * 7);
-    else d.setDate(d.getDate() + delta);
-    setCurrent(d);
+  function getPrev(d: Date) {
+    const p = new Date(d);
+    if (mode === '月') p.setMonth(p.getMonth() - 1);
+    else if (mode === '週') p.setDate(p.getDate() - 7);
+    else p.setDate(p.getDate() - 1);
+    return p;
+  }
+
+  function getNext(d: Date) {
+    const n = new Date(d);
+    if (mode === '月') n.setMonth(n.getMonth() + 1);
+    else if (mode === '週') n.setDate(n.getDate() + 7);
+    else n.setDate(n.getDate() + 1);
+    return n;
+  }
+
+  const navigate = useCallback((delta: number) => {
+    setCurrent(d => {
+      const n = new Date(d);
+      if (mode === '月') n.setMonth(n.getMonth() + delta);
+      else if (mode === '週') n.setDate(n.getDate() + delta * 7);
+      else n.setDate(n.getDate() + delta);
+      return n;
+    });
+  }, [mode]);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    setDragX(0);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.touches[0].clientX - touchStartX.current;
+    const dy = e.touches[0].clientY - touchStartY.current;
+    // 縦スクロールが主なら無視
+    if (!sliding && Math.abs(dy) > Math.abs(dx)) return;
+    setSliding(true);
+    setDragX(dx);
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    setSliding(false);
+    setDragX(0);
+    if (Math.abs(dx) > 60) navigate(dx < 0 ? 1 : -1);
   }
 
   function headerLabel() {
@@ -49,6 +97,18 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.getFullYear(), d.getMonth(), diff);
+  }
+
+  const w = containerRef.current?.offsetWidth ?? 400;
+
+  function renderPage(date: Date) {
+    return (
+      <>
+        {mode === '月' && <MonthView current={date} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} onDateClick={(d) => { setCurrent(new Date(d)); setMode('日'); onDateClick?.(d); }} fmt={fmt} />}
+        {mode === '週' && <WeekView current={date} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} fmt={fmt} getWeekStart={getWeekStart} />}
+        {mode === '日' && <DayView current={date} deliveries={deliveriesForDate(fmt(date))} onSelectDelivery={onSelectDelivery} />}
+      </>
+    );
   }
 
   return (
@@ -83,20 +143,35 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       {/* 凡例 */}
       <CategoryLegend />
 
-      {/* カレンダー本体 */}
+      {/* カレンダー本体（スワイプエリア） */}
       <div
-        className="flex-1 overflow-y-auto"
-        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-        onTouchEnd={(e) => {
-          if (touchStartX.current === null) return;
-          const dx = e.changedTouches[0].clientX - touchStartX.current;
-          if (Math.abs(dx) > 50) navigate(dx < 0 ? 1 : -1);
-          touchStartX.current = null;
-        }}
+        ref={containerRef}
+        className="flex-1 overflow-hidden relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-        {mode === '月' && <MonthView current={current} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} onDateClick={(d) => { setCurrent(new Date(d)); setMode('日'); onDateClick?.(d); }} fmt={fmt} />}
-        {mode === '週' && <WeekView current={current} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} fmt={fmt} getWeekStart={getWeekStart} />}
-        {mode === '日' && <DayView current={current} deliveries={deliveriesForDate(fmt(current))} onSelectDelivery={onSelectDelivery} />}
+        {/* 前のページ（左） */}
+        <div
+          className="absolute inset-0 overflow-y-auto"
+          style={{ transform: `translateX(${dragX - w}px)`, willChange: 'transform' }}
+        >
+          {renderPage(getPrev(current))}
+        </div>
+        {/* 現在ページ */}
+        <div
+          className="absolute inset-0 overflow-y-auto"
+          style={{ transform: `translateX(${dragX}px)`, willChange: 'transform' }}
+        >
+          {renderPage(current)}
+        </div>
+        {/* 次のページ（右） */}
+        <div
+          className="absolute inset-0 overflow-y-auto"
+          style={{ transform: `translateX(${dragX + w}px)`, willChange: 'transform' }}
+        >
+          {renderPage(getNext(current))}
+        </div>
       </div>
     </div>
   );
