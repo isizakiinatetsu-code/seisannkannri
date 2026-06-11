@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
@@ -15,11 +15,14 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const [mode, setMode] = useState<CalViewMode>('月');
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // スワイプ状態
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
-  const [dragX, setDragX] = useState(0);
-  const [sliding, setSliding] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const isHorizontal = useRef(false);
+  const [offset, setOffset] = useState(0);       // 指に追従するオフセット（px）
+  const [animating, setAnimating] = useState(false); // アニメーション中フラグ
 
   function fmt(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -55,30 +58,70 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     });
   }, [mode]);
 
-  function handleTouchStart(e: React.TouchEvent) {
+  // ネイティブtouchmoveでpreventDefault（passive:falseが必要）
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onMove = (e: TouchEvent) => {
+      if (isHorizontal.current) e.preventDefault();
+    };
+    el.addEventListener('touchmove', onMove, { passive: false });
+    return () => el.removeEventListener('touchmove', onMove);
+  }, []);
+
+  function onTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
-    setDragX(0);
+    isHorizontal.current = false;
+    setAnimating(false);
+    setOffset(0);
   }
 
-  function handleTouchMove(e: React.TouchEvent) {
+  function onTouchMove(e: React.TouchEvent) {
     if (touchStartX.current === null || touchStartY.current === null) return;
     const dx = e.touches[0].clientX - touchStartX.current;
     const dy = e.touches[0].clientY - touchStartY.current;
-    // 縦スクロールが主なら無視
-    if (!sliding && Math.abs(dy) > Math.abs(dx)) return;
-    setSliding(true);
-    setDragX(dx);
+    if (!isHorizontal.current) {
+      if (Math.abs(dy) > Math.abs(dx) + 5) return; // 縦スクロール確定
+      if (Math.abs(dx) > 5) isHorizontal.current = true;
+    }
+    if (isHorizontal.current) setOffset(dx);
   }
 
-  function handleTouchEnd(e: React.TouchEvent) {
+  function onTouchEnd(e: React.TouchEvent) {
     if (touchStartX.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     touchStartX.current = null;
     touchStartY.current = null;
-    setSliding(false);
-    setDragX(0);
-    if (Math.abs(dx) > 60) navigate(dx < 0 ? 1 : -1);
+
+    if (!isHorizontal.current) return;
+
+    const w = containerRef.current?.offsetWidth ?? 390;
+    const threshold = w * 0.3; // 30%以上で切り替え
+
+    setAnimating(true);
+    if (dx < -threshold) {
+      // 次へ：左端まで飛ばしてからcurrentを更新
+      setOffset(-w);
+      setTimeout(() => {
+        navigate(1);
+        setAnimating(false);
+        setOffset(0);
+      }, 280);
+    } else if (dx > threshold) {
+      // 前へ：右端まで飛ばしてからcurrentを更新
+      setOffset(w);
+      setTimeout(() => {
+        navigate(-1);
+        setAnimating(false);
+        setOffset(0);
+      }, 280);
+    } else {
+      // 閾値未満：元に戻す
+      setOffset(0);
+      setTimeout(() => setAnimating(false), 280);
+    }
+    isHorizontal.current = false;
   }
 
   function headerLabel() {
@@ -99,7 +142,8 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     return new Date(d.getFullYear(), d.getMonth(), diff);
   }
 
-  const w = containerRef.current?.offsetWidth ?? 400;
+  const w = containerRef.current?.offsetWidth ?? 390;
+  const transition = animating ? 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none';
 
   function renderPage(date: Date) {
     return (
@@ -147,28 +191,28 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       <div
         ref={containerRef}
         className="flex-1 overflow-hidden relative"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
       >
         {/* 前のページ（左） */}
         <div
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(${dragX - w}px)`, willChange: 'transform' }}
+          style={{ transform: `translateX(${offset - w}px)`, transition, willChange: 'transform' }}
         >
           {renderPage(getPrev(current))}
         </div>
         {/* 現在ページ */}
         <div
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(${dragX}px)`, willChange: 'transform' }}
+          style={{ transform: `translateX(${offset}px)`, transition, willChange: 'transform' }}
         >
           {renderPage(current)}
         </div>
         {/* 次のページ（右） */}
         <div
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(${dragX + w}px)`, willChange: 'transform' }}
+          style={{ transform: `translateX(${offset + w}px)`, transition, willChange: 'transform' }}
         >
           {renderPage(getNext(current))}
         </div>
