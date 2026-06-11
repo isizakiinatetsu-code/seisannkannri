@@ -72,26 +72,44 @@ export async function POST() {
       // 直近3か月より古いデータはスキップ
       if (dateVal < minDate) { skipped++; continue; }
 
+      const vendorVal = (idxVendor >= 0 ? (row[idxVendor] ?? '') : '') || '未設定';
+      const unloadVal = (idxUnload >= 0 ? (row[idxUnload] ?? '') : '') || '未設定';
+      const specVal = idxSpec >= 0 ? (row[idxSpec] ?? null) || null : null;
+      const timeVal = idxTime >= 0 ? (row[idxTime] ?? null) || null : null;
+      const notesVal = idxNotes >= 0 ? (row[idxNotes] ?? null) || null : null;
+
       const { data: dup, error: dupError } = await supabase
         .from('deliveries')
-        .select('id')
+        .select('id, vendor, unload_location')
         .eq('delivery_date', dateVal)
         .eq('project_name', project)
         .eq('item', item)
         .limit(1)
         .maybeSingle();
       if (dupError) throw dupError;
-      if (dup) { skipped++; continue; }
+      if (dup) {
+        // 業者名・降し場所が「未設定」なら更新する
+        if (dup.vendor === '未設定' || dup.unload_location === '未設定') {
+          await supabase.from('deliveries').update({
+            vendor: vendorVal,
+            unload_location: unloadVal,
+            specification: specVal,
+            delivery_time: timeVal,
+          }).eq('id', dup.id);
+        }
+        skipped++;
+        continue;
+      }
 
       toInsert.push({
         delivery_date: dateVal,
-        delivery_time: idxTime >= 0 ? (row[idxTime] ?? null) || null : null,
+        delivery_time: timeVal,
         project_name: project,
         item,
-        specification: idxSpec >= 0 ? (row[idxSpec] ?? null) || null : null,
-        vendor: (idxVendor >= 0 ? row[idxVendor] : '') || '未設定',
-        unload_location: (idxUnload >= 0 ? row[idxUnload] : '') || '未設定',
-        notes: idxNotes >= 0 ? (row[idxNotes] ?? null) || null : null,
+        specification: specVal,
+        vendor: vendorVal,
+        unload_location: unloadVal,
+        notes: notesVal,
         status: '予定',
       });
       imported++;
