@@ -55,6 +55,13 @@ export async function POST() {
 
     const supabase = getSupabase();
 
+    // 日付を "2026/5/1" → "2026-05-01" に正規化
+    function normalizeDate(raw: string): string {
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return raw;
+      return d.toISOString().slice(0, 10);
+    }
+
     // 直近3か月の範囲でのみインポート
     const now = new Date();
     const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
@@ -68,7 +75,7 @@ export async function POST() {
     console.log('Column indices:', { idxDate, idxTime, idxProject, idxItem, idxSpec, idxVendor, idxUnload, idxNotes });
 
     for (const row of rows.slice(1)) {
-      const dateVal = idxDate >= 0 ? (row[idxDate] ?? '').trim() : '';
+      const dateVal = normalizeDate(idxDate >= 0 ? (row[idxDate] ?? '').trim() : '');
       const project = idxProject >= 0 ? (row[idxProject] ?? '').trim() : '';
       const item = idxItem >= 0 ? (row[idxItem] ?? '').trim() : '';
       if (!dateVal || !project || !item) { skipped++; continue; }
