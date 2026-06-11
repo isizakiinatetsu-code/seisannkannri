@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
@@ -15,6 +15,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const [mode, setMode] = useState<CalViewMode>('月');
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
+  const touchStartX = useRef<number | null>(null);
 
   function fmt(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -83,7 +84,16 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       <CategoryLegend />
 
       {/* カレンダー本体 */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className="flex-1 overflow-y-auto"
+        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          if (touchStartX.current === null) return;
+          const dx = e.changedTouches[0].clientX - touchStartX.current;
+          if (Math.abs(dx) > 50) navigate(dx < 0 ? 1 : -1);
+          touchStartX.current = null;
+        }}
+      >
         {mode === '月' && <MonthView current={current} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} onDateClick={(d) => { setCurrent(new Date(d)); setMode('日'); onDateClick?.(d); }} fmt={fmt} />}
         {mode === '週' && <WeekView current={current} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} fmt={fmt} getWeekStart={getWeekStart} />}
         {mode === '日' && <DayView current={current} deliveries={deliveriesForDate(fmt(current))} onSelectDelivery={onSelectDelivery} />}
