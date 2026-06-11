@@ -177,7 +177,7 @@ export default function HomePage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-8 h-8 object-contain rounded bg-white p-0.5" />
           <div>
-            <div className="font-bold text-sm leading-tight">納入予定管理</div>
+            <div className="font-bold text-sm leading-tight">INATETSU納入管理カレンダー</div>
             <div className="text-xs text-white/50">Delivery Management</div>
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
-            <h1 className="font-bold text-base">納入予定管理</h1>
+            <h1 className="font-bold text-base">INATETSU納入管理カレンダー</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -243,7 +243,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2 py-3 mr-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
-            <span className="font-bold text-sm whitespace-nowrap">納入予定管理</span>
+            <span className="font-bold text-sm whitespace-nowrap">INATETSU納入管理カレンダー</span>
           </div>
           {/* タブ */}
           <div className="flex flex-1 gap-1">
