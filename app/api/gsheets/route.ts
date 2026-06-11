@@ -10,8 +10,8 @@ export async function GET() {
     const credentials = JSON.parse(keyJson);
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'] });
     const sheets = google.sheets({ version: 'v4', auth });
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A1:Z1' });
-    return NextResponse.json({ headers: res.data.values?.[0] ?? [] });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A1:Z2' });
+    return NextResponse.json({ headers: res.data.values?.[0] ?? [], row2: res.data.values?.[1] ?? [] });
   } catch (e) {
     return NextResponse.json({ error: `${e}` }, { status: 500 });
   }
@@ -34,7 +34,7 @@ export async function POST() {
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'A:H',
+      range: 'A:Z',
     });
 
     const rows = res.data.values ?? [];
@@ -62,7 +62,10 @@ export async function POST() {
 
     let imported = 0;
     let skipped = 0;
+    let updated = 0;
     const toInsert: Record<string, unknown>[] = [];
+
+    console.log('Column indices:', { idxDate, idxTime, idxProject, idxItem, idxSpec, idxVendor, idxUnload, idxNotes });
 
     for (const row of rows.slice(1)) {
       const dateVal = idxDate >= 0 ? (row[idxDate] ?? '').trim() : '';
@@ -72,11 +75,13 @@ export async function POST() {
       // 直近3か月より古いデータはスキップ
       if (dateVal < minDate) { skipped++; continue; }
 
-      const vendorVal = (idxVendor >= 0 ? (row[idxVendor] ?? '') : '') || '未設定';
-      const unloadVal = (idxUnload >= 0 ? (row[idxUnload] ?? '') : '') || '未設定';
-      const specVal = idxSpec >= 0 ? (row[idxSpec] ?? null) || null : null;
-      const timeVal = idxTime >= 0 ? (row[idxTime] ?? null) || null : null;
-      const notesVal = idxNotes >= 0 ? (row[idxNotes] ?? null) || null : null;
+      const vendorRaw = idxVendor >= 0 ? (row[idxVendor] ?? '').trim() : '';
+      const unloadRaw = idxUnload >= 0 ? (row[idxUnload] ?? '').trim() : '';
+      const vendorVal = vendorRaw || '未設定';
+      const unloadVal = unloadRaw || '未設定';
+      const specVal = idxSpec >= 0 ? (row[idxSpec] ?? '').trim() || null : null;
+      const timeVal = idxTime >= 0 ? (row[idxTime] ?? '').trim() || null : null;
+      const notesVal = idxNotes >= 0 ? (row[idxNotes] ?? '').trim() || null : null;
 
       const { data: dup, error: dupError } = await supabase
         .from('deliveries')
@@ -88,14 +93,22 @@ export async function POST() {
         .maybeSingle();
       if (dupError) throw dupError;
       if (dup) {
-        // 業者名・降し場所が「未設定」なら更新する
-        if (dup.vendor === '未設定' || dup.unload_location === '未設定') {
-          await supabase.from('deliveries').update({
+        // 業者名・降し場所が「未設定」で、スプレッドシートに実値がある場合は更新する
+        const needsUpdate = (dup.vendor === '未設定' && vendorVal !== '未設定') ||
+                            (dup.unload_location === '未設定' && unloadVal !== '未設定');
+        if (needsUpdate) {
+          const { error: updateError } = await supabase.from('deliveries').update({
             vendor: vendorVal,
             unload_location: unloadVal,
             specification: specVal,
             delivery_time: timeVal,
           }).eq('id', dup.id);
+          if (updateError) {
+            console.error('Update error for id', dup.id, updateError);
+          } else {
+            updated++;
+            console.log(`Updated id=${dup.id}: vendor="${vendorVal}", unload="${unloadVal}"`);
+          }
         }
         skipped++;
         continue;
@@ -120,7 +133,7 @@ export async function POST() {
       if (insertError) throw insertError;
     }
 
-    return NextResponse.json({ imported, skipped });
+    return NextResponse.json({ imported, updated, skipped });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: `エラー: ${e}` }, { status: 500 });
