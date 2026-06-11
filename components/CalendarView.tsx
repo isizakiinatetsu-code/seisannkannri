@@ -156,14 +156,14 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* コントロールバー */}
-      <div className="flex items-center gap-1 px-3 py-2 bg-white border-b flex-shrink-0 flex-wrap gap-y-2">
+      {/* コントロールバー：1行に収める */}
+      <div className="flex items-center gap-1 px-2 py-1.5 bg-white border-b flex-shrink-0">
         <div className="flex gap-1">
           {(['月','週','日'] as CalViewMode[]).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              className="px-2.5 py-1 rounded-lg text-sm font-medium transition-colors"
               style={mode === m
                 ? { background: '#0d2c66', color: 'white' }
                 : { background: '#f3f4f6', color: '#374151' }
@@ -173,14 +173,10 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 ml-auto">
-          <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600 text-lg">‹</button>
-          <button onClick={() => setCurrent(new Date())} className="px-3 py-1 rounded-lg border border-gray-300 text-sm hover:bg-gray-50 font-medium">今日</button>
-          <button onClick={() => navigate(1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600 text-lg">›</button>
-        </div>
-        <div className="w-full md:w-auto md:ml-2">
-          <span className="font-bold text-gray-800 text-sm md:text-base">{headerLabel()}</span>
-        </div>
+        <span className="font-bold text-gray-800 text-sm ml-2 flex-1">{headerLabel()}</span>
+        <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 text-lg">‹</button>
+        <button onClick={() => setCurrent(new Date())} className="px-2 py-1 rounded-lg border border-gray-300 text-xs hover:bg-gray-50 font-medium">今日</button>
+        <button onClick={() => navigate(1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 text-lg">›</button>
       </div>
 
       {/* 凡例 */}
@@ -219,6 +215,20 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     </div>
   );
 }
+
+// 祝日セット (YYYY-MM-DD)
+const HOLIDAYS = new Set([
+  // 2025
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24',
+  '2025-03-20','2025-04-29','2025-05-03','2025-05-04','2025-05-05',
+  '2025-05-06','2025-07-21','2025-08-11','2025-09-15','2025-09-23',
+  '2025-10-13','2025-11-03','2025-11-23','2025-11-24',
+  // 2026
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23',
+  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05',
+  '2026-05-06','2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23',
+  '2026-10-12','2026-11-03','2026-11-23',
+]);
 
 function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDateClick, fmt }: {
   current: Date;
@@ -266,6 +276,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
             const isToday = dateStr === fmt(today);
             const isSat = di === 5;
             const isSun = di === 6;
+            const isHoliday = HOLIDAYS.has(dateStr);
             const maxShow = 3;
             return (
               <div
@@ -274,7 +285,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
                 onClick={() => onDateClick(dateStr)}
               >
                 <div className={`text-sm font-bold mb-0.5 w-6 h-6 flex items-center justify-center rounded-full mx-auto
-                  ${isToday ? 'bg-blue-600 text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}
+                  ${isToday ? 'bg-blue-600 text-white' : (isSun || isHoliday) ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}
                 >
                   {day.getDate()}
                 </div>
@@ -335,34 +346,37 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
   return (
-    <div className="divide-y divide-gray-100">
+    <div className="flex flex-col h-full">
       {days.map((day, i) => {
         const dateStr = fmt(day);
         const items = deliveriesForDate(dateStr);
         const isToday = dateStr === fmt(today);
         const isSat = i === 5;
         const isSun = i === 6;
+        const isHoliday = HOLIDAYS.has(dateStr);
         return (
-          <div key={i} className={`flex gap-3 p-3 ${isSat || isSun ? 'bg-gray-50/70' : 'bg-white'}`}>
-            <div className="w-12 flex-shrink-0 text-center">
-              <div className={`text-xs font-medium ${isSun ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-500'}`}>{dayNames[i]}</div>
-              <div className={`text-lg font-bold mx-auto w-8 h-8 flex items-center justify-center rounded-full
-                ${isToday ? 'text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-800'}`}
+          <div key={i} className={`flex gap-2 px-2 py-1 border-t border-gray-100 flex-1 min-h-0 ${isSat || isSun ? 'bg-gray-50/70' : 'bg-white'}`}>
+            <div className="w-10 flex-shrink-0 text-center">
+              <div className={`text-xs font-medium ${(isSun || isHoliday) ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-500'}`}>{dayNames[i]}</div>
+              <div className={`text-base font-bold mx-auto w-7 h-7 flex items-center justify-center rounded-full
+                ${isToday ? 'text-white' : (isSun || isHoliday) ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-800'}`}
                 style={isToday ? {background:'#0d2c66'} : {}}
               >
                 {day.getDate()}
               </div>
             </div>
-            <div className="flex-1 flex flex-wrap gap-1.5 items-start py-1 min-h-[44px]">
+            <div className="flex-1 flex flex-wrap gap-1 content-start overflow-hidden">
               {items.length === 0 && <span className="text-xs text-gray-300 self-center">-</span>}
               {items.map(item => (
                 <button
                   key={item.id}
-                  className="text-left rounded-lg text-white text-xs px-2 py-1 max-w-full"
-                  style={{background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item)}}
+                  className="flex items-center gap-1 text-left text-xs max-w-full overflow-hidden"
                   onClick={() => onSelectDelivery(item)}
                 >
-                  <span className="block truncate">[{item.status === '納入済み' ? '済' : '未'}] {item.project_name}</span>
+                  <span className="flex-shrink-0 rounded-full" style={{ width: 8, height: 8, background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item) }} />
+                  <span className="truncate" style={{ color: item.status === '納入済み' ? '#9ca3af' : '#1f2937', textDecoration: item.status === '納入済み' ? 'line-through' : 'none' }}>
+                    {item.project_name}
+                  </span>
                 </button>
               ))}
             </div>
