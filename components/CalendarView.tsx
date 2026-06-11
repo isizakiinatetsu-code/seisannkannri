@@ -101,16 +101,16 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
 
     setAnimating(true);
     if (dx < -threshold) {
-      // 次へ：左端まで飛ばしてからcurrentを更新
-      setOffset(-w);
+      // 次へ：現在ページを左に飛ばす（translateX(-100%)相当になるよう大きな値）
+      setOffset(-w - 10);
       setTimeout(() => {
         navigate(1);
         setAnimating(false);
         setOffset(0);
       }, 280);
     } else if (dx > threshold) {
-      // 前へ：右端まで飛ばしてからcurrentを更新
-      setOffset(w);
+      // 前へ：現在ページを右に飛ばす
+      setOffset(w + 10);
       setTimeout(() => {
         navigate(-1);
         setAnimating(false);
@@ -142,7 +142,6 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     return new Date(d.getFullYear(), d.getMonth(), diff);
   }
 
-  const w = containerRef.current?.offsetWidth ?? 390;
   const transition = animating ? 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none';
 
   function renderPage(date: Date) {
@@ -198,7 +197,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
         {/* 前のページ（左） */}
         <div
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(${offset - w}px)`, transition, willChange: 'transform' }}
+          style={{ transform: `translateX(calc(-100% + ${offset}px))`, transition, willChange: 'transform' }}
         >
           {renderPage(getPrev(current))}
         </div>
@@ -212,7 +211,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
         {/* 次のページ（右） */}
         <div
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(${offset + w}px)`, transition, willChange: 'transform' }}
+          style={{ transform: `translateX(calc(100% + ${offset}px))`, transition, willChange: 'transform' }}
         >
           {renderPage(getNext(current))}
         </div>
