@@ -246,33 +246,34 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
   return (
-    <div className="p-1 md:p-3">
+    <div className="flex flex-col h-full">
       {/* 曜日ヘッダー */}
-      <div className="grid mb-1" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
+      <div className="grid flex-shrink-0" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
         {dayNames.map((d, i) => (
-          <div key={d} className={`text-center text-xs py-1 font-medium ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-500'}`}>
+          <div key={d} className={`text-center text-sm py-1.5 font-semibold ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-600'}`}>
             {d}
           </div>
         ))}
       </div>
-      {/* 日付グリッド */}
+      {/* 日付グリッド：週ごとにflex-1で均等分割 */}
+      <div className="flex-1 flex flex-col min-h-0">
       {weeks.map((week, wi) => (
-        <div key={wi} className="grid border-t border-gray-200" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
+        <div key={wi} className="grid border-t border-gray-200 flex-1" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
           {week.map((day, di) => {
-            if (!day) return <div key={di} className="min-h-[60px] md:min-h-[100px] bg-gray-50/50 min-w-0" />;
+            if (!day) return <div key={di} className="bg-gray-50/50 min-w-0" />;
             const dateStr = fmt(day);
             const items = deliveriesForDate(dateStr);
             const isToday = dateStr === fmt(today);
             const isSat = di === 5;
             const isSun = di === 6;
-            const maxShow = 2;
+            const maxShow = 3;
             return (
               <div
                 key={di}
-                className="min-h-[60px] md:min-h-[100px] p-0.5 md:p-1 cursor-pointer hover:bg-blue-50 transition-colors border-r border-gray-100 last:border-r-0 overflow-hidden min-w-0"
+                className="p-0.5 cursor-pointer hover:bg-blue-50 transition-colors border-r border-gray-100 last:border-r-0 overflow-hidden min-w-0"
                 onClick={() => onDateClick(dateStr)}
               >
-                <div className={`text-xs font-bold mb-0.5 md:mb-1 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full mx-auto
+                <div className={`text-sm font-bold mb-0.5 w-6 h-6 flex items-center justify-center rounded-full mx-auto
                   ${isToday ? 'bg-blue-600 text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}
                 >
                   {day.getDate()}
@@ -281,7 +282,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
                   <button
                     key={item.id}
                     className="w-full text-left mb-0.5 flex items-center gap-0.5 overflow-hidden"
-                    style={{ fontSize: '10px' }}
+                    style={{ fontSize: '11px' }}
                     onClick={e => { e.stopPropagation(); onSelectDelivery(item); }}
                   >
                     {/* 品目カラーの●（納入済みは灰色） */}
@@ -305,13 +306,14 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
                   </button>
                 ))}
                 {items.length > maxShow && (
-                  <div className="text-gray-400" style={{ fontSize: '10px' }}>他{items.length - maxShow}件</div>
+                  <div className="text-gray-400" style={{ fontSize: '11px' }}>他{items.length - maxShow}件</div>
                 )}
               </div>
             );
           })}
         </div>
       ))}
+      </div>
     </div>
   );
 }
@@ -447,11 +449,11 @@ function CategoryLegend() {
     { label: '納入済み', color: '#9ca3af' },
   ];
   return (
-    <div className="bg-white border-b px-3 py-2 flex flex-wrap gap-x-3 gap-y-1 flex-shrink-0">
+    <div className="bg-white border-b px-3 py-2 flex flex-wrap gap-x-3 gap-y-1.5 flex-shrink-0">
       {items.map(it => (
-        <div key={it.label} className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: it.color }} />
-          <span className="text-xs text-gray-600">{it.label}</span>
+        <div key={it.label} className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: it.color }} />
+          <span className="text-xs font-medium text-gray-700">{it.label}</span>
         </div>
       ))}
     </div>

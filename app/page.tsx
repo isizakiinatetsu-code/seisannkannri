@@ -309,19 +309,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ---- スマホ用 一覧タブの検索バー ---- */}
-        {tab === 'list' && (
-          <div className="md:hidden bg-white border-b px-4 py-2 flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setShowSearch(s => !s)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${hasFilters ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >
-              🔍 {showSearch ? '閉じる' : '検索'}
-            </button>
-            <span className="text-sm text-gray-500">{deliveries.length}件</span>
-            {hasFilters && <button onClick={() => setFilters(emptyFilters)} className="text-xs text-blue-600 hover:underline">クリア</button>}
-          </div>
-        )}
+        {/* スマホ用 検索タブは検索パネルを常時上部に表示するため個別バー不要 */}
 
         {/* インポートメッセージ */}
         {importMsg && (
@@ -352,7 +340,7 @@ export default function HomePage() {
                 {tab === 'list' && (
                   hasFilters
                     ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
-                    : <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+                    : <div className="md:flex hidden flex-1 flex-col items-center justify-center text-gray-400 gap-3">
                         <div className="text-5xl">🔍</div>
                         <div className="font-medium text-base">検索条件を選択してください</div>
                         <button
@@ -367,11 +355,17 @@ export default function HomePage() {
               </>
             )}
 
-            {/* スマホ・iPad: 検索パネルオーバーレイ */}
+            {/* スマホ: 検索タブでは検索パネルを常時上部に固定表示 */}
+            {tab === 'list' && (
+              <div className="md:hidden flex-shrink-0 px-3 pt-3 pb-2 overflow-y-auto">
+                <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
+              </div>
+            )}
+            {/* iPad: 検索パネルオーバーレイ */}
             {tab === 'list' && showSearch && (
               <>
-                <div className="absolute inset-0 bg-black/20 z-20 lg:hidden" onClick={() => setShowSearch(false)} />
-                <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 lg:hidden">
+                <div className="absolute inset-0 bg-black/20 z-20 hidden md:block lg:hidden" onClick={() => setShowSearch(false)} />
+                <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 hidden md:block lg:hidden">
                   <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
                 </div>
               </>
