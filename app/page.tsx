@@ -148,6 +148,10 @@ export default function HomePage() {
     [...new Set(deliveries.map(d => d.vendor).filter(Boolean))].sort() as string[],
     [deliveries]
   );
+  const unloadLocationOptions = useMemo(() =>
+    [...new Set(deliveries.map(d => d.unload_location).filter(Boolean))].sort() as string[],
+    [deliveries]
+  );
   const projectOptions = useMemo(() => {
     const seen = new Set<string>();
     return deliveries
@@ -368,7 +372,7 @@ export default function HomePage() {
               <>
                 <div className="absolute inset-0 bg-black/20 z-20 lg:hidden" onClick={() => setShowSearch(false)} />
                 <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 lg:hidden">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} />
+                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
                 </div>
               </>
             )}
@@ -377,7 +381,7 @@ export default function HomePage() {
           {/* PC: 検索パネルをサイド表示 */}
           {tab === 'list' && showSearch && (
             <div className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
-              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} />
+              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
             </div>
           )}
         </main>
