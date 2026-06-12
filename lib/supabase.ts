@@ -38,3 +38,10 @@ export interface Delivery {
 }
 
 export type DeliveryInput = Omit<Delivery, 'id' | 'created_at' | 'updated_at'>;
+
+export interface DeliverySlip {
+  id: number;
+  delivery_id: number;
+  slip_image_path: string;
+  created_at: string;
+}

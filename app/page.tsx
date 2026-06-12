@@ -172,12 +172,12 @@ export default function HomePage() {
     <div className="flex h-screen bg-gray-100 overflow-hidden">
 
       {/* ============ PC: 左サイドバー (lg以上) ============ */}
-      <aside className="hidden lg:flex flex-col w-60 xl:w-64 flex-shrink-0 text-white" style={{ background: '#0d2c66' }}>
+      <aside className="hidden lg:flex flex-col w-64 xl:w-72 flex-shrink-0 text-white" style={{ background: '#0d2c66' }}>
         <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-8 h-8 object-contain rounded bg-white p-0.5" />
           <div>
-            <div className="font-bold text-sm leading-tight">INATETSU納入管理カレンダー</div>
+            <div className="font-bold text-xs leading-tight whitespace-nowrap">INATETSU納入管理カレンダー</div>
             <div className="text-xs text-white/50">Delivery Management</div>
           </div>
         </div>
@@ -374,7 +374,7 @@ export default function HomePage() {
 
           {/* PC: 検索パネルをサイド表示 */}
           {tab === 'list' && showSearch && (
-            <div className="hidden lg:block w-72 xl:w-80 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
+            <div className="hidden lg:block w-80 xl:w-96 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
               <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
             </div>
           )}

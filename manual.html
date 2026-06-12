@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INATETSU納入管理カレンダー 使用説明書</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hiragino Sans', 'Meiryo', 'Yu Gothic', sans-serif;
+    font-size: 11pt;
+    line-height: 1.7;
+    color: #1a1a1a;
+    background: #fff;
+    padding: 0;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 20mm 18mm 20mm 18mm;
+  }
+  h1 {
+    font-size: 22pt;
+    font-weight: bold;
+    color: #1a56a0;
+    border-bottom: 3px solid #1a56a0;
+    padding-bottom: 8px;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 11pt;
+    color: #555;
+    margin-bottom: 30px;
+  }
+  h2 {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #1a56a0;
+    border-left: 5px solid #1a56a0;
+    padding-left: 10px;
+    margin: 28px 0 12px;
+  }
+  h3 {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #333;
+    margin: 18px 0 8px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 3px;
+  }
+  p { margin-bottom: 8px; }
+  ul, ol { padding-left: 20px; margin-bottom: 10px; }
+  li { margin-bottom: 4px; }
+  .box {
+    background: #f0f6ff;
+    border: 1px solid #b3d1f5;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0;
+  }
+  .warn-box {
+    background: #fff8e1;
+    border: 1px solid #f0c040;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0;
+  }
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .step-num {
+    background: #1a56a0;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10pt;
+    font-weight: bold;
+    margin-top: 1px;
+  }
+  .step-body { flex: 1; }
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 9pt;
+    font-weight: bold;
+  }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-gray { background: #f3f4f6; color: #374151; }
+  .badge-orange { background: #fff7ed; color: #9a3412; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 10pt;
+  }
+  th {
+    background: #1a56a0;
+    color: white;
+    padding: 7px 10px;
+    text-align: left;
+    font-weight: bold;
+  }
+  td {
+    border: 1px solid #d1d5db;
+    padding: 6px 10px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .cover {
+    text-align: center;
+    padding-top: 60mm;
+    min-height: 297mm;
+  }
+  .cover h1 {
+    font-size: 26pt;
+    border: none;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .cover .subtitle { font-size: 13pt; text-align: center; color: #666; }
+  .cover .meta { margin-top: 60mm; font-size: 10pt; color: #888; }
+  .toc { margin: 20px 0; }
+  .toc-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px dotted #ccc;
+  }
+  .toc-section { color: #1a56a0; font-weight: bold; }
+  .icon { font-style: normal; }
+  @media print {
+    .page { margin: 0; }
+    .pagebreak { page-break-before: always; }
+  }
+  .pagebreak { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<!-- 表紙 -->
+<div class="page cover">
+  <h1>INATETSU<br>納入管理カレンダー</h1>
+  <div class="subtitle">使用説明書</div>
+  <div style="margin-top: 30px; color: #1a56a0; font-size: 12pt;">
+    鋼材・建材の納入予定を一元管理するシステム
+  </div>
+  <div class="meta">
+    <div>作成日：2026年6月</div>
+    <div>対象：現場スタッフ・管理担当者</div>
+  </div>
+</div>
+
+<!-- 目次 -->
+<div class="page pagebreak">
+  <h1>目次</h1>
+  <div class="toc">
+    <div class="toc-item"><span class="toc-section">1. システム概要</span><span>3</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">1.1 主な機能</span><span>3</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">1.2 アクセス方法</span><span>3</span></div>
+    <div class="toc-item"><span class="toc-section">2. 画面構成</span><span>4</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">2.1 カレンダータブ</span><span>4</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">2.2 リストタブ</span><span>4</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">2.3 検索タブ</span><span>4</span></div>
+    <div class="toc-item"><span class="toc-section">3. カレンダーの使い方</span><span>5</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">3.1 月表示・週表示の切り替え</span><span>5</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">3.2 スワイプ操作（スマートフォン）</span><span>5</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">3.3 品目の色凡例</span><span>5</span></div>
+    <div class="toc-item"><span class="toc-section">4. 納入予定の管理</span><span>6</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">4.1 新規登録</span><span>6</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">4.2 詳細確認・編集</span><span>6</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">4.3 納入済みにする</span><span>6</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">4.4 削除する</span><span>7</span></div>
+    <div class="toc-item"><span class="toc-section">5. 納入伝票の管理</span><span>7</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">5.1 伝票のアップロード</span><span>7</span></div>
+    <div class="toc-item"><span style="padding-left:16px;">5.2 複数枚の伝票</span><span>7</span></div>
+    <div class="toc-item"><span class="toc-section">6. 検索・絞り込み</span><span>8</span></div>
+    <div class="toc-item"><span class="toc-section">7. Googleスプレッドシートとの連携</span><span>8</span></div>
+    <div class="toc-item"><span class="toc-section">8. よくある質問</span><span>9</span></div>
+  </div>
+</div>
+
+<!-- 1. システム概要 -->
+<div class="page pagebreak">
+  <h1>1. システム概要</h1>
+  <p>
+    「INATETSU納入管理カレンダー」は、鋼材・建材の納入予定をカレンダー形式で一元管理するシステムです。
+    スマートフォン・タブレット・パソコンのブラウザから、外出先や現場でもアクセスできます。
+  </p>
+
+  <h2>1.1 主な機能</h2>
+  <table>
+    <tr><th>機能</th><th>説明</th></tr>
+    <tr><td>カレンダー表示</td><td>月表示・週表示で納入予定を一覧できます。祝日は赤色で表示されます。</td></tr>
+    <tr><td>リスト表示</td><td>納入予定を日付順の一覧で確認できます。</td></tr>
+    <tr><td>新規登録</td><td>物件名・品目・業者・日程などを入力して予定を登録できます。</td></tr>
+    <tr><td>納入済み管理</td><td>納入が完了したらワンタップで「納入済み」にできます。</td></tr>
+    <tr><td>伝票アップロード</td><td>納入伝票の写真を複数枚添付できます。</td></tr>
+    <tr><td>検索・絞り込み</td><td>物件名・品目・業者・降し場所・日付・ステータスで絞り込めます。</td></tr>
+    <tr><td>スプレッドシート連携</td><td>Googleスプレッドシートから納入予定を一括インポートできます。</td></tr>
+  </table>
+
+  <h2>1.2 アクセス方法</h2>
+  <div class="box">
+    <strong>ブラウザからアクセス：</strong>管理者から共有されたURLをブラウザで開いてください。<br>
+    <strong>ホーム画面に追加（スマートフォン）：</strong>ブラウザのメニューから「ホーム画面に追加」を選ぶと、アプリのように起動できます。
+  </div>
+
+  <h3>対応ブラウザ</h3>
+  <ul>
+    <li>iPhone / iPad：Safari（推奨）、Chrome</li>
+    <li>Android：Chrome</li>
+    <li>パソコン：Chrome、Safari、Edge、Firefox</li>
+  </ul>
+</div>
+
+<!-- 2. 画面構成 -->
+<div class="page pagebreak">
+  <h1>2. 画面構成</h1>
+  <p>画面下部に3つのタブがあり、タップして切り替えます。</p>
+
+  <table>
+    <tr><th>タブ</th><th>アイコン</th><th>内容</th></tr>
+    <tr><td>カレンダー</td><td>📅</td><td>月表示または週表示でカレンダーを確認する</td></tr>
+    <tr><td>リスト</td><td>📋</td><td>納入予定を日付順の一覧で確認する</td></tr>
+    <tr><td>検索</td><td>🔍</td><td>条件を指定して絞り込み検索をする</td></tr>
+  </table>
+
+  <h2>2.1 カレンダータブ</h2>
+  <p>カレンダー形式で納入予定を確認します。各日付のマス内に品目を示すカラードットと物件名が表示されます。</p>
+  <ul>
+    <li><span class="badge badge-orange">予定</span>　通常のカラードット＋物件名で表示</li>
+    <li><span class="badge badge-gray">納入済み</span>　グレー色＋取り消し線で表示</li>
+    <li>日付をタップ → その日の納入一覧が下部に表示されます</li>
+    <li>さらに各項目をタップ → 詳細モーダルが開きます</li>
+  </ul>
+
+  <h2>2.2 リストタブ</h2>
+  <p>全納入予定を日付順に一覧表示します。</p>
+  <ul>
+    <li>各行の右端のステータスバッジをタップして詳細を確認できます</li>
+    <li>納入済みは文字がグレーになります</li>
+  </ul>
+
+  <h2>2.3 検索タブ（スマートフォン）</h2>
+  <p>スマートフォンでは「検索」タブに絞り込み条件が常時表示されます。条件を設定するとリアルタイムで件数が更新されます。</p>
+</div>
+
+<!-- 3. カレンダーの使い方 -->
+<div class="page pagebreak">
+  <h1>3. カレンダーの使い方</h1>
+
+  <h2>3.1 月表示・週表示の切り替え</h2>
+  <p>画面上部のコントロールバーで切り替えます。</p>
+  <table>
+    <tr><th>操作</th><th>内容</th></tr>
+    <tr><td>「月」ボタン</td><td>1ヶ月分のカレンダーを表示</td></tr>
+    <tr><td>「週」ボタン</td><td>1週間分のカレンダーを表示（スマートフォンで見やすい）</td></tr>
+    <tr><td>「今日」ボタン</td><td>今日の日付に戻る</td></tr>
+    <tr><td>「＜」「＞」ボタン</td><td>前月・翌月（または前週・翌週）に移動</td></tr>
+  </table>
+
+  <h2>3.2 スワイプ操作（スマートフォン）</h2>
+  <p>カレンダーを左右にスワイプすると月・週を切り替えられます。</p>
+  <div class="box">
+    <ul>
+      <li>左スワイプ → 翌月（翌週）へ移動</li>
+      <li>右スワイプ → 前月（前週）へ移動</li>
+    </ul>
+    ※スワイプ中は上下スクロールがロックされます。縦方向に動かしたい場合は、スワイプを完全に止めてから縦スクロールしてください。
+  </div>
+
+  <h2>3.3 品目の色凡例</h2>
+  <p>画面下部に品目カテゴリとその色が表示されています。</p>
+  <table>
+    <tr><th>色</th><th>品目カテゴリ</th></tr>
+    <tr><td><span class="dot" style="background:#3b82f6;"></span>青</td><td>型板</td></tr>
+    <tr><td><span class="dot" style="background:#10b981;"></span>緑</td><td>一次加工品</td></tr>
+    <tr><td><span class="dot" style="background:#f59e0b;"></span>黄</td><td>二次部材</td></tr>
+    <tr><td><span class="dot" style="background:#ef4444;"></span>赤</td><td>副資材</td></tr>
+    <tr><td><span class="dot" style="background:#8b5cf6;"></span>紫</td><td>鋼材</td></tr>
+    <tr><td><span class="dot" style="background:#ec4899;"></span>ピンク</td><td>スプライス</td></tr>
+    <tr><td><span class="dot" style="background:#06b6d4;"></span>水色</td><td>ブレース</td></tr>
+    <tr><td><span class="dot" style="background:#f97316;"></span>オレンジ</td><td>ボルト</td></tr>
+    <tr><td><span class="dot" style="background:#84cc16;"></span>黄緑</td><td>支給品 / 現場用ボルト</td></tr>
+    <tr><td><span class="dot" style="background:#14b8a6;"></span>緑青</td><td>ハイベース</td></tr>
+    <tr><td><span class="dot" style="background:#6b7280;"></span>グレー</td><td>その他</td></tr>
+  </table>
+</div>
+
+<!-- 4. 納入予定の管理 -->
+<div class="page pagebreak">
+  <h1>4. 納入予定の管理</h1>
+
+  <h2>4.1 新規登録</h2>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">画面右上の <strong>「＋」ボタン</strong>をタップします。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">入力フォームが開きます。以下の項目を入力してください。</div>
+  </div>
+
+  <table>
+    <tr><th>項目</th><th>必須</th><th>説明</th></tr>
+    <tr><td>物件名</td><td>●</td><td>工事・物件の名称</td></tr>
+    <tr><td>品目</td><td>●</td><td>プルダウンから選択（型板・鋼材など）</td></tr>
+    <tr><td>内容・規格</td><td></td><td>材料の規格・仕様など</td></tr>
+    <tr><td>業者名</td><td>●</td><td>納入する業者の名前</td></tr>
+    <tr><td>降し場所</td><td>●</td><td>荷降ろし場所</td></tr>
+    <tr><td>保管場所</td><td></td><td>搬入後の保管場所</td></tr>
+    <tr><td>納入予定日</td><td>●</td><td>日付を選択</td></tr>
+    <tr><td>納入予定時刻</td><td></td><td>時間帯（例：午前・10:00）</td></tr>
+    <tr><td>数量・単位</td><td></td><td>数量と単位（本・枚など）</td></tr>
+    <tr><td>発注番号</td><td></td><td>発注書・注文番号</td></tr>
+    <tr><td>備考</td><td></td><td>特記事項</td></tr>
+  </table>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">「登録する」ボタンをタップして保存します。</div>
+  </div>
+
+  <h2>4.2 詳細確認・編集</h2>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">カレンダーまたはリストから確認したい予定をタップします。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">詳細モーダルが開きます。登録内容・伝票画像・ステータスを確認できます。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">編集する場合は「✏️ 編集する」ボタンをタップします。</div>
+  </div>
+
+  <h2>4.3 納入済みにする</h2>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">該当の予定をタップして詳細モーダルを開きます。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">緑色の「✓ 納入済みにする」ボタンをタップします。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">カレンダー上でグレーの取り消し線表示に切り替わります。</div>
+  </div>
+  <div class="warn-box">
+    間違えた場合は「↩ 予定に戻す」ボタンで元に戻せます。
+  </div>
+
+  <h2>4.4 削除する</h2>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">詳細モーダルの「🗑️ 削除する」ボタンをタップします。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">確認ダイアログが表示されます。「OK」をタップすると削除されます。</div>
+  </div>
+  <div class="warn-box">
+    <strong>注意：</strong>削除した予定は元に戻せません。誤って削除しないようご注意ください。
+  </div>
+</div>
+
+<!-- 5. 納入伝票の管理 -->
+<div class="page pagebreak">
+  <h1>5. 納入伝票の管理</h1>
+  <p>納入伝票（写真・PDF）を各納入予定に複数枚添付できます。</p>
+
+  <h2>5.1 伝票のアップロード</h2>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">詳細モーダルを開き、「納入伝票スキャン」エリアをタップします。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">スマートフォンのカメラ撮影またはギャラリーから写真を選びます。</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">アップロードが完了すると伝票画像が表示されます。</div>
+  </div>
+
+  <div class="box">
+    <strong>対応ファイル形式：</strong>JPG / PNG / PDF / WEBP<br>
+    ※スマートフォンのカメラで撮影した写真（JPG）が最も使いやすいです。
+  </div>
+
+  <h2>5.2 複数枚の伝票</h2>
+  <p>1つの納入予定に対して、何枚でも伝票を追加できます。</p>
+  <ul>
+    <li>追加済みの伝票は番号付きで一覧表示されます（伝票1、伝票2…）</li>
+    <li>各伝票の右上の「×」ボタンで個別に削除できます</li>
+    <li>「伝票を追加」ボタンで続けて追加できます</li>
+    <li>伝票画像をタップすると大きな表示で確認できます</li>
+  </ul>
+
+  <div class="warn-box">
+    <strong>注意：</strong>削除した伝票画像は元に戻せません。
+  </div>
+</div>
+
+<!-- 6. 検索・絞り込み -->
+<div class="page pagebreak">
+  <h1>6. 検索・絞り込み</h1>
+  <p>
+    スマートフォンでは「検索」タブ、パソコン・タブレットでは画面右上の「絞り込み」ボタンから検索パネルを開けます。
+  </p>
+
+  <table>
+    <tr><th>絞り込み項目</th><th>操作方法</th></tr>
+    <tr><td>物件名</td><td>プルダウンから選択</td></tr>
+    <tr><td>品目カテゴリ</td><td>プルダウンから選択（型板・鋼材など）</td></tr>
+    <tr><td>業者名</td><td>プルダウンから選択</td></tr>
+    <tr><td>降し場所</td><td>プルダウンから選択</td></tr>
+    <tr><td>日付（開始〜終了）</td><td>日付を入力して期間指定</td></tr>
+    <tr><td>ステータス</td><td>「予定」または「納入済み」を選択</td></tr>
+  </table>
+
+  <div class="box">
+    複数の条件を組み合わせることができます。<br>
+    すべての条件をリセットするには「フィルターをクリア」ボタンをタップします。
+  </div>
+
+  <p>検索パネルには現在の絞り込み結果の件数が表示されます。</p>
+</div>
+
+<!-- 7. Googleスプレッドシートとの連携 -->
+<div class="page pagebreak">
+  <h1>7. Googleスプレッドシートとの連携</h1>
+  <p>
+    Googleスプレッドシートに入力された納入予定データを、このシステムに一括インポートできます。
+    操作は管理者が行います。
+  </p>
+
+  <h2>インポートの仕組み</h2>
+  <ul>
+    <li>スプレッドシートの1行目をヘッダー行として読み込みます</li>
+    <li>以下の列名が認識されます</li>
+  </ul>
+
+  <table>
+    <tr><th>列名（スプレッドシート）</th><th>対応項目</th></tr>
+    <tr><td>納入予定日</td><td>納入日</td></tr>
+    <tr><td>納入予定時刻</td><td>時刻</td></tr>
+    <tr><td>物件名</td><td>物件名</td></tr>
+    <tr><td>品目</td><td>品目カテゴリ</td></tr>
+    <tr><td>内容・規格</td><td>規格・仕様</td></tr>
+    <tr><td>業者名</td><td>業者名</td></tr>
+    <tr><td>降し場所</td><td>降し場所</td></tr>
+    <tr><td>備考</td><td>備考</td></tr>
+  </table>
+
+  <h2>インポートのルール</h2>
+  <ul>
+    <li>同じ「日付・物件名・品目」の組み合わせは重複登録されません</li>
+    <li>業者名・降し場所が「未設定」のデータは、スプレッドシートに値があれば自動更新されます</li>
+    <li>直近3ヶ月以内のデータのみインポートされます</li>
+  </ul>
+
+  <div class="warn-box">
+    <strong>注意：</strong>このシステムで「納入済み」にしても、Googleスプレッドシートには反映されません。スプレッドシートは読み込み専用の連携です。
+  </div>
+</div>
+
+<!-- 8. よくある質問 -->
+<div class="page pagebreak">
+  <h1>8. よくある質問</h1>
+
+  <h3>Q. スプレッドシートでインポートしたのに業者名が「未設定」になっています</h3>
+  <p>
+    スプレッドシートの業者名列が空白になっている可能性があります。スプレッドシートを確認し、業者名を入力してから再度インポートを実行してください。再インポートすると「未設定」のレコードが自動的に更新されます。
+  </p>
+
+  <h3>Q. カレンダーをスワイプしようとすると上下に動いてしまいます</h3>
+  <p>
+    水平方向にゆっくりとスワイプを開始すると、上下スクロールが防止され、カレンダーのページが切り替わります。指を斜めに動かさず、なるべく水平に動かすとスムーズに動作します。
+  </p>
+
+  <h3>Q. 伝票をアップロードしたのに表示されません</h3>
+  <p>
+    モーダルを一度閉じて再度開いてください。読み込みに時間がかかる場合があります。
+  </p>
+
+  <h3>Q. 間違えて納入済みにしてしまいました</h3>
+  <p>
+    詳細モーダルの「↩ 予定に戻す」ボタンをタップすると「予定」状態に戻せます。
+  </p>
+
+  <h3>Q. 削除してしまったデータを元に戻したい</h3>
+  <p>
+    削除したデータは元に戻せません。再度手動で登録するか、Googleスプレッドシートから再インポートしてください。
+  </p>
+
+  <h3>Q. 複数人で同時に使えますか？</h3>
+  <p>
+    はい、クラウド（Supabase）にデータを保存しているため、複数人で同時に利用できます。ただし、同じ予定を同時に編集すると片方の変更が上書きされる場合があります。
+  </p>
+
+  <h3>Q. スマートフォンでホーム画面に追加するには？</h3>
+  <ul>
+    <li><strong>iPhone（Safari）：</strong>共有ボタン（四角から上矢印）→「ホーム画面に追加」</li>
+    <li><strong>Android（Chrome）：</strong>メニュー（点3つ）→「ホーム画面に追加」</li>
+  </ul>
+
+  <h3>Q. 週表示でカレンダーが画面に収まりません</h3>
+  <p>
+    週表示は画面に1週間分が収まるように設計されています。表示がはみ出す場合はブラウザのズームを100%に戻してください。
+  </p>
+
+  <div style="margin-top: 40px; text-align: center; color: #888; font-size: 9pt; border-top: 1px solid #ddd; padding-top: 16px;">
+    INATETSU納入管理カレンダー 使用説明書　|　2026年6月版
+  </div>
+</div>
+
+</body>
+</html>

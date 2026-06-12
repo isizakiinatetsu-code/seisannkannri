@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { Delivery } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { Delivery, DeliverySlip } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
 interface Props {
@@ -22,28 +22,47 @@ export default function DeliveryModal({
   onDelete,
   onSlipUploaded,
 }: Props) {
+  const [slips, setSlips] = useState<DeliverySlip[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [loadingSlips, setLoadingSlips] = useState(true);
   const color = getCategoryColor(delivery.item);
+
+  useEffect(() => {
+    fetch(`/api/deliveries/${delivery.id}/slips`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setSlips(data); })
+      .catch(() => {})
+      .finally(() => setLoadingSlips(false));
+  }, [delivery.id]);
 
   async function handleSlipUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
       const data = await res.json();
-      if (data.path) {
-        await fetch(`/api/deliveries/${delivery.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slip_image_path: data.path }),
-        });
-        onSlipUploaded(delivery.id, data.path);
+      if (data.id) {
+        setSlips(prev => [...prev, data]);
+        onSlipUploaded(delivery.id, data.slip_image_path);
+      } else {
+        alert(data.error ?? 'アップロードに失敗しました');
       }
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleDeleteSlip(slipId: number) {
+    if (!confirm('この伝票を削除しますか？')) return;
+    const res = await fetch(`/api/slips/${slipId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setSlips(prev => prev.filter(s => s.id !== slipId));
+    } else {
+      alert('削除に失敗しました');
     }
   }
 
@@ -125,28 +144,52 @@ export default function DeliveryModal({
             </Row>
           )}
 
-          {/* Slip image */}
-          {delivery.slip_image_path ? (
-            <div>
-              <div className="text-xs text-gray-500 mb-1 font-medium">納入伝票</div>
-              <a href={delivery.slip_image_path} target="_blank" rel="noopener noreferrer">
-                <img
-                  src={delivery.slip_image_path}
-                  alt="納入伝票"
-                  className="w-full max-h-48 object-contain border rounded-lg"
-                />
-              </a>
+          {/* Slip images */}
+          <div>
+            <div className="text-xs text-gray-500 mb-2 font-medium">
+              納入伝票 {!loadingSlips && slips.length > 0 && `(${slips.length}枚)`}
             </div>
-          ) : (
-            <div>
-              <div className="text-xs text-gray-500 mb-1 font-medium">納入伝票スキャン</div>
-              <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
-                <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
-                <span className="text-sm text-gray-500">{uploading ? 'アップロード中...' : '伝票を添付 (JPG/PNG/PDF)'}</span>
-                <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
-              </label>
-            </div>
-          )}
+
+            {loadingSlips ? (
+              <div className="text-sm text-gray-400 text-center py-2">読み込み中...</div>
+            ) : (
+              <>
+                {slips.length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {slips.map((slip, i) => (
+                      <div key={slip.id} className="relative border rounded-lg overflow-hidden">
+                        <a href={slip.slip_image_path} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={slip.slip_image_path}
+                            alt={`納入伝票 ${i + 1}`}
+                            className="w-full max-h-48 object-contain bg-gray-50"
+                          />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteSlip(slip.id)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                          title="削除"
+                        >
+                          ×
+                        </button>
+                        <div className="text-xs text-gray-400 px-2 py-1 bg-gray-50">
+                          伝票 {i + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
+                  <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
+                  <span className="text-sm text-gray-500">
+                    {uploading ? 'アップロード中...' : slips.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
+                  </span>
+                  <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
+                </label>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Actions */}
