@@ -85,15 +85,13 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
         </select>
       </div>
 
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="label">日付（開始）</label>
-          <input type="date" value={filters.date_from} onChange={set('date_from')} className="input" />
-        </div>
-        <div className="flex-1">
-          <label className="label">日付（終了）</label>
-          <input type="date" value={filters.date_to} onChange={set('date_to')} className="input" />
-        </div>
+      <div>
+        <label className="label">日付（開始）</label>
+        <input type="date" value={filters.date_from} onChange={set('date_from')} className="input" />
+      </div>
+      <div>
+        <label className="label">日付（終了）</label>
+        <input type="date" value={filters.date_to} onChange={set('date_to')} className="input" />
       </div>
 
       <div>
