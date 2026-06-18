@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Delivery, DeliverySlip } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
+import { processToScanStyle } from '@/lib/scanImage';
 
 interface Props {
   delivery: Delivery;
@@ -27,6 +28,7 @@ export default function DeliveryModal({
   const [slips, setSlips] = useState<DeliverySlip[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loadingSlips, setLoadingSlips] = useState(true);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const color = getCategoryColor(delivery.item);
 
   useEffect(() => {
@@ -43,8 +45,9 @@ export default function DeliveryModal({
     e.target.value = '';
     setUploading(true);
     try {
+      const processedFile = await processToScanStyle(file);
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', processedFile);
       const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
       const data = await res.json();
       if (data.id) {
@@ -55,6 +58,41 @@ export default function DeliveryModal({
       }
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (slips.length === 0) return;
+    setGeneratingPdf(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+
+      for (let i = 0; i < slips.length; i++) {
+        if (i > 0) doc.addPage();
+        const slip = slips[i];
+        const dataUrl = await imageUrlToDataUrl(slip.slip_image_path);
+        const { width, height } = await getImageSize(dataUrl);
+        const margin = 10;
+        const maxW = pageW - margin * 2;
+        const maxH = pageH - margin * 2 - 10;
+        const ratio = Math.min(maxW / width, maxH / height);
+        const w = width * ratio;
+        const h = height * ratio;
+        const x = (pageW - w) / 2;
+        doc.setFontSize(11);
+        doc.text(`${delivery.project_name} / ${delivery.item}（伝票 ${i + 1}/${slips.length}）`, margin, 8);
+        doc.addImage(dataUrl, 'JPEG', x, margin + 4, w, h);
+      }
+
+      doc.save(`納入伝票_${delivery.project_name}_${delivery.delivery_date}.pdf`);
+    } catch (e) {
+      console.error(e);
+      alert('PDFの生成に失敗しました');
+    } finally {
+      setGeneratingPdf(false);
     }
   }
 
@@ -148,8 +186,19 @@ export default function DeliveryModal({
 
           {/* Slip images */}
           <div>
-            <div className="text-xs text-gray-500 mb-2 font-medium">
-              納入伝票 {!loadingSlips && slips.length > 0 && `(${slips.length}枚)`}
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-gray-500 font-medium">
+                納入伝票 {!loadingSlips && slips.length > 0 && `(${slips.length}枚)`}
+              </div>
+              {!loadingSlips && slips.length > 0 && (
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={generatingPdf}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {generatingPdf ? '生成中...' : '📄 PDFで保存'}
+                </button>
+              )}
             </div>
 
             {loadingSlips ? (
@@ -240,6 +289,25 @@ export default function DeliveryModal({
       </div>
     </div>
   );
+}
+
+async function imageUrlToDataUrl(url: string): Promise<string> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function getImageSize(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.width, height: img.height });
+    img.src = dataUrl;
+  });
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
