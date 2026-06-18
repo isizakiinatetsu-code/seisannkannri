@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { requireEditRole } from '@/lib/auth';
 
 const BUCKET = 'slips';
 
@@ -16,6 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = requireEditRole(req);
+  if (denied) return denied;
   const { id } = await params;
   try {
     const formData = await req.formData();

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { requireEditRole } from '@/lib/auth';
 
 const BUCKET = 'slips';
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = requireEditRole(req);
+  if (denied) return denied;
   const { id } = await params;
   const supabase = getSupabase();
 

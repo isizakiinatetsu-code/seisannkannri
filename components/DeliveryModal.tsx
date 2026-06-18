@@ -216,13 +216,15 @@ export default function DeliveryModal({
                             className="w-full max-h-48 object-contain bg-gray-50"
                           />
                         </a>
-                        <button
-                          onClick={() => handleDeleteSlip(slip.id)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                          title="削除"
-                        >
-                          ×
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => handleDeleteSlip(slip.id)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                            title="削除"
+                          >
+                            ×
+                          </button>
+                        )}
                         <div className="text-xs text-gray-400 px-2 py-1 bg-gray-50">
                           伝票 {i + 1}
                         </div>
@@ -231,13 +233,15 @@ export default function DeliveryModal({
                   </div>
                 )}
 
-                <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
-                  <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
-                  <span className="text-sm text-gray-500">
-                    {uploading ? 'アップロード中...' : slips.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
-                  </span>
-                  <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
-                </label>
+                {canEdit && (
+                  <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
+                    <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
+                    <span className="text-sm text-gray-500">
+                      {uploading ? 'アップロード中...' : slips.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
+                    </span>
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
+                  </label>
+                )}
               </>
             )}
           </div>
@@ -245,22 +249,24 @@ export default function DeliveryModal({
 
         {/* Actions */}
         <div className="p-4 space-y-2 border-t sticky bottom-0 bg-white">
-          {delivery.status !== '納入済み' ? (
-            <button
-              onClick={() => { onMarkDelivered(delivery.id); onClose(); }}
-              className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
-              style={{ background: '#16a34a' }}
-            >
-              ✓ 納入済みにする
-            </button>
-          ) : (
-            <button
-              onClick={() => { if (confirm('納入済みを「予定」に戻しますか？')) { onRevertDelivered(delivery.id); onClose(); } }}
-              className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
-              style={{ background: '#d97706' }}
-            >
-              ↩ 予定に戻す
-            </button>
+          {canEdit && (
+            delivery.status !== '納入済み' ? (
+              <button
+                onClick={() => { onMarkDelivered(delivery.id); onClose(); }}
+                className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
+                style={{ background: '#16a34a' }}
+              >
+                ✓ 納入済みにする
+              </button>
+            ) : (
+              <button
+                onClick={() => { if (confirm('納入済みを「予定」に戻しますか？')) { onRevertDelivered(delivery.id); onClose(); } }}
+                className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
+                style={{ background: '#d97706' }}
+              >
+                ↩ 予定に戻す
+              </button>
+            )
           )}
           {canEdit && (
             <button

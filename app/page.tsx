@@ -210,14 +210,16 @@ export default function HomePage() {
           ))}
         </nav>
         <div className="p-3 space-y-2 border-t border-white/10">
-          <button
-            onClick={handleGsSync}
-            disabled={gsSyncing}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
-          >
-            <span>{gsSyncing ? '⏳' : '🔄'}</span>
-            <span>{gsSyncing ? '同期中...' : 'Sheets 同期'}</span>
-          </button>
+          {canEdit && (
+            <button
+              onClick={handleGsSync}
+              disabled={gsSyncing}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+            >
+              <span>{gsSyncing ? '⏳' : '🔄'}</span>
+              <span>{gsSyncing ? '同期中...' : 'Sheets 同期'}</span>
+            </button>
+          )}
           {canEdit && (
             <button
               onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
