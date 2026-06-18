@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
+import { uploadToDrive } from '@/lib/googleDrive';
 
 const BUCKET = 'slips';
 
@@ -47,6 +48,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .select()
       .single();
     if (insertError) throw insertError;
+
+    // ベストエフォートで Google Drive の【納入管理】フォルダにも保存する。
+    // Claude Cowork などから検索・参照できるようにするための経路。失敗しても伝票保存は成功扱い。
+    try {
+      const { data: delivery } = await supabase
+        .from('deliveries')
+        .select('project_name, item, delivery_date')
+        .eq('id', id)
+        .maybeSingle();
+      const datePart = delivery?.delivery_date ?? new Date().toISOString().slice(0, 10);
+      const projectPart = (delivery?.project_name ?? '物件未設定').replace(/[\\/:*?"<>|]/g, '_');
+      const itemPart = (delivery?.item ?? '').replace(/[\\/:*?"<>|]/g, '_');
+      const driveName = `${datePart}_${projectPart}_${itemPart}_伝票${id}_${Date.now()}.${ext}`;
+      await uploadToDrive(buffer, driveName, file.type || 'image/jpeg');
+    } catch (driveErr) {
+      console.error('Drive 連携でエラー（無視して続行）', driveErr);
+    }
 
     return NextResponse.json(data);
   } catch (e) {
