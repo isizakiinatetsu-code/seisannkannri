@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
+import { requireEditRole } from '@/lib/auth';
 
 export async function GET() {
   try {
@@ -17,7 +18,9 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = requireEditRole(req);
+  if (denied) return denied;
   try {
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
     const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
