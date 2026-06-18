@@ -41,6 +41,17 @@ export default function HomePage() {
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   const [importMsg, setImportMsg] = useState('');
   const [gsSyncing, setGsSyncing] = useState(false);
+  const [role, setRole] = useState<'edit' | 'view' | null>(null);
+  const canEdit = role === 'edit';
+
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.json()).then(d => setRole(d.role)).catch(() => {});
+  }, []);
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
 
   const buildQuery = useCallback((f: SearchFilters) => {
     const params = new URLSearchParams();
@@ -207,15 +218,25 @@ export default function HomePage() {
             <span>{gsSyncing ? '⏳' : '🔄'}</span>
             <span>{gsSyncing ? '同期中...' : 'Sheets 同期'}</span>
           </button>
+          {canEdit && (
+            <button
+              onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-colors"
+              style={{ background: '#f5c000', color: '#0d2c66' }}
+            >
+              ＋ 予定を追加
+            </button>
+          )}
           <button
-            onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-colors"
-            style={{ background: '#f5c000', color: '#0d2c66' }}
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-medium w-full text-white/50 hover:text-white/80 transition-colors"
           >
-            ＋ 予定を追加
+            ログアウト
           </button>
         </div>
-        <div className="px-4 py-3 text-xs text-white/40 text-center">{deliveries.length}件のデータ</div>
+        <div className="px-4 py-1 text-xs text-white/40 text-center">
+          {role === 'view' ? '閲覧のみ' : '編集可'}　|　{deliveries.length}件のデータ
+        </div>
       </aside>
 
       {/* ============ メインエリア ============ */}
@@ -229,12 +250,14 @@ export default function HomePage() {
             <h1 className="font-bold text-base">INATETSU納入管理カレンダー</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 border border-white/30"
-            >
-              ＋ 追加
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 border border-white/30"
+              >
+                ＋ 追加
+              </button>
+            )}
           </div>
         </header>
 
@@ -264,12 +287,14 @@ export default function HomePage() {
           </div>
           {/* アクションボタン */}
           <div className="flex items-center gap-2 py-2">
-            <button
-              onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold bg-white/20 hover:bg-white/30 border border-white/30 whitespace-nowrap"
-            >
-              ＋ 追加
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold bg-white/20 hover:bg-white/30 border border-white/30 whitespace-nowrap"
+              >
+                ＋ 追加
+              </button>
+            )}
           </div>
         </header>
 
@@ -407,9 +432,10 @@ export default function HomePage() {
           onEdit={(d) => { setEditDelivery(d); setSelectedDelivery(null); }}
           onDelete={handleDelete}
           onSlipUploaded={handleSlipUploaded}
+          canEdit={canEdit}
         />
       )}
-      {showAddForm && (
+      {canEdit && showAddForm && (
         <DeliveryForm
           defaultDate={addDefaultDate}
           onSave={handleAdd}
@@ -418,7 +444,7 @@ export default function HomePage() {
           projects={projectOptions}
         />
       )}
-      {editDelivery && (
+      {canEdit && editDelivery && (
         <DeliveryForm
           initial={editDelivery}
           onSave={handleEdit}

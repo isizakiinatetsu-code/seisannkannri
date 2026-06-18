@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { getRoleFromRequest, requireEditRole } from '@/lib/auth';
+
+const STATUS_ONLY_FIELDS = new Set(['status', 'delivered_at']);
 
 export async function GET(
   _req: NextRequest,
@@ -33,6 +36,16 @@ export async function PATCH(
       fields[k] = body[k];
     }
 
+    // 「納入済みにする/予定に戻す」(status・delivered_at のみの変更) は閲覧者でも可。
+    // それ以外のフィールドを含む編集は購買課・総務 (edit権限) のみ。
+    const isStatusOnlyChange = Object.keys(fields).every(k => STATUS_ONLY_FIELDS.has(k));
+    if (!isStatusOnlyChange) {
+      const denied = requireEditRole(req);
+      if (denied) return denied;
+    } else if (!getRoleFromRequest(req)) {
+      return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 });
+    }
+
     if (Object.keys(fields).length === 0) {
       const { data: existing, error: existingError } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
       if (existingError) throw existingError;
@@ -57,9 +70,11 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = requireEditRole(req);
+  if (denied) return denied;
   try {
     const supabase = getSupabase();
     const { id } = await params;
