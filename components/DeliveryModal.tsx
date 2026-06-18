@@ -27,6 +27,7 @@ export default function DeliveryModal({
 }: Props) {
   const [slips, setSlips] = useState<DeliverySlip[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [loadingSlips, setLoadingSlips] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const color = getCategoryColor(delivery.item);
@@ -45,7 +46,9 @@ export default function DeliveryModal({
     e.target.value = '';
     setUploading(true);
     try {
+      setScanning(true);
       const processedFile = await processToScanStyle(file);
+      setScanning(false);
       const fd = new FormData();
       fd.append('file', processedFile);
       const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
@@ -58,6 +61,7 @@ export default function DeliveryModal({
       }
     } finally {
       setUploading(false);
+      setScanning(false);
     }
   }
 
@@ -237,7 +241,7 @@ export default function DeliveryModal({
                   <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
                     <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
                     <span className="text-sm text-gray-500">
-                      {uploading ? 'アップロード中...' : slips.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
+                      {scanning ? 'スキャン処理中...' : uploading ? 'アップロード中...' : slips.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
                     </span>
                     <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
                   </label>
