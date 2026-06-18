@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase, DeliveryInput } from '@/lib/supabase';
+import { requireEditRole } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireEditRole(req);
+  if (denied) return denied;
   try {
     const supabase = getSupabase();
     const body: DeliveryInput = await req.json();
