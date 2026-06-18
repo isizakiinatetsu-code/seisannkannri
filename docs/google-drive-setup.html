@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Drive【納入管理】連携 設定手順</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    line-height: 1.8; color: #1f2937; max-width: 820px; margin: 0 auto; padding: 24px;
+    background: #f9fafb;
+  }
+  h1 { font-size: 24px; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
+  h2 {
+    font-size: 19px; margin-top: 40px; background: #2563eb; color: #fff;
+    padding: 8px 14px; border-radius: 8px;
+  }
+  h3 { font-size: 16px; margin-top: 26px; color: #1d4ed8; }
+  .lead { background: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 6px; }
+  .warn { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 6px; }
+  .tip  { background: #f0fdf4; border-left: 4px solid #16a34a; padding: 12px 16px; border-radius: 6px; }
+  ol.steps { padding-left: 0; counter-reset: step; list-style: none; }
+  ol.steps > li {
+    position: relative; padding: 4px 0 18px 46px; margin-bottom: 6px;
+  }
+  ol.steps > li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 32px; height: 32px; background: #2563eb; color: #fff;
+    border-radius: 50%; text-align: center; line-height: 32px; font-weight: bold;
+  }
+  /* 画面モック */
+  .mock {
+    border: 1px solid #d1d5db; border-radius: 10px; overflow: hidden;
+    margin: 14px 0; box-shadow: 0 2px 8px rgba(0,0,0,.08); background: #fff;
+  }
+  .mock .bar {
+    background: #f3f4f6; border-bottom: 1px solid #e5e7eb; padding: 7px 12px;
+    font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 8px;
+  }
+  .mock .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .mock .body { padding: 16px; font-size: 13px; }
+  .gbtn {
+    display: inline-block; background: #2563eb; color: #fff; padding: 7px 16px;
+    border-radius: 6px; font-size: 13px; font-weight: 600;
+  }
+  .gbtn.gray { background: #e5e7eb; color: #374151; }
+  .field {
+    border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px;
+    background: #fff; color: #6b7280; margin: 6px 0; font-size: 13px;
+  }
+  .highlight { outline: 3px solid #f59e0b; outline-offset: 2px; border-radius: 4px; }
+  .tag-yellow { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+  code { background: #1f2937; color: #f9fafb; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .arrow { color: #f59e0b; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+  th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; }
+  th { background: #f3f4f6; }
+</style>
+</head>
+<body>
+
+<h1>📁 Google Drive【納入管理】連携 設定手順</h1>
+
+<p class="lead">
+カレンダーで撮った伝票写真を、自動で Google Drive の【納入管理】フォルダに保存し、
+Claude Cowork（claude.ai）から検索できるようにするための設定です。<br>
+<b>所要時間：約10〜15分。3つのパートに分かれています。</b>
+</p>
+
+<table>
+  <tr><th>パート</th><th>やること</th><th>場所</th></tr>
+  <tr><td>A</td><td>Drive API を有効化</td><td>Google Cloud Console</td></tr>
+  <tr><td>B</td><td>フォルダをサービスアカウントに共有</td><td>Google Drive</td></tr>
+  <tr><td>C</td><td>フォルダIDを Vercel に登録</td><td>Vercel</td></tr>
+</table>
+
+<div class="tip">
+💡 <b>サービスアカウントのメールアドレス</b>は、スプレッドシート連携で使ったものと同じです。
+<code>〇〇〇@〇〇〇.iam.gserviceaccount.com</code> という形のアドレスで、パートBで使います。
+分からなければ、パートA-3の画面で確認できます。
+</div>
+
+<!-- ============ パートA ============ -->
+<h2>パートA：Drive API を有効化する</h2>
+
+<ol class="steps">
+  <li>
+    ブラウザで <code>https://console.cloud.google.com/</code> を開く。<br>
+    <span class="tag-yellow">重要</span> 画面上部のプロジェクト名が、<b>スプレッドシート連携で使ったプロジェクトと同じ</b>か確認してください（違うと連携できません）。
+    <div class="mock">
+      <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#f59e0b"></span><span class="dot" style="background:#22c55e"></span> console.cloud.google.com</div>
+      <div class="body">
+        Google Cloud &nbsp;｜&nbsp; <span class="highlight">▼ 納入管理プロジェクト</span>（←ここがプロジェクト名）
+      </div>
+    </div>
+  </li>
+  <li>
+    左上の「<b>≡</b>（メニュー）」→「<b>APIとサービス</b>」→「<b>ライブラリ</b>」を開く。
+  </li>
+  <li>
+    検索ボックスに <span class="tag-yellow">Google Drive API</span> と入力して開き、<span class="gbtn">有効にする</span> を押す。
+    <div class="mock">
+      <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#f59e0b"></span><span class="dot" style="background:#22c55e"></span> APIライブラリ</div>
+      <div class="body">
+        🔍 <div class="field" style="display:inline-block;width:60%">Google Drive API</div><br><br>
+        <b>Google Drive API</b><br>
+        <span style="color:#6b7280">Google Drive のファイルを操作するAPI</span><br><br>
+        <span class="gbtn highlight">有効にする</span>
+      </div>
+    </div>
+    <div class="tip">すでに「APIを管理」と表示されていれば、有効化済みなのでそのままでOKです。</div>
+  </li>
+</ol>
+
+<!-- ============ パートB ============ -->
+<h2>パートB：フォルダをサービスアカウントに共有する</h2>
+
+<div class="warn">
+⚠️ <b>最重要ポイント。</b>ここを忘れると写真は保存されません。<br>
+サービスアカウント（ロボットのアカウント）に、フォルダへの「編集者」権限を渡します。
+</div>
+
+<ol class="steps">
+  <li>
+    Google Drive（<code>https://drive.google.com/</code>）を開き、【納入管理】フォルダを探す。<br>
+    まだ無ければ、<b>新規 → フォルダ</b> で「納入管理」という名前のフォルダを作る。
+    <div class="tip">
+      💡 <b>おすすめ：</b>「共有ドライブ」の中に作ると確実です（左メニューの「共有ドライブ」）。
+      サービスアカウントはマイドライブに保存容量を持たないため、マイドライブ直下だと
+      まれにエラーになることがあります。共有ドライブなら起きません。
+    </div>
+  </li>
+  <li>
+    【納入管理】フォルダを<b>右クリック</b> → 「<b>共有</b>」を選ぶ。
+    <div class="mock">
+      <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#f59e0b"></span><span class="dot" style="background:#22c55e"></span> Google Drive</div>
+      <div class="body">
+        📁 <b>納入管理</b><br>
+        <div style="margin-top:8px; border:1px solid #e5e7eb; border-radius:8px; width:200px; padding:6px 0;">
+          <div style="padding:4px 12px;">開く</div>
+          <div style="padding:4px 12px;" class="highlight">👤 共有</div>
+          <div style="padding:4px 12px;">名前を変更</div>
+        </div>
+      </div>
+    </div>
+  </li>
+  <li>
+    「ユーザーやグループを追加」の欄に、<b>サービスアカウントのメールアドレス</b>を貼り付ける。<br>
+    権限を <span class="tag-yellow">編集者</span> にして「送信」（または「完了」）を押す。
+    <div class="mock">
+      <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#f59e0b"></span><span class="dot" style="background:#22c55e"></span> 「納入管理」を共有</div>
+      <div class="body">
+        <div class="field highlight">〇〇〇@〇〇〇.iam.gserviceaccount.com</div>
+        権限：<span class="highlight">▼ 編集者</span><br><br>
+        <span class="gbtn">送信</span>
+      </div>
+    </div>
+    <div class="warn">
+      「通知が送れませんでした」のような警告が出ても問題ありません（相手はロボットなので通知不要）。そのまま進めてOKです。
+    </div>
+  </li>
+</ol>
+
+<!-- ============ パートC ============ -->
+<h2>パートC：フォルダIDを Vercel に登録する</h2>
+
+<ol class="steps">
+  <li>
+    Drive で【納入管理】フォルダを<b>開いた状態</b>で、ブラウザのアドレスバーを見る。<br>
+    URLの末尾 <code>folders/</code> の後ろの文字列が <b>フォルダID</b> です。これをコピー。
+    <div class="mock">
+      <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#f59e0b"></span><span class="dot" style="background:#22c55e"></span></div>
+      <div class="body" style="font-family:monospace; word-break:break-all;">
+        https://drive.google.com/drive/folders/<span class="highlight">1AbCdEfGhIjKlMnOpQrStUvWxYz</span>
+        <br><br><span class="arrow">↑ この黄色の部分がフォルダID</span>
+      </div>
+    </div>
+  </li>
+  <li>
+    Vercel（<code>https://vercel.com/</code>）で、このアプリのプロジェクトを開く。<br>
+    「<b>Settings</b>」→「<b>Environment Variables</b>」を開く。
+  </li>
+  <li>
+    新しい環境変数を追加する。
+    <table>
+      <tr><th>Key（名前）</th><th>Value（値）</th></tr>
+      <tr><td><code>GOOGLE_DRIVE_FOLDER_ID</code></td><td>パートC-1でコピーしたフォルダID</td></tr>
+    </table>
+    <div class="mock">
+      <div class="bar"><span class="dot" style="background:#ef4444"></span><span class="dot" style="background:#f59e0b"></span><span class="dot" style="background:#22c55e"></span> Vercel › Settings › Environment Variables</div>
+      <div class="body">
+        Key &nbsp;<div class="field highlight" style="display:inline-block;width:55%">GOOGLE_DRIVE_FOLDER_ID</div><br>
+        Value <div class="field highlight" style="display:inline-block;width:55%">1AbCdEfGhIjKlMnOpQrStUvWxYz</div><br><br>
+        <span class="gbtn highlight">Save</span>
+      </div>
+    </div>
+  </li>
+  <li>
+    保存したら、<b>再デプロイ</b>して反映する。<br>
+    「Deployments」タブ → 最新のデプロイの「⋯」→「<b>Redeploy</b>」。
+    <div class="tip">環境変数は再デプロイ後に有効になります。これを忘れると反映されません。</div>
+  </li>
+</ol>
+
+<!-- ============ 動作確認 ============ -->
+<h2>✅ 動作確認</h2>
+<ol class="steps">
+  <li>納入管理システムを開き、編集権限でログイン。</li>
+  <li>どれか1件の予定を開き、伝票写真を1枚追加する。</li>
+  <li>Google Drive の【納入管理】フォルダを開く。<br>
+    <code>納入日_物件名_品目_伝票ID_日時.jpg</code> という名前の画像が増えていれば成功です 🎉</li>
+</ol>
+
+<div class="warn">
+うまくいかないときは、以下を確認のうえご連絡ください：<br>
+・パートA：Drive API が「有効」になっているか<br>
+・パートB：フォルダの共有相手にサービスアカウントが「編集者」で入っているか<br>
+・パートC：環境変数名が <code>GOOGLE_DRIVE_FOLDER_ID</code> で間違いないか／再デプロイしたか
+</div>
+
+<!-- ============ Claude Cowork ============ -->
+<h2>🔎 Claude Cowork から検索できるようにする</h2>
+<p>写真が Drive に入れば、claude.ai 側で Google Drive を連携するだけで検索できます。</p>
+<ol class="steps">
+  <li><code>claude.ai</code> を開き、左下の自分のアイコン →「<b>設定</b>」。</li>
+  <li>「<b>コネクタ（Connectors）</b>」→「<b>Google Drive</b>」を「接続」。</li>
+  <li>連携後、Claude に「納入管理フォルダの〇〇の伝票を見せて」のように頼めば、フォルダ内の画像を検索・参照できます。</li>
+</ol>
+
+<p style="text-align:center; color:#9ca3af; margin-top:40px; font-size:12px;">
+INATETSU 納入管理システム ｜ Google Drive 連携 設定手順
+</p>
+
+</body>
+</html>

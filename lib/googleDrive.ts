@@ -2,8 +2,16 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 // Google Drive の【納入管理】フォルダへ画像をアップロードする。
-// スプレッドシート連携と同じサービスアカウント（GOOGLE_SERVICE_ACCOUNT_KEY）を使う。
-// 保存先フォルダは GOOGLE_DRIVE_FOLDER_ID で指定する（共有ドライブ推奨）。
+//
+// サービスアカウントはマイドライブに保存容量を持たないため使えない（Google仕様）。
+// そのため、石崎さん個人のGoogleアカウントへの OAuth2 委任（リフレッシュトークン）で
+// 認証し、そのアカウントのマイドライブ上のフォルダに保存する。
+//
+// 必要な環境変数:
+//   GOOGLE_OAUTH_CLIENT_ID
+//   GOOGLE_OAUTH_CLIENT_SECRET
+//   GOOGLE_OAUTH_REFRESH_TOKEN
+//   GOOGLE_DRIVE_FOLDER_ID
 //
 // ベストエフォート：環境変数が未設定、または失敗してもエラーを投げず null を返す。
 // 伝票本体の保存（Supabase）は Drive 連携の成否に左右されない。
@@ -13,20 +21,19 @@ export async function uploadToDrive(
   filename: string,
   mimeType: string,
 ): Promise<string | null> {
-  const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  if (!keyJson || !folderId) {
+  if (!clientId || !clientSecret || !refreshToken || !folderId) {
     // 未設定なら何もしない（Drive 連携オフ）
     return null;
   }
 
   try {
-    const credentials = JSON.parse(keyJson);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
-    const drive = google.drive({ version: 'v3', auth });
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
     const res = await drive.files.create({
       requestBody: {
@@ -38,7 +45,6 @@ export async function uploadToDrive(
         body: Readable.from(buffer),
       },
       fields: 'id, webViewLink',
-      supportsAllDrives: true,
     });
 
     return res.data.id ?? null;
