@@ -55,8 +55,10 @@ function orderCorners(pts: { x: number; y: number }[]): { x: number; y: number }
 }
 
 // OpenCV を使い、書類を検出して切り抜き・台形補正・二値化した canvas を返す。失敗時は null。
+// cv は OpenCV.js（型定義を持たないランタイムロードのモジュール）のため any で受ける。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function scanWithOpenCV(cv: any, srcCanvas: HTMLCanvasElement): HTMLCanvasElement | null {
-  const mats: any[] = [];
+  const mats: unknown[] = [];
   const track = <T,>(m: T): T => { mats.push(m); return m; };
   try {
     const src = track(cv.imread(srcCanvas));
@@ -133,7 +135,7 @@ function scanWithOpenCV(cv: any, srcCanvas: HTMLCanvasElement): HTMLCanvasElemen
     return null;
   } finally {
     for (const m of mats) {
-      try { m.delete?.(); } catch { /* noop */ }
+      try { (m as { delete?: () => void }).delete?.(); } catch { /* noop */ }
     }
   }
 }
