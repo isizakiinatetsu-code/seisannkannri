@@ -282,6 +282,9 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
 
   const weeks: (Date | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  // 月によって週数（5〜6週）が変わると1行の高さも変わり、前後の月とスワイプで
+  // 並んだ際に行の境界がズレて見える。常に6週分の行数に揃えて高さを固定する。
+  while (weeks.length < 6) weeks.push(Array(7).fill(null));
 
   const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
