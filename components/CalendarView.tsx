@@ -16,9 +16,20 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevRef = useRef<HTMLDivElement>(null);
-  const curRef = useRef<HTMLDivElement>(null);
-  const nextRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  // コンテナ幅をpx固定で測っておく（%とpxを混在させるとパネル境界で
+  // サブピクセルのズレが生じ、切り替え時に細い線が見えることがあるため）
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => setTrackWidth(el.offsetWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // スワイプ状態（ドラッグ中はReactの再描画を起こさず、直接DOM操作で追従させる）
   const touchStartX = useRef<number | null>(null);
@@ -27,15 +38,11 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const rafId = useRef<number | null>(null);
   const pendingDx = useRef(0);
 
-  function applyOffset(px: number, withTransition: boolean) {
-    const transition = withTransition ? 'transform 0.32s cubic-bezier(0.22,0.61,0.36,1)' : 'none';
-    for (const el of [prevRef.current, curRef.current, nextRef.current]) {
-      if (!el) continue;
-      el.style.transition = transition;
-    }
-    if (prevRef.current) prevRef.current.style.transform = `translateX(calc(-100% + ${px}px))`;
-    if (curRef.current) curRef.current.style.transform = `translateX(${px}px)`;
-    if (nextRef.current) nextRef.current.style.transform = `translateX(calc(100% + ${px}px))`;
+  function applyTrack(px: number, withTransition: boolean) {
+    const el = trackRef.current;
+    if (!el || !trackWidth) return;
+    el.style.transition = withTransition ? 'transform 0.32s cubic-bezier(0.22,0.61,0.36,1)' : 'none';
+    el.style.transform = `translateX(${-trackWidth + px}px)`;
   }
 
   function fmt(d: Date) {
@@ -91,7 +98,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isHorizontal.current = false;
-    applyOffset(0, false);
+    applyTrack(0, false);
   }
 
   function onTouchMove(e: React.TouchEvent) {
@@ -106,7 +113,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       pendingDx.current = dx;
       if (rafId.current === null) {
         rafId.current = requestAnimationFrame(() => {
-          applyOffset(pendingDx.current, false);
+          applyTrack(pendingDx.current, false);
           rafId.current = null;
         });
       }
@@ -126,20 +133,20 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
 
     if (!isHorizontal.current) return;
 
-    const w = containerRef.current?.offsetWidth ?? 390;
+    const w = trackWidth || 390;
     const threshold = w * 0.3; // 30%以上で切り替え
 
     if (dx < -threshold) {
-      // 次へ：現在ページを左に飛ばす
-      applyOffset(-w - 10, true);
+      // 次へ：パネル全体を1枚分左に送る
+      applyTrack(-w, true);
       setTimeout(() => navigate(1), 320);
     } else if (dx > threshold) {
-      // 前へ：現在ページを右に飛ばす
-      applyOffset(w + 10, true);
+      // 前へ：パネル全体を1枚分右に送る
+      applyTrack(w, true);
       setTimeout(() => navigate(-1), 320);
     } else {
       // 閾値未満：元に戻す
-      applyOffset(0, true);
+      applyTrack(0, true);
     }
     isHorizontal.current = false;
   }
@@ -204,34 +211,36 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       <div
         ref={containerRef}
         className="flex-1 overflow-hidden relative"
+        style={{ touchAction: 'pan-y' }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        {/* 前のページ（左） */}
-        <div
-          ref={prevRef}
-          className="absolute inset-0 overflow-y-auto"
-          style={{ transform: 'translateX(-100%)', transition: 'none', willChange: 'transform' }}
-        >
-          {renderPage(getPrev(current))}
-        </div>
-        {/* 現在ページ */}
-        <div
-          ref={curRef}
-          className="absolute inset-0 overflow-y-auto"
-          style={{ transform: 'translateX(0px)', transition: 'none', willChange: 'transform' }}
-        >
-          {renderPage(current)}
-        </div>
-        {/* 次のページ（右） */}
-        <div
-          ref={nextRef}
-          className="absolute inset-0 overflow-y-auto"
-          style={{ transform: 'translateX(100%)', transition: 'none', willChange: 'transform' }}
-        >
-          {renderPage(getNext(current))}
-        </div>
+        {trackWidth > 0 && (
+          <div
+            ref={trackRef}
+            className="absolute inset-y-0 left-0 flex"
+            style={{
+              width: trackWidth * 3,
+              transform: `translateX(${-trackWidth}px)`,
+              transition: 'none',
+              willChange: 'transform',
+            }}
+          >
+            {/* 前のページ（左） */}
+            <div className="overflow-y-auto" style={{ width: trackWidth, flexShrink: 0 }}>
+              {renderPage(getPrev(current))}
+            </div>
+            {/* 現在ページ */}
+            <div className="overflow-y-auto" style={{ width: trackWidth, flexShrink: 0 }}>
+              {renderPage(current)}
+            </div>
+            {/* 次のページ（右） */}
+            <div className="overflow-y-auto" style={{ width: trackWidth, flexShrink: 0 }}>
+              {renderPage(getNext(current))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
