@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
@@ -176,15 +176,35 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   const weeks: { date: Date; inMonth: boolean }[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
+  // CSS Grid の minmax(0,1fr) はSafari実機で小数px丸めの誤差が最終行に
+  // まとまり、最終週だけ明らかに低くなる場合があったため、実測したコンテナ
+  // 高さをJSで6等分し、各行に整数pxの高さを明示指定する（端数は最終行に
+  // 加算し、最終行が他より小さくなることがないようにする）。
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [rowHeight, setRowHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const measure = () => setRowHeight(Math.floor(el.clientHeight / 6));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       {/* 曜日ヘッダーは親側で固定表示するためここには置かない */}
-      {/* 日付グリッド：6週固定でgrid行を均等分割（flexのmin-height:autoだと
-          内容が少ない週（特に最終週）だけ高さが詰まってしまうため、
-          minmax(0,1fr)で内容量に関わらず厳密に等分する） */}
-      <div className="flex-1 min-h-0" style={{ display: 'grid', gridTemplateRows: 'repeat(6, minmax(0, 1fr))' }}>
+      <div ref={gridRef} className="flex-1 min-h-0 flex flex-col">
       {weeks.map((week, wi) => (
-        <div key={wi} className="grid border-t border-gray-200 min-h-0 overflow-hidden" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
+        <div
+          key={wi}
+          className="grid border-t border-gray-200 overflow-hidden flex-shrink-0"
+          style={{
+            gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr',
+            height: rowHeight == null ? `${100 / 6}%` : (wi === 5 ? gridRef.current!.clientHeight - rowHeight * 5 : rowHeight),
+          }}
+        >
           {week.map((cell, di) => {
             // 空セルも含め全セルに同じ右罫線を引き、均一なマス目にする
             const baseCellClass = 'border-r border-gray-200 last:border-r-0 overflow-hidden min-w-0';
