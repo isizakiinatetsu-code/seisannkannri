@@ -177,7 +177,9 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
       {weeks.map((week, wi) => (
         <div key={wi} className="grid border-t border-gray-200 flex-1" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
           {week.map((day, di) => {
-            if (!day) return <div key={di} className="bg-gray-50/50 min-w-0" />;
+            // 空セルも含め全セルに同じ右罫線を引き、均一なマス目にする
+            const baseCellClass = 'border-r border-gray-200 last:border-r-0 overflow-hidden min-w-0';
+            if (!day) return <div key={di} className={`${baseCellClass} bg-gray-50/50`} />;
             const dateStr = fmt(day);
             const items = deliveriesForDate(dateStr);
             const isToday = dateStr === fmt(today);
@@ -188,7 +190,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
             return (
               <div
                 key={di}
-                className="p-0.5 cursor-pointer hover:bg-blue-50 transition-colors border-r border-gray-100 last:border-r-0 overflow-hidden min-w-0"
+                className={`${baseCellClass} p-0.5 cursor-pointer hover:bg-blue-50 transition-colors`}
                 onClick={() => onDateClick(dateStr)}
               >
                 <div className={`text-sm font-bold mb-0.5 w-6 h-6 flex items-center justify-center rounded-full mx-auto
