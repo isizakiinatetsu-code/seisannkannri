@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
@@ -16,36 +16,11 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
   const containerRef = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  // コンテナ幅をpx固定で測っておく（%とpxを混在させるとパネル境界で
-  // サブピクセルのズレが生じ、切り替え時に細い線が見えることがあるため）
-  const [trackWidth, setTrackWidth] = useState(0);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    // 整数pxに丸める（小数だとパネル/セル境界にサブピクセルの隙間ができ、
-    // スライド中に暗い線がチラつくため）
-    const measure = () => setTrackWidth(Math.round(el.getBoundingClientRect().width));
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // スワイプ状態（ドラッグ中はReactの再描画を起こさず、直接DOM操作で追従させる）
+  // スワイプ判定用（横移動アニメーションはせず、指を離した時に瞬時に月を入れ替える。
+  // 予約管理アプリと同じ挙動で、継ぎ目・揺れ・線が原理的に出ないようにする）
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
-  const isHorizontal = useRef(false);
-  const rafId = useRef<number | null>(null);
-  const pendingDx = useRef(0);
-
-  function applyTrack(px: number, withTransition: boolean) {
-    const el = trackRef.current;
-    if (!el || !trackWidth) return;
-    el.style.transition = withTransition ? 'transform 0.32s cubic-bezier(0.22,0.61,0.36,1)' : 'none';
-    el.style.transform = `translateX(${-trackWidth + px}px)`;
-  }
 
   function fmt(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -53,22 +28,6 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
 
   function deliveriesForDate(dateStr: string) {
     return deliveries.filter(d => d.delivery_date === dateStr);
-  }
-
-  function getPrev(d: Date) {
-    const p = new Date(d);
-    if (mode === '月') p.setMonth(p.getMonth() - 1);
-    else if (mode === '週') p.setDate(p.getDate() - 7);
-    else p.setDate(p.getDate() - 1);
-    return p;
-  }
-
-  function getNext(d: Date) {
-    const n = new Date(d);
-    if (mode === '月') n.setMonth(n.getMonth() + 1);
-    else if (mode === '週') n.setDate(n.getDate() + 7);
-    else n.setDate(n.getDate() + 1);
-    return n;
   }
 
   const navigate = useCallback((delta: number) => {
@@ -81,76 +40,21 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     });
   }, [mode]);
 
-  // ネイティブtouchmoveでpreventDefault（passive:falseが必要）
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const onMove = (e: TouchEvent) => {
-      if (isHorizontal.current) e.preventDefault();
-    };
-    el.addEventListener('touchmove', onMove, { passive: false });
-    return () => el.removeEventListener('touchmove', onMove);
-  }, []);
-
   function onTouchStart(e: React.TouchEvent) {
-    if (rafId.current !== null) {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = null;
-    }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
-    isHorizontal.current = false;
-    applyTrack(0, false);
-  }
-
-  function onTouchMove(e: React.TouchEvent) {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const dx = e.touches[0].clientX - touchStartX.current;
-    const dy = e.touches[0].clientY - touchStartY.current;
-    if (!isHorizontal.current) {
-      if (Math.abs(dy) > Math.abs(dx) + 5) return; // 縦スクロール確定
-      if (Math.abs(dx) > 5) isHorizontal.current = true;
-    }
-    if (isHorizontal.current) {
-      pendingDx.current = dx;
-      if (rafId.current === null) {
-        rafId.current = requestAnimationFrame(() => {
-          applyTrack(pendingDx.current, false);
-          rafId.current = null;
-        });
-      }
-    }
   }
 
   function onTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return;
+    if (touchStartX.current === null || touchStartY.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
     touchStartY.current = null;
 
-    if (rafId.current !== null) {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = null;
-    }
-
-    if (!isHorizontal.current) return;
-
-    const w = trackWidth || 390;
-    const threshold = w * 0.3; // 30%以上で切り替え
-
-    if (dx < -threshold) {
-      // 次へ：パネル全体を1枚分左に送る
-      applyTrack(-w, true);
-      setTimeout(() => navigate(1), 320);
-    } else if (dx > threshold) {
-      // 前へ：パネル全体を1枚分右に送る
-      applyTrack(w, true);
-      setTimeout(() => navigate(-1), 320);
-    } else {
-      // 閾値未満：元に戻す
-      applyTrack(0, true);
-    }
-    isHorizontal.current = false;
+    // 横方向に十分動き、かつ縦移動より明確に大きい場合のみ月を切り替える
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    navigate(dx < 0 ? 1 : -1);
   }
 
   function headerLabel() {
@@ -212,43 +116,14 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       {/* 曜日ヘッダー（固定）：スワイプで動かさず常に同じ位置に保つ */}
       {mode === '月' && <WeekdayHeader />}
 
-      {/* カレンダー本体（スワイプエリア） */}
+      {/* カレンダー本体：スワイプで月を瞬時に切り替える（横移動アニメーションなし） */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden relative bg-white"
-        // 月・週表示は中身が画面内に収まるため縦スクロールを無効化し、
-        // 横スワイプ時にiOSが縦方向にバウンドするのを防ぐ。日表示のみ縦スクロール許可。
-        style={{ touchAction: mode === '日' ? 'pan-y' : 'none' }}
+        className={`flex-1 relative bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`}
         onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        {trackWidth > 0 && (
-          <div
-            ref={trackRef}
-            className="absolute inset-y-0 left-0 flex"
-            style={{
-              width: trackWidth * 3,
-              transform: `translateX(${-trackWidth}px)`,
-              transition: 'none',
-              willChange: 'transform',
-              backfaceVisibility: 'hidden',
-            }}
-          >
-            {/* 前のページ（左） */}
-            <div className={`bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ width: trackWidth, flexShrink: 0 }}>
-              {renderPage(getPrev(current))}
-            </div>
-            {/* 現在ページ */}
-            <div className={`bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ width: trackWidth, flexShrink: 0 }}>
-              {renderPage(current)}
-            </div>
-            {/* 次のページ（右） */}
-            <div className={`bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ width: trackWidth, flexShrink: 0 }}>
-              {renderPage(getNext(current))}
-            </div>
-          </div>
-        )}
+        {renderPage(current)}
       </div>
     </div>
   );
