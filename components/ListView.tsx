@@ -17,7 +17,8 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
   const dates = Object.keys(grouped).sort();
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    // スクロールは呼び出し元のコンテナに任せるため、ここでは高さ制約を持たない
+    <div>
       {dates.length === 0 && (
         <div className="text-center py-16 text-gray-400">
           <div className="text-4xl mb-3">🔍</div>

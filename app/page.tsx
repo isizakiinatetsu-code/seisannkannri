@@ -364,31 +364,39 @@ export default function HomePage() {
                     onDateClick={(date) => setAddDefaultDate(date)}
                   />
                 )}
+                {/* PC/iPad: 検索結果のみ表示（検索パネルは別途オーバーレイ/サイド表示） */}
                 {tab === 'list' && (
-                  hasFilters
-                    ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
-                    : <div className="md:flex hidden flex-1 flex-col items-center justify-center text-gray-400 gap-3">
-                        <div className="text-5xl">🔍</div>
-                        <div className="font-medium text-base">検索条件を選択してください</div>
-                        <button
-                          onClick={() => setShowSearch(true)}
-                          className="mt-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm"
-                          style={{ background: '#0d2c66' }}
-                        >
-                          絞り込み検索を開く
-                        </button>
-                      </div>
+                  <div className="hidden md:flex flex-1 flex-col overflow-y-auto min-h-0">
+                    {hasFilters
+                      ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
+                      : <div className="flex flex-1 flex-col items-center justify-center text-gray-400 gap-3">
+                          <div className="text-5xl">🔍</div>
+                          <div className="font-medium text-base">検索条件を選択してください</div>
+                          <button
+                            onClick={() => setShowSearch(true)}
+                            className="mt-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm"
+                            style={{ background: '#0d2c66' }}
+                          >
+                            絞り込み検索を開く
+                          </button>
+                        </div>
+                    }
+                  </div>
                 )}
               </>
             )}
 
-            {/* スマホ: 検索タブでは検索パネルを常時上部に固定表示
-                （flex-shrink-0だと内容が画面より長い場合に親のoverflow-hiddenで
-                 下端が切れて操作不能になるため、flex-1 min-h-0にしてこの中で
-                 スクロールできるようにする） */}
+            {/* スマホ: 検索タブでは検索パネルと検索結果を1つのスクロール領域に
+                まとめる（パネルと結果リストを別々のflex-1にすると内容量に応じて
+                高さが分割され、パネル下部が画面内に収まらず操作不能になっていた
+                ため、1つのoverflow-y-autoの中で縦に並べて自然にスクロールできる
+                ようにする） */}
             {tab === 'list' && (
-              <div className="md:hidden flex-1 min-h-0 px-3 pt-3 pb-2 overflow-y-auto">
-                <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
+              <div className="md:hidden flex-1 min-h-0 overflow-y-auto">
+                <div className="px-3 pt-3 pb-2">
+                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
+                </div>
+                {hasFilters && <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />}
               </div>
             )}
             {/* iPad: 検索パネルオーバーレイ */}
