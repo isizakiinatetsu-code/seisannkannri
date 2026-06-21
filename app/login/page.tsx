@@ -45,7 +45,7 @@ function LoginForm() {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <div className="flex flex-col items-center mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-14 h-14 object-contain rounded bg-white p-1 mb-3" />
+          <img src="/inatetsu-logo.jpg" alt="INATETSU" className="w-14 h-14 object-contain rounded bg-white p-1 mb-3" />
           <h1 className="font-bold text-lg text-gray-800">INATETSU納入管理カレンダー</h1>
           <p className="text-sm text-gray-400 mt-1">パスワードを入力してください</p>
         </div>

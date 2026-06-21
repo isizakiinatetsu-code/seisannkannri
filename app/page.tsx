@@ -186,7 +186,7 @@ export default function HomePage() {
       <aside className="hidden lg:flex flex-col w-64 xl:w-72 flex-shrink-0 text-white" style={{ background: '#0d2c66' }}>
         <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-8 h-8 object-contain rounded bg-white p-0.5" />
+          <img src="/inatetsu-logo.jpg" alt="INATETSU" className="w-8 h-8 object-contain rounded bg-white p-0.5" />
           <div>
             <div className="font-bold text-xs leading-tight whitespace-nowrap">INATETSU納入管理カレンダー</div>
             <div className="text-xs text-white/50">Delivery Management</div>
@@ -248,7 +248,7 @@ export default function HomePage() {
         <header className="md:hidden flex items-center justify-between px-4 py-3 text-white flex-shrink-0" style={{ background: '#0d2c66' }}>
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
+            <img src="/inatetsu-logo.jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
             <h1 className="font-bold text-base">INATETSU納入管理カレンダー</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -267,7 +267,7 @@ export default function HomePage() {
         <header className="hidden md:flex lg:hidden items-center text-white flex-shrink-0 px-4 gap-2" style={{ background: '#0d2c66' }}>
           <div className="flex items-center gap-2 py-3 mr-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/INATETSU_M(4c).jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
+            <img src="/inatetsu-logo.jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
             <span className="font-bold text-sm whitespace-nowrap">INATETSU納入管理カレンダー</span>
           </div>
           {/* タブ */}
