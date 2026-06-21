@@ -159,15 +159,22 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   let startOffset = firstDay.getDay() - 1;
   if (startOffset < 0) startOffset = 6;
 
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(new Date(year, month, d));
+  // セルには「他月の日付（グレー表示）」か「当月の日付」かを区別して保持する
+  const cells: { date: Date; inMonth: boolean }[] = [];
+  for (let i = 0; i < startOffset; i++) {
+    cells.push({ date: new Date(year, month, 1 - (startOffset - i)), inMonth: false });
+  }
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    cells.push({ date: new Date(year, month, d), inMonth: true });
+  }
+  let nextMonthDay = 1;
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    cells.push({ date: new Date(year, month + 1, nextMonthDay), inMonth: false });
+    nextMonthDay++;
+  }
 
-  const weeks: (Date | null)[][] = [];
+  const weeks: { date: Date; inMonth: boolean }[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-  // 月によって週数（5〜6週）が変わると1行の高さも変わり、前後の月とスワイプで
-  // 並んだ際に行の境界がズレて見える。常に6週分の行数に揃えて高さを固定する。
-  while (weeks.length < 6) weeks.push(Array(7).fill(null));
 
   return (
     <div className="flex flex-col h-full">
@@ -178,10 +185,20 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
       <div className="flex-1 min-h-0" style={{ display: 'grid', gridTemplateRows: 'repeat(6, minmax(0, 1fr))' }}>
       {weeks.map((week, wi) => (
         <div key={wi} className="grid border-t border-gray-200 min-h-0 overflow-hidden" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
-          {week.map((day, di) => {
+          {week.map((cell, di) => {
             // 空セルも含め全セルに同じ右罫線を引き、均一なマス目にする
             const baseCellClass = 'border-r border-gray-200 last:border-r-0 overflow-hidden min-w-0';
-            if (!day) return <div key={di} className={`${baseCellClass} bg-gray-50/50`} />;
+            const { date: day, inMonth } = cell;
+            if (!inMonth) {
+              // 当月外の日付は他カレンダーアプリと同様にグレーの数字だけ表示する
+              return (
+                <div key={di} className={`${baseCellClass} bg-gray-50/50 p-0.5`}>
+                  <div className="text-sm font-bold mb-0.5 w-6 h-6 flex items-center justify-center rounded-full mx-auto text-gray-300">
+                    {day.getDate()}
+                  </div>
+                </div>
+              );
+            }
             const dateStr = fmt(day);
             const items = deliveriesForDate(dateStr);
             const isToday = dateStr === fmt(today);
