@@ -207,11 +207,16 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       {/* 凡例 */}
       <CategoryLegend />
 
+      {/* 曜日ヘッダー（固定）：スワイプで動かさず常に同じ位置に保つ */}
+      {mode === '月' && <WeekdayHeader />}
+
       {/* カレンダー本体（スワイプエリア） */}
       <div
         ref={containerRef}
         className="flex-1 overflow-hidden relative"
-        style={{ touchAction: 'pan-y' }}
+        // 月・週表示は中身が画面内に収まるため縦スクロールを無効化し、
+        // 横スワイプ時にiOSが縦方向にバウンドするのを防ぐ。日表示のみ縦スクロール許可。
+        style={{ touchAction: mode === '日' ? 'pan-y' : 'none' }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -228,15 +233,15 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
             }}
           >
             {/* 前のページ（左） */}
-            <div className="overflow-y-auto" style={{ width: trackWidth, flexShrink: 0 }}>
+            <div className={mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'} style={{ width: trackWidth, flexShrink: 0 }}>
               {renderPage(getPrev(current))}
             </div>
             {/* 現在ページ */}
-            <div className="overflow-y-auto" style={{ width: trackWidth, flexShrink: 0 }}>
+            <div className={mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'} style={{ width: trackWidth, flexShrink: 0 }}>
               {renderPage(current)}
             </div>
             {/* 次のページ（右） */}
-            <div className="overflow-y-auto" style={{ width: trackWidth, flexShrink: 0 }}>
+            <div className={mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'} style={{ width: trackWidth, flexShrink: 0 }}>
               {renderPage(getNext(current))}
             </div>
           </div>
@@ -286,18 +291,9 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   // 並んだ際に行の境界がズレて見える。常に6週分の行数に揃えて高さを固定する。
   while (weeks.length < 6) weeks.push(Array(7).fill(null));
 
-  const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
-
   return (
     <div className="flex flex-col h-full">
-      {/* 曜日ヘッダー */}
-      <div className="grid flex-shrink-0" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
-        {dayNames.map((d, i) => (
-          <div key={d} className={`text-center text-sm py-1.5 font-semibold ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-600'}`}>
-            {d}
-          </div>
-        ))}
-      </div>
+      {/* 曜日ヘッダーは親側で固定表示するためここには置かない */}
       {/* 日付グリッド：週ごとにflex-1で均等分割 */}
       <div className="flex-1 flex flex-col min-h-0">
       {weeks.map((week, wi) => (
@@ -479,6 +475,19 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
           <div className="font-medium">この日の納入予定はありません</div>
         </div>
       )}
+    </div>
+  );
+}
+
+function WeekdayHeader() {
+  const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+  return (
+    <div className="grid flex-shrink-0 bg-white border-b" style={{ gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr' }}>
+      {dayNames.map((d, i) => (
+        <div key={d} className={`text-center text-sm py-1.5 font-semibold ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-600'}`}>
+          {d}
+        </div>
+      ))}
     </div>
   );
 }
