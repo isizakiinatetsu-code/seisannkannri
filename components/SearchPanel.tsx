@@ -19,6 +19,9 @@ interface Props {
   vendors?: string[];
   projects?: string[];
   unloadLocations?: string[];
+  // 入力中(未検索)かどうかを呼び出し元に伝える。呼び出し元はこれを使って、
+  // 古い検索結果を「条件を変えたばかりでまだ検索していない」ことが分かるように隠す。
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const ITEM_CATEGORIES = [
@@ -26,13 +29,20 @@ const ITEM_CATEGORIES = [
   'スプライス', 'ブレース', 'ボルト', '支給品', '現場用ボルト', 'ハイベース', 'その他',
 ];
 
-export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [] }: Props) {
+export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [], onDirtyChange }: Props) {
   // 検索ボタンを押すまでは入力内容を確定しない（draft）。確定済みの検索条件は親から渡される filters。
   const [draft, setDraft] = useState<SearchFilters>(filters);
 
   useEffect(() => {
     setDraft(filters);
   }, [filters]);
+
+  const hasDraftFilters = Object.values(draft).some(v => v !== '');
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(filters);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const set = (key: keyof SearchFilters) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -47,9 +57,6 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
     setDraft(cleared);
     onChange(cleared);
   }
-
-  const hasDraftFilters = Object.values(draft).some(v => v !== '');
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(filters);
 
   return (
     <div className="bg-white border rounded-2xl shadow-lg p-4 space-y-3">
@@ -117,6 +124,9 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
         </select>
       </div>
 
+      {isDirty && (
+        <div className="text-xs text-amber-600 text-center">条件を変更しました。検索ボタンを押してください</div>
+      )}
       <button
         onClick={handleSearch}
         className="w-full py-2.5 text-sm text-white font-bold rounded-xl"

@@ -39,6 +39,9 @@ export default function HomePage() {
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [showSearch, setShowSearch] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
+  // 検索パネルの入力中(未検索)フラグ。trueの間は古い検索結果を表示せず、
+  // 検索ボタンを押すまで結果が変わらないことが分かるようにする。
+  const [searchDirty, setSearchDirty] = useState(false);
   const [importMsg, setImportMsg] = useState('');
   const [gsSyncing, setGsSyncing] = useState(false);
   const [role, setRole] = useState<'edit' | 'view' | null>(null);
@@ -371,7 +374,12 @@ export default function HomePage() {
                 {/* PC/iPad: 検索結果のみ表示（検索パネルは別途オーバーレイ/サイド表示） */}
                 {tab === 'list' && (
                   <div className="hidden md:flex flex-1 flex-col overflow-y-auto min-h-0">
-                    {hasFilters
+                    {searchDirty
+                      ? <div className="flex flex-1 flex-col items-center justify-center text-amber-600 gap-3">
+                          <div className="text-5xl">🔍</div>
+                          <div className="font-medium text-base">検索ボタンを押してください</div>
+                        </div>
+                      : hasFilters
                       ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
                       : <div className="flex flex-1 flex-col items-center justify-center text-gray-400 gap-3">
                           <div className="text-5xl">🔍</div>
@@ -398,9 +406,9 @@ export default function HomePage() {
             {tab === 'list' && (
               <div className="md:hidden flex-1 min-h-0 overflow-y-auto">
                 <div className="px-3 pt-3 pb-2">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
+                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
                 </div>
-                {hasFilters && <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />}
+                {hasFilters && !searchDirty && <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />}
               </div>
             )}
             {/* iPad: 検索パネルオーバーレイ */}
@@ -408,7 +416,7 @@ export default function HomePage() {
               <>
                 <div className="absolute inset-0 bg-black/20 z-20 hidden md:block lg:hidden" onClick={() => setShowSearch(false)} />
                 <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 hidden md:block lg:hidden">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
+                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
                 </div>
               </>
             )}
@@ -417,7 +425,7 @@ export default function HomePage() {
           {/* PC: 検索パネルをサイド表示 */}
           {tab === 'list' && showSearch && (
             <div className="hidden lg:block w-80 xl:w-96 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
-              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
+              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
             </div>
           )}
         </main>
