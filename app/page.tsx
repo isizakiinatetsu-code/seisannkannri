@@ -382,9 +382,12 @@ export default function HomePage() {
               </>
             )}
 
-            {/* スマホ: 検索タブでは検索パネルを常時上部に固定表示 */}
+            {/* スマホ: 検索タブでは検索パネルを常時上部に固定表示
+                （flex-shrink-0だと内容が画面より長い場合に親のoverflow-hiddenで
+                 下端が切れて操作不能になるため、flex-1 min-h-0にしてこの中で
+                 スクロールできるようにする） */}
             {tab === 'list' && (
-              <div className="md:hidden flex-shrink-0 px-3 pt-3 pb-2 overflow-y-auto">
+              <div className="md:hidden flex-1 min-h-0 px-3 pt-3 pb-2 overflow-y-auto">
                 <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} />
               </div>
             )}
