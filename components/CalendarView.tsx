@@ -172,10 +172,12 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   return (
     <div className="flex flex-col h-full">
       {/* 曜日ヘッダーは親側で固定表示するためここには置かない */}
-      {/* 日付グリッド：週ごとにflex-1で均等分割 */}
-      <div className="flex-1 flex flex-col min-h-0">
+      {/* 日付グリッド：6週固定でgrid行を均等分割（flexのmin-height:autoだと
+          内容が少ない週（特に最終週）だけ高さが詰まってしまうため、
+          minmax(0,1fr)で内容量に関わらず厳密に等分する） */}
+      <div className="flex-1 min-h-0" style={{ display: 'grid', gridTemplateRows: 'repeat(6, minmax(0, 1fr))' }}>
       {weeks.map((week, wi) => (
-        <div key={wi} className="grid border-t border-gray-200 flex-1" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
+        <div key={wi} className="grid border-t border-gray-200 min-h-0 overflow-hidden" style={{gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr'}}>
           {week.map((day, di) => {
             // 空セルも含め全セルに同じ右罫線を引き、均一なマス目にする
             const baseCellClass = 'border-r border-gray-200 last:border-r-0 overflow-hidden min-w-0';
@@ -255,7 +257,10 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
   return (
-    <div className="flex flex-col h-full">
+    // 7日分をgridで厳密に等分（flexのmin-height:autoだと予定がない曜日
+    // ―特に最終行の日曜―だけ高さが詰まって見えてしまうため、
+    // minmax(0,1fr)で内容量に関わらず均等な行高にする）
+    <div className="h-full" style={{ display: 'grid', gridTemplateRows: 'repeat(7, minmax(0, 1fr))' }}>
       {days.map((day, i) => {
         const dateStr = fmt(day);
         const items = deliveriesForDate(dateStr);
@@ -264,7 +269,7 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
         const isSun = i === 6;
         const isHoliday = HOLIDAYS.has(dateStr);
         return (
-          <div key={i} className={`flex gap-2 px-2 py-1 border-t border-gray-100 flex-1 min-h-0 ${isSat || isSun ? 'bg-gray-50/70' : 'bg-white'}`}>
+          <div key={i} className={`flex gap-2 px-2 py-1 border-t border-gray-100 min-h-0 overflow-hidden ${isSat || isSun ? 'bg-gray-50/70' : 'bg-white'}`}>
             <div className="w-10 flex-shrink-0 text-center">
               <div className={`text-xs font-medium ${(isSun || isHoliday) ? 'text-red-500' : isSat ? 'text-blue-400' : 'text-gray-500'}`}>{dayNames[i]}</div>
               <div className={`text-base font-bold mx-auto w-7 h-7 flex items-center justify-center rounded-full
