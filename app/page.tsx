@@ -180,7 +180,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <div className="flex h-dvh bg-gray-100 overflow-hidden">
 
       {/* ============ PC: 左サイドバー (lg以上) ============ */}
       <aside className="hidden lg:flex flex-col w-64 xl:w-72 flex-shrink-0 text-white" style={{ background: '#0d2c66' }}>
