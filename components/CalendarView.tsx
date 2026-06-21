@@ -24,7 +24,9 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const measure = () => setTrackWidth(el.offsetWidth);
+    // 整数pxに丸める（小数だとパネル/セル境界にサブピクセルの隙間ができ、
+    // スライド中に暗い線がチラつくため）
+    const measure = () => setTrackWidth(Math.round(el.getBoundingClientRect().width));
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -213,7 +215,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       {/* カレンダー本体（スワイプエリア） */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden relative"
+        className="flex-1 overflow-hidden relative bg-white"
         // 月・週表示は中身が画面内に収まるため縦スクロールを無効化し、
         // 横スワイプ時にiOSが縦方向にバウンドするのを防ぐ。日表示のみ縦スクロール許可。
         style={{ touchAction: mode === '日' ? 'pan-y' : 'none' }}
@@ -230,18 +232,19 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
               transform: `translateX(${-trackWidth}px)`,
               transition: 'none',
               willChange: 'transform',
+              backfaceVisibility: 'hidden',
             }}
           >
             {/* 前のページ（左） */}
-            <div className={mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'} style={{ width: trackWidth, flexShrink: 0 }}>
+            <div className={`bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ width: trackWidth, flexShrink: 0 }}>
               {renderPage(getPrev(current))}
             </div>
             {/* 現在ページ */}
-            <div className={mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'} style={{ width: trackWidth, flexShrink: 0 }}>
+            <div className={`bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ width: trackWidth, flexShrink: 0 }}>
               {renderPage(current)}
             </div>
             {/* 次のページ（右） */}
-            <div className={mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'} style={{ width: trackWidth, flexShrink: 0 }}>
+            <div className={`bg-white ${mode === '日' ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ width: trackWidth, flexShrink: 0 }}>
               {renderPage(getNext(current))}
             </div>
           </div>
