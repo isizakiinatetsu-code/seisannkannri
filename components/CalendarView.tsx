@@ -16,13 +16,27 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevRef = useRef<HTMLDivElement>(null);
+  const curRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLDivElement>(null);
 
-  // スワイプ状態
+  // スワイプ状態（ドラッグ中はReactの再描画を起こさず、直接DOM操作で追従させる）
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const isHorizontal = useRef(false);
-  const [offset, setOffset] = useState(0);       // 指に追従するオフセット（px）
-  const [animating, setAnimating] = useState(false); // アニメーション中フラグ
+  const rafId = useRef<number | null>(null);
+  const pendingDx = useRef(0);
+
+  function applyOffset(px: number, withTransition: boolean) {
+    const transition = withTransition ? 'transform 0.32s cubic-bezier(0.22,0.61,0.36,1)' : 'none';
+    for (const el of [prevRef.current, curRef.current, nextRef.current]) {
+      if (!el) continue;
+      el.style.transition = transition;
+    }
+    if (prevRef.current) prevRef.current.style.transform = `translateX(calc(-100% + ${px}px))`;
+    if (curRef.current) curRef.current.style.transform = `translateX(${px}px)`;
+    if (nextRef.current) nextRef.current.style.transform = `translateX(calc(100% + ${px}px))`;
+  }
 
   function fmt(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -70,11 +84,14 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   }, []);
 
   function onTouchStart(e: React.TouchEvent) {
+    if (rafId.current !== null) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isHorizontal.current = false;
-    setAnimating(false);
-    setOffset(0);
+    applyOffset(0, false);
   }
 
   function onTouchMove(e: React.TouchEvent) {
@@ -85,7 +102,15 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       if (Math.abs(dy) > Math.abs(dx) + 5) return; // 縦スクロール確定
       if (Math.abs(dx) > 5) isHorizontal.current = true;
     }
-    if (isHorizontal.current) setOffset(dx);
+    if (isHorizontal.current) {
+      pendingDx.current = dx;
+      if (rafId.current === null) {
+        rafId.current = requestAnimationFrame(() => {
+          applyOffset(pendingDx.current, false);
+          rafId.current = null;
+        });
+      }
+    }
   }
 
   function onTouchEnd(e: React.TouchEvent) {
@@ -94,32 +119,27 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     touchStartX.current = null;
     touchStartY.current = null;
 
+    if (rafId.current !== null) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+
     if (!isHorizontal.current) return;
 
     const w = containerRef.current?.offsetWidth ?? 390;
     const threshold = w * 0.3; // 30%以上で切り替え
 
-    setAnimating(true);
     if (dx < -threshold) {
-      // 次へ：現在ページを左に飛ばす（translateX(-100%)相当になるよう大きな値）
-      setOffset(-w - 10);
-      setTimeout(() => {
-        navigate(1);
-        setAnimating(false);
-        setOffset(0);
-      }, 280);
+      // 次へ：現在ページを左に飛ばす
+      applyOffset(-w - 10, true);
+      setTimeout(() => navigate(1), 320);
     } else if (dx > threshold) {
       // 前へ：現在ページを右に飛ばす
-      setOffset(w + 10);
-      setTimeout(() => {
-        navigate(-1);
-        setAnimating(false);
-        setOffset(0);
-      }, 280);
+      applyOffset(w + 10, true);
+      setTimeout(() => navigate(-1), 320);
     } else {
       // 閾値未満：元に戻す
-      setOffset(0);
-      setTimeout(() => setAnimating(false), 280);
+      applyOffset(0, true);
     }
     isHorizontal.current = false;
   }
@@ -141,8 +161,6 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.getFullYear(), d.getMonth(), diff);
   }
-
-  const transition = animating ? 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none';
 
   function renderPage(date: Date) {
     return (
@@ -192,22 +210,25 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       >
         {/* 前のページ（左） */}
         <div
+          ref={prevRef}
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(calc(-100% + ${offset}px))`, transition, willChange: 'transform' }}
+          style={{ transform: 'translateX(-100%)', transition: 'none', willChange: 'transform' }}
         >
           {renderPage(getPrev(current))}
         </div>
         {/* 現在ページ */}
         <div
+          ref={curRef}
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(${offset}px)`, transition, willChange: 'transform' }}
+          style={{ transform: 'translateX(0px)', transition: 'none', willChange: 'transform' }}
         >
           {renderPage(current)}
         </div>
         {/* 次のページ（右） */}
         <div
+          ref={nextRef}
           className="absolute inset-0 overflow-y-auto"
-          style={{ transform: `translateX(calc(100% + ${offset}px))`, transition, willChange: 'transform' }}
+          style={{ transform: 'translateX(100%)', transition: 'none', willChange: 'transform' }}
         >
           {renderPage(getNext(current))}
         </div>
