@@ -346,7 +346,11 @@ export default function HomePage() {
         )}
 
         {/* ---- コンテンツ本体 ---- */}
-        <main className="flex-1 overflow-hidden flex min-h-0 pb-16 md:pb-0">
+        {/* ホーム画面追加(standalone PWA)時はホームインジケータ分のsafe-area-inset-bottomが
+            加わり、固定フッターナビの実際の高さがpb-16(64px)より高くなる。その差分を
+            考慮しないとフッターがカレンダー最終行に重なって見える（Safariタブでは
+            safe-area-inset-bottomが0のため発生しない）ため、ここでも同じ分だけ確保する。 */}
+        <main className="flex-1 overflow-hidden flex min-h-0 pb-[calc(4rem_+_env(safe-area-inset-bottom))] md:pb-0">
           <div className="flex-1 overflow-hidden flex flex-col relative min-w-0">
             {loading ? (
               <div className="flex items-center justify-center flex-1">
