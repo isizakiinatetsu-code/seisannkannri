@@ -1,4 +1,5 @@
 'use client';
+import { useState, useEffect } from 'react';
 
 interface SearchFilters {
   project_name: string;
@@ -26,16 +27,29 @@ const ITEM_CATEGORIES = [
 ];
 
 export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [] }: Props) {
+  // 検索ボタンを押すまでは入力内容を確定しない（draft）。確定済みの検索条件は親から渡される filters。
+  const [draft, setDraft] = useState<SearchFilters>(filters);
+
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
+
   const set = (key: keyof SearchFilters) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => onChange({ ...filters, [key]: e.target.value });
+  ) => setDraft(d => ({ ...d, [key]: e.target.value }));
 
-  function handleClear() {
-    onChange({ project_name: '', item: '', vendor: '', unload_location: '', date_from: '', date_to: '', status: '' });
+  function handleSearch() {
+    onChange(draft);
   }
 
+  function handleClear() {
+    const cleared = { project_name: '', item: '', vendor: '', unload_location: '', date_from: '', date_to: '', status: '' };
+    setDraft(cleared);
+    onChange(cleared);
+  }
 
-  const hasFilters = Object.values(filters).some(v => v !== '');
+  const hasDraftFilters = Object.values(draft).some(v => v !== '');
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(filters);
 
   return (
     <div className="bg-white border rounded-2xl shadow-lg p-4 space-y-3">
@@ -48,7 +62,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
 
       <div>
         <label className="label">物件名</label>
-        <select value={filters.project_name} onChange={set('project_name')} className="input">
+        <select value={draft.project_name} onChange={set('project_name')} className="input">
           <option value="">すべて</option>
           {projects.map(p => (
             <option key={p} value={p}>{p}</option>
@@ -58,7 +72,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
 
       <div>
         <label className="label">品目カテゴリ</label>
-        <select value={filters.item} onChange={set('item')} className="input">
+        <select value={draft.item} onChange={set('item')} className="input">
           {ITEM_CATEGORIES.map(c => (
             <option key={c} value={c === 'すべて' ? '' : c}>{c}</option>
           ))}
@@ -67,7 +81,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
 
       <div>
         <label className="label">業者名</label>
-        <select value={filters.vendor} onChange={set('vendor')} className="input">
+        <select value={draft.vendor} onChange={set('vendor')} className="input">
           <option value="">すべて</option>
           {vendors.map(v => (
             <option key={v} value={v}>{v}</option>
@@ -77,7 +91,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
 
       <div>
         <label className="label">降し場所</label>
-        <select value={filters.unload_location} onChange={set('unload_location')} className="input">
+        <select value={draft.unload_location} onChange={set('unload_location')} className="input">
           <option value="">すべて</option>
           {unloadLocations.map(l => (
             <option key={l} value={l}>{l}</option>
@@ -87,23 +101,31 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
 
       <div>
         <label className="label">日付（開始）</label>
-        <input type="date" value={filters.date_from} onChange={set('date_from')} className="input" />
+        <input type="date" value={draft.date_from} onChange={set('date_from')} className="input" />
       </div>
       <div>
         <label className="label">日付（終了）</label>
-        <input type="date" value={filters.date_to} onChange={set('date_to')} className="input" />
+        <input type="date" value={draft.date_to} onChange={set('date_to')} className="input" />
       </div>
 
       <div>
         <label className="label">ステータス</label>
-        <select value={filters.status} onChange={set('status')} className="input">
+        <select value={draft.status} onChange={set('status')} className="input">
           <option value="">すべて</option>
           <option value="予定">予定</option>
           <option value="納入済み">納入済み</option>
         </select>
       </div>
 
-      {hasFilters && (
+      <button
+        onClick={handleSearch}
+        className="w-full py-2.5 text-sm text-white font-bold rounded-xl"
+        style={{ background: '#0d2c66' }}
+      >
+        検索
+      </button>
+
+      {(hasDraftFilters || isDirty) && (
         <button onClick={handleClear} className="w-full py-2 text-sm text-gray-500 border border-gray-300 rounded-xl hover:bg-gray-50">
           フィルターをクリア
         </button>
