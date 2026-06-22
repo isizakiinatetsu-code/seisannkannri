@@ -406,7 +406,7 @@ function WeekdayHeader() {
   return (
     <div className="grid flex-shrink-0 bg-white border-b" style={{ gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr' }}>
       {dayNames.map((d, i) => (
-        <div key={d} className={`text-center text-sm py-1.5 font-semibold ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-600'}`}>
+        <div key={d} className={`text-center text-sm py-1.5 font-semibold border-r border-gray-200 last:border-r-0 ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-gray-600'}`}>
           {d}
         </div>
       ))}
