@@ -22,6 +22,9 @@ interface Props {
   // 入力中(未検索)かどうかを呼び出し元に伝える。呼び出し元はこれを使って、
   // 古い検索結果を「条件を変えたばかりでまだ検索していない」ことが分かるように隠す。
   onDirtyChange?: (dirty: boolean) => void;
+  // 検索ボタンが押された瞬間に呼ばれる（onChangeとは別に、呼び出し元がパネルを
+  // 閉じて結果を画面いっぱいに表示するタイミングとして使う）。
+  onSearch?: () => void;
 }
 
 const ITEM_CATEGORIES = [
@@ -29,7 +32,7 @@ const ITEM_CATEGORIES = [
   'スプライス', 'ブレース', 'ボルト', '支給品', '現場用ボルト', 'ハイベース', 'その他',
 ];
 
-export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [], onDirtyChange }: Props) {
+export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [], onDirtyChange, onSearch }: Props) {
   // 検索ボタンを押すまでは入力内容を確定しない（draft）。確定済みの検索条件は親から渡される filters。
   const [draft, setDraft] = useState<SearchFilters>(filters);
 
@@ -50,6 +53,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
 
   function handleSearch() {
     onChange(draft);
+    onSearch?.();
   }
 
   function handleClear() {
