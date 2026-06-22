@@ -375,10 +375,7 @@ export default function HomePage() {
                 {tab === 'list' && (
                   <div className="hidden md:flex flex-1 flex-col overflow-y-auto min-h-0">
                     {searchDirty
-                      ? <div className="flex flex-1 flex-col items-center justify-center text-amber-600 gap-3">
-                          <div className="text-5xl">🔍</div>
-                          <div className="font-medium text-base">検索ボタンを押してください</div>
-                        </div>
+                      ? <div className="flex-1" />
                       : hasFilters
                       ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
                       : <div className="flex flex-1 flex-col items-center justify-center text-gray-400 gap-3">
