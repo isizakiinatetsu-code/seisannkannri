@@ -42,6 +42,9 @@ export default function HomePage() {
   // 検索パネルの入力中(未検索)フラグ。trueの間は古い検索結果を表示せず、
   // 検索ボタンを押すまで結果が変わらないことが分かるようにする。
   const [searchDirty, setSearchDirty] = useState(false);
+  // スマホ: 検索ボタンを押したらパネルを閉じて結果を画面いっぱいに表示する
+  // （パネルの下にスクロールしないと結果が見えない状態を解消するため）
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(true);
   const [importMsg, setImportMsg] = useState('');
   const [gsSyncing, setGsSyncing] = useState(false);
   const [role, setRole] = useState<'edit' | 'view' | null>(null);
@@ -395,17 +398,42 @@ export default function HomePage() {
               </>
             )}
 
-            {/* スマホ: 検索タブでは検索パネルと検索結果を1つのスクロール領域に
-                まとめる（パネルと結果リストを別々のflex-1にすると内容量に応じて
-                高さが分割され、パネル下部が画面内に収まらず操作不能になっていた
-                ため、1つのoverflow-y-autoの中で縦に並べて自然にスクロールできる
-                ようにする） */}
-            {tab === 'list' && (
+            {/* スマホ: 検索ボタンを押すとパネルを閉じて結果を画面いっぱいに表示する
+                （検索ボタンを押した後にスクロールしないと結果が見えない状態を解消） */}
+            {tab === 'list' && mobileSearchOpen && (
               <div className="md:hidden flex-1 min-h-0 overflow-y-auto">
                 <div className="px-3 pt-3 pb-2">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
+                  <SearchPanel
+                    filters={filters}
+                    onChange={setFilters}
+                    onClose={() => hasFilters ? setMobileSearchOpen(false) : setTab('calendar')}
+                    onSearch={() => setMobileSearchOpen(false)}
+                    total={deliveries.length}
+                    vendors={vendorOptions}
+                    projects={projectOptions}
+                    unloadLocations={unloadLocationOptions}
+                    onDirtyChange={setSearchDirty}
+                  />
                 </div>
-                {hasFilters && !searchDirty && <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />}
+              </div>
+            )}
+            {tab === 'list' && !mobileSearchOpen && (
+              <div className="md:hidden flex-1 min-h-0 flex flex-col overflow-y-auto">
+                <div className="px-3 pt-3 pb-2 flex-shrink-0">
+                  <button
+                    onClick={() => setMobileSearchOpen(true)}
+                    className="w-full py-2 text-sm font-medium rounded-xl border border-gray-300 text-gray-600 bg-white"
+                  >
+                    🔍 検索条件を変更
+                  </button>
+                </div>
+                {hasFilters
+                  ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
+                  : <div className="flex flex-1 flex-col items-center justify-center text-gray-400 gap-3">
+                      <div className="text-5xl">🔍</div>
+                      <div className="font-medium text-base">検索条件を選択してください</div>
+                    </div>
+                }
               </div>
             )}
             {/* iPad: 検索パネルオーバーレイ */}
@@ -413,7 +441,7 @@ export default function HomePage() {
               <>
                 <div className="absolute inset-0 bg-black/20 z-20 hidden md:block lg:hidden" onClick={() => setShowSearch(false)} />
                 <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 hidden md:block lg:hidden">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
+                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} onSearch={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
                 </div>
               </>
             )}

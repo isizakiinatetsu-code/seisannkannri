@@ -192,6 +192,14 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
     return () => ro.disconnect();
   }, []);
 
+  // 日付丸数字（高さ約28px）を除いた残りの高さに、予定1件あたり約15pxとして
+  // 何件表示できるかを実測のrowHeightから算出する（固定値だと行高が低い時に
+  // 「他n件」自体がはみ出して見切れてしまうため）
+  const DATE_HEADER_H = 28;
+  const ITEM_ROW_H = 15;
+  const availableH = rowHeight == null ? null : rowHeight - DATE_HEADER_H;
+  const maxFit = availableH == null ? 3 : Math.max(0, Math.floor(availableH / ITEM_ROW_H));
+
   return (
     <div className="flex flex-col h-full">
       {/* 曜日ヘッダーは親側で固定表示するためここには置かない */}
@@ -225,7 +233,10 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
             const isSat = di === 5;
             const isSun = di === 6;
             const isHoliday = HOLIDAYS.has(dateStr);
-            const maxShow = 3;
+            // 行の高さが固定(JS実測)のため、件数表示(他n件)が入る分だけ
+            // 表示件数を減らし、はみ出してoverflow-hiddenで見切れないようにする。
+            // 全件がぴったり収まる場合は「他n件」自体を表示しないので減らさない。
+            const maxShow = items.length <= maxFit ? items.length : Math.max(0, maxFit - 1);
             return (
               <div
                 key={di}
