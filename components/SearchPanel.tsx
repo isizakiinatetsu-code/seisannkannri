@@ -124,9 +124,6 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
         </select>
       </div>
 
-      {isDirty && (
-        <div className="text-xs text-amber-600 text-center">条件を変更しました。検索ボタンを押してください</div>
-      )}
       <button
         onClick={handleSearch}
         className="w-full py-2.5 text-sm text-white font-bold rounded-xl"
