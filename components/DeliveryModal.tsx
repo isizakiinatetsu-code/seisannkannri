@@ -10,7 +10,6 @@ interface Props {
   onMarkDelivered: (id: number) => void;
   onRevertDelivered: (id: number) => void;
   onEdit: (delivery: Delivery) => void;
-  onDelete: (id: number) => void;
   onSlipUploaded: (id: number, path: string) => void;
   canEdit: boolean;
 }
@@ -21,7 +20,6 @@ export default function DeliveryModal({
   onMarkDelivered,
   onRevertDelivered,
   onEdit,
-  onDelete,
   onSlipUploaded,
   canEdit,
 }: Props) {
@@ -279,20 +277,6 @@ export default function DeliveryModal({
               style={{ background: '#2563eb' }}
             >
               ✏️ 編集する
-            </button>
-          )}
-          {canEdit && (
-            <button
-              onClick={() => {
-                if (confirm('この予定を削除しますか？')) {
-                  onDelete(delivery.id);
-                  onClose();
-                }
-              }}
-              className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
-              style={{ background: '#dc2626' }}
-            >
-              🗑️ 削除する
             </button>
           )}
         </div>
