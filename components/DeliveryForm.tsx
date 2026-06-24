@@ -121,15 +121,13 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
             </select>
           </FormRow>
 
-          {form.vendor && (
-            <div className="flex items-center gap-3 py-2">
-              <label className="text-xs font-medium text-gray-600">郵送</label>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={form.is_postal} onChange={setPostal} className="sr-only peer" />
-                <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
-              </label>
-            </div>
-          )}
+          <div className="flex items-center gap-3 py-2">
+            <label className="text-xs font-medium text-gray-600">郵送</label>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked={form.is_postal} onChange={setPostal} className="sr-only peer" />
+              <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
+            </label>
+          </div>
 
           <FormRow label="★ 降し場所">
             <select value={form.unload_location} onChange={set('unload_location')} required className="input">
