@@ -108,11 +108,6 @@ export default function HomePage() {
     fetchDeliveries(filters);
   }
 
-  async function handleDelete(id: number) {
-    await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
-    fetchDeliveries(filters);
-  }
-
   async function handleAdd(data: Partial<Delivery>) {
     await fetch('/api/deliveries', {
       method: 'POST',
@@ -480,7 +475,6 @@ export default function HomePage() {
           onMarkDelivered={handleMarkDelivered}
           onRevertDelivered={handleRevertDelivered}
           onEdit={(d) => { setEditDelivery(d); setSelectedDelivery(null); }}
-          onDelete={handleDelete}
           onSlipUploaded={handleSlipUploaded}
           canEdit={canEdit}
         />
