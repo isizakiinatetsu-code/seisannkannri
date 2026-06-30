@@ -30,13 +30,13 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
     item: initial?.item ?? '',
     specification: initial?.specification ?? '',
     vendor: initial?.vendor ?? '',
-    is_postal: initial?.notes?.startsWith('[郵送]') ?? false,
+    is_postal: (initial?.notes?.startsWith('[配送]') || initial?.notes?.startsWith('[郵送]')) ?? false,
     unload_location: initial?.unload_location ?? '',
     storage_location: initial?.storage_location ?? '',
     quantity: initial?.quantity?.toString() ?? '',
     unit: initial?.unit ?? '',
     order_number: initial?.order_number ?? '',
-    notes: initial?.notes?.startsWith('[郵送] ') ? initial.notes.slice(5) : (initial?.notes ?? ''),
+    notes: (initial?.notes?.startsWith('[配送] ') || initial?.notes?.startsWith('[郵送] ')) ? initial.notes.slice(5) : (initial?.notes ?? ''),
   });
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -52,7 +52,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
       return;
     }
     const notesValue = form.is_postal
-      ? `[郵送] ${form.notes}`.trimEnd()
+      ? `[配送] ${form.notes}`.trimEnd()
       : form.notes || null;
     onSave({
       delivery_date: form.delivery_date,
@@ -122,7 +122,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
           </FormRow>
 
           <div className="flex items-center gap-3 py-2">
-            <label className="text-xs font-medium text-gray-600">郵送</label>
+            <label className="text-xs font-medium text-gray-600">配送</label>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked={form.is_postal} onChange={setPostal} className="sr-only peer" />
               <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
