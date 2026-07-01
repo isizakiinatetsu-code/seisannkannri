@@ -64,7 +64,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
     if (mode === '週') {
       const start = getWeekStart(current);
       const end = new Date(start); end.setDate(end.getDate() + 6);
-      return `${y}年${m}月${start.getDate()}日 – ${end.getMonth() + 1}月${end.getDate()}日`;
+      return `${start.getFullYear()}年${start.getMonth() + 1}月${start.getDate()}日 – ${end.getMonth() + 1}月${end.getDate()}日`;
     }
     return `${y}年${m}月${current.getDate()}日(${['日','月','火','水','木','金','土'][current.getDay()]})`;
   }
