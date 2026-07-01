@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'A:Z',
+      // 日付セルを表示形式(例: 5/1(木))ではなくシリアル値/生値で取得し、
+      // 表示形式に依存せず日付を正しく解釈できるようにする。
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
 
     const rows = res.data.values ?? [];
@@ -58,10 +61,20 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 日付を "2026/5/1" → "2026-05-01" に正規化
-    function normalizeDate(raw: string): string {
-      const d = new Date(raw);
-      if (isNaN(d.getTime())) return raw;
+    // 日付を "2026-05-01" 形式に正規化。
+    // UNFORMATTED_VALUE では日付セルはGoogleシリアル値(数値)で届くため、それも解釈する。
+    function normalizeDate(raw: unknown): string {
+      if (typeof raw === 'number') {
+        // Googleシリアル値: 1899-12-30 を 0 とした経過日数
+        const ms = Date.UTC(1899, 11, 30) + raw * 86400000;
+        const d = new Date(ms);
+        if (isNaN(d.getTime())) return '';
+        return d.toISOString().slice(0, 10);
+      }
+      const s = String(raw ?? '').trim();
+      if (!s) return '';
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
       return d.toISOString().slice(0, 10);
     }
 
@@ -89,20 +102,20 @@ export async function POST(req: NextRequest) {
     console.log('Column indices:', { idxDate, idxTime, idxProject, idxItem, idxSpec, idxVendor, idxUnload, idxNotes });
 
     for (const row of rows.slice(1)) {
-      const dateVal = normalizeDate(idxDate >= 0 ? (row[idxDate] ?? '').trim() : '');
-      const project = idxProject >= 0 ? (row[idxProject] ?? '').trim() : '';
-      const item = idxItem >= 0 ? (row[idxItem] ?? '').trim() : '';
+      const dateVal = normalizeDate(idxDate >= 0 ? row[idxDate] : '');
+      const project = idxProject >= 0 ? String(row[idxProject] ?? '').trim() : '';
+      const item = idxItem >= 0 ? String(row[idxItem] ?? '').trim() : '';
       if (!dateVal || !project || !item) { skipped++; continue; }
       // 直近3か月より古いデータはスキップ
       if (dateVal < minDate) { skipped++; continue; }
 
-      const vendorRaw = idxVendor >= 0 ? (row[idxVendor] ?? '').trim() : '';
-      const unloadRaw = idxUnload >= 0 ? (row[idxUnload] ?? '').trim() : '';
+      const vendorRaw = idxVendor >= 0 ? String(row[idxVendor] ?? '').trim() : '';
+      const unloadRaw = idxUnload >= 0 ? String(row[idxUnload] ?? '').trim() : '';
       const vendorVal = vendorRaw || '未設定';
       const unloadVal = unloadRaw || '未設定';
-      const specVal = idxSpec >= 0 ? (row[idxSpec] ?? '').trim() || null : null;
-      const timeVal = idxTime >= 0 ? (row[idxTime] ?? '').trim() || null : null;
-      const notesVal = idxNotes >= 0 ? (row[idxNotes] ?? '').trim() || null : null;
+      const specVal = idxSpec >= 0 ? String(row[idxSpec] ?? '').trim() || null : null;
+      const timeVal = idxTime >= 0 ? String(row[idxTime] ?? '').trim() || null : null;
+      const notesVal = idxNotes >= 0 ? String(row[idxNotes] ?? '').trim() || null : null;
 
       const { data: dup, error: dupError } = await supabase
         .from('deliveries')
