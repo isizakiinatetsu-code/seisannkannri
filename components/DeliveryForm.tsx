@@ -138,31 +138,6 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
               <option value="その他">その他</option>
             </select>
           </FormRow>
-
-          <FormRow label="　 納入場所">
-            <input type="text" value={form.storage_location} onChange={set('storage_location')} placeholder="A棟3番ラック 等" className="input" />
-          </FormRow>
-
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <FormRow label="　 数量">
-                <input type="number" value={form.quantity} onChange={set('quantity')} placeholder="0" className="input" step="any" />
-              </FormRow>
-            </div>
-            <div className="w-24">
-              <FormRow label="　 単位">
-                <input type="text" value={form.unit} onChange={set('unit')} placeholder="P/t/本" className="input" />
-              </FormRow>
-            </div>
-          </div>
-
-          <FormRow label="　 発注番号">
-            <input type="text" value={form.order_number} onChange={set('order_number')} placeholder="PO-2025-001" className="input" />
-          </FormRow>
-
-          <FormRow label="　 備考">
-            <textarea value={form.notes} onChange={set('notes')} placeholder="備考" className="input h-16 resize-none" />
-          </FormRow>
         </form>
 
         <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-white">
