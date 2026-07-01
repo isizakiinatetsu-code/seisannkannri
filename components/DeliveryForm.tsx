@@ -3,11 +3,6 @@ import { useState } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { ITEM_CATEGORIES } from '@/lib/constants';
 
-const LOCATIONS = [
-  '第1工場', '第2工場南（表）', '第2工場北（裏）', '第3工場', '第4工場',
-  '第3工場（宅急便）', '事務所', '事務所前',
-];
-
 const TIME_OPTIONS = [
   '午前中', '午後', '9:00', '10:00', '11:00', '12:00',
   '13:00', '14:00', '15:00', '16:00', '17:00',
@@ -20,9 +15,10 @@ interface Props {
   onCancel: () => void;
   vendors?: string[];
   projects?: string[];
+  unloadLocations?: string[];
 }
 
-export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, vendors = [], projects = [] }: Props) {
+export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, vendors = [], projects = [], unloadLocations = [] }: Props) {
   const [form, setForm] = useState({
     delivery_date: initial?.delivery_date ?? defaultDate ?? new Date().toISOString().split('T')[0],
     delivery_time: initial?.delivery_time ?? '',
@@ -132,7 +128,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
           <FormRow label="★ 降し場所">
             <select value={form.unload_location} onChange={set('unload_location')} required className="input">
               <option value="">場所を選択...</option>
-              {LOCATIONS.map(l => (
+              {unloadLocations.map(l => (
                 <option key={l} value={l}>{l}</option>
               ))}
               <option value="その他">その他</option>

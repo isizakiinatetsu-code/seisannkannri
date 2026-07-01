@@ -434,7 +434,8 @@ function CategoryLegend() {
     { label: 'スプライス', color: '#0891b2' },
     { label: 'ブレース', color: '#2563eb' },
     { label: 'ボルト', color: '#7c3aed' },
-    { label: '支給品', color: '#4b5563' },
+    { label: '支給材', color: '#ec4899' },
+    { label: 'ロール材/市中材', color: '#84cc16' },
     { label: '納入済み', color: '#9ca3af' },
   ];
   return (

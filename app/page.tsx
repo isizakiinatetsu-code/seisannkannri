@@ -486,6 +486,7 @@ export default function HomePage() {
           onCancel={() => setShowAddForm(false)}
           vendors={vendorOptions}
           projects={projectOptions}
+          unloadLocations={unloadLocationOptions}
         />
       )}
       {canEdit && editDelivery && (
@@ -495,6 +496,7 @@ export default function HomePage() {
           onCancel={() => setEditDelivery(null)}
           vendors={vendorOptions}
           projects={projectOptions}
+          unloadLocations={unloadLocationOptions}
         />
       )}
     </div>
