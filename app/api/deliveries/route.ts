@@ -32,7 +32,9 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query;
     if (error) throw error;
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
