@@ -75,7 +75,11 @@ export async function POST(req: NextRequest) {
       if (!s) return '';
       const d = new Date(s);
       if (isNaN(d.getTime())) return s;
-      return d.toISOString().slice(0, 10);
+      // toISOString はUTC変換のため、JST等では日付が1日ずれる。ローカル成分から組み立てる。
+      const y = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${mo}-${da}`;
     }
 
     // 過去に "/" 形式で保存された不正日付レコードを削除（一度きりの修復）
@@ -119,7 +123,7 @@ export async function POST(req: NextRequest) {
 
       const { data: dup, error: dupError } = await supabase
         .from('deliveries')
-        .select('id, vendor, unload_location')
+        .select('id, vendor, unload_location, specification, delivery_time')
         .eq('delivery_date', dateVal)
         .eq('project_name', project)
         .eq('item', item)
@@ -127,21 +131,20 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       if (dupError) throw dupError;
       if (dup) {
-        // 業者名・降し場所が「未設定」で、スプレッドシートに実値がある場合は更新する
-        const needsUpdate = (dup.vendor === '未設定' && vendorVal !== '未設定') ||
-                            (dup.unload_location === '未設定' && unloadVal !== '未設定');
-        if (needsUpdate) {
-          const { error: updateError } = await supabase.from('deliveries').update({
-            vendor: vendorVal,
-            unload_location: unloadVal,
-            specification: specVal,
-            delivery_time: timeVal,
-          }).eq('id', dup.id);
+        // DB側が未設定/空で、スプレッドシートに実値がある項目だけを埋める。
+        // （既存の値を空やスプレッドシートの別値で上書きして消さないようにする）
+        const patch: Record<string, unknown> = {};
+        if (dup.vendor === '未設定' && vendorVal !== '未設定') patch.vendor = vendorVal;
+        if (dup.unload_location === '未設定' && unloadVal !== '未設定') patch.unload_location = unloadVal;
+        if (!dup.specification && specVal) patch.specification = specVal;
+        if (!dup.delivery_time && timeVal) patch.delivery_time = timeVal;
+        if (Object.keys(patch).length > 0) {
+          const { error: updateError } = await supabase.from('deliveries').update(patch).eq('id', dup.id);
           if (updateError) {
             console.error('Update error for id', dup.id, updateError);
           } else {
             updated++;
-            console.log(`Updated id=${dup.id}: vendor="${vendorVal}", unload="${unloadVal}"`);
+            console.log(`Updated id=${dup.id}:`, JSON.stringify(patch));
           }
         }
         skipped++;

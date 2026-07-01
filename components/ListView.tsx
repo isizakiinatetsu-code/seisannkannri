@@ -102,7 +102,10 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
 }
 
 function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr);
+  // "2026-07-01" をローカル日付として解釈する（new Date(文字列)はUTC扱いになり
+  // タイムゾーンによって曜日・日付が1日ずれるため、成分から組み立てる）。
+  const [y, m, day] = dateStr.split('-').map(Number);
+  const d = new Date(y, (m ?? 1) - 1, day ?? 1);
   const days = ['日', '月', '火', '水', '木', '金', '土'];
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${days[d.getDay()]}）`;
 }
