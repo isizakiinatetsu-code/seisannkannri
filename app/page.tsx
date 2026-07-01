@@ -48,6 +48,8 @@ export default function HomePage() {
   const [importMsg, setImportMsg] = useState('');
   const [gsSyncing, setGsSyncing] = useState(false);
   const [role, setRole] = useState<'edit' | 'view' | null>(null);
+  // カレンダーで表示中の月（この前後3か月だけ取得するために使う）
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const canEdit = role === 'edit';
 
   useEffect(() => {
@@ -71,11 +73,30 @@ export default function HomePage() {
     return params.toString();
   }, []);
 
-  const fetchDeliveries = useCallback(async (f: SearchFilters) => {
+  // 検索条件が1つでも指定されているか（指定時は全期間、未指定時はカレンダー周辺3か月だけ取得）
+  const hasActiveFilters = useMemo(() => Object.values(filters).some(v => v !== ''), [filters]);
+
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // 実際に取得するクエリ。検索中は条件そのまま、そうでなければ
+  // 表示中の月の前後（前月・当月・翌月）だけに絞って軽くする。
+  const effectiveQuery = useMemo(() => {
+    if (hasActiveFilters) return buildQuery(filters);
+    const y = calendarMonth.getFullYear();
+    const m = calendarMonth.getMonth();
+    const from = new Date(y, m - 1, 1);      // 前月1日
+    const to = new Date(y, m + 2, 0);        // 翌月末日
+    const p = new URLSearchParams();
+    p.set('date_from', ymd(from));
+    p.set('date_to', ymd(to));
+    return p.toString();
+  }, [hasActiveFilters, filters, calendarMonth, buildQuery]);
+
+  const fetchDeliveries = useCallback(async (query: string) => {
     try {
-      const q = buildQuery(f);
       // 常に最新を取得（ブラウザ/モバイルのHTTPキャッシュで古い一覧が返るのを防ぐ）
-      const res = await fetch(`/api/deliveries${q ? `?${q}` : ''}`, { cache: 'no-store' });
+      const res = await fetch(`/api/deliveries${query ? `?${query}` : ''}`, { cache: 'no-store' });
       const data = await res.json();
       setDeliveries(Array.isArray(data) ? data : []);
     } catch {
@@ -83,17 +104,17 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [buildQuery]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchDeliveries(filters);
-  }, [filters, fetchDeliveries]);
+    fetchDeliveries(effectiveQuery);
+  }, [effectiveQuery, fetchDeliveries]);
 
   // 自動更新：アプリ再表示/フォーカス時と、30秒ごとに最新化する。
   // これにより「アプリを閉じ直さないと反映されない」「他の人の変更が見えない」を解消。
   useEffect(() => {
-    const refetch = () => fetchDeliveries(filters);
+    const refetch = () => fetchDeliveries(effectiveQuery);
     const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refetch);
@@ -103,25 +124,29 @@ export default function HomePage() {
       window.removeEventListener('focus', refetch);
       clearInterval(timer);
     };
-  }, [filters, fetchDeliveries]);
+  }, [effectiveQuery, fetchDeliveries]);
 
   async function handleMarkDelivered(id: number) {
     const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    // 即時反映：先に画面を更新してから保存する
+    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '納入済み', delivered_at: now } : d));
     await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '納入済み', delivered_at: now }),
     });
-    fetchDeliveries(filters);
+    fetchDeliveries(effectiveQuery);
   }
 
   async function handleRevertDelivered(id: number) {
+    // 即時反映
+    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null } : d));
     await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '予定', delivered_at: null }),
     });
-    fetchDeliveries(filters);
+    fetchDeliveries(effectiveQuery);
   }
 
   async function handleAdd(data: Partial<Delivery>) {
@@ -131,18 +156,21 @@ export default function HomePage() {
       body: JSON.stringify({ ...data, status: '予定' }),
     });
     setShowAddForm(false);
-    fetchDeliveries(filters);
+    fetchDeliveries(effectiveQuery);
   }
 
   async function handleEdit(data: Partial<Delivery>) {
     if (!editDelivery) return;
-    await fetch(`/api/deliveries/${editDelivery.id}`, {
+    const id = editDelivery.id;
+    // 即時反映：編集内容を先に画面へ反映
+    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, ...data } as Delivery : d));
+    await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     setEditDelivery(null);
-    fetchDeliveries(filters);
+    fetchDeliveries(effectiveQuery);
   }
 
   async function handleGsSync() {
@@ -155,7 +183,7 @@ export default function HomePage() {
         setImportMsg(`❌ ${data.error}`);
       } else {
         setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加 (重複スキップ: ${data.skipped}件)`);
-        fetchDeliveries(filters);
+        fetchDeliveries(effectiveQuery);
       }
     } catch {
       setImportMsg('❌ 同期に失敗しました');
@@ -383,6 +411,7 @@ export default function HomePage() {
                     deliveries={deliveries}
                     onSelectDelivery={setSelectedDelivery}
                     onDateClick={(date) => setAddDefaultDate(date)}
+                    onVisibleMonthChange={setCalendarMonth}
                   />
                 )}
                 {/* PC/iPad: 検索結果のみ表示（検索パネルは別途オーバーレイ/サイド表示） */}

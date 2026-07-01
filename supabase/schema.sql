@@ -25,6 +25,14 @@ create table if not exists deliveries (
 create index if not exists idx_deliveries_delivery_date on deliveries (delivery_date);
 create index if not exists idx_deliveries_status on deliveries (status);
 
+-- 検索の部分一致(ILIKE '%...%')を高速化するトライグラム索引。
+-- 先頭ワイルドカードのILIKEは通常のB-tree索引が効かないため、pg_trgm + GIN を使う。
+create extension if not exists pg_trgm;
+create index if not exists idx_deliveries_project_trgm on deliveries using gin (project_name gin_trgm_ops);
+create index if not exists idx_deliveries_vendor_trgm on deliveries using gin (vendor gin_trgm_ops);
+create index if not exists idx_deliveries_unload_trgm on deliveries using gin (unload_location gin_trgm_ops);
+create index if not exists idx_deliveries_item_trgm on deliveries using gin (item gin_trgm_ops);
+
 create table if not exists delivery_slips (
   id bigint generated always as identity primary key,
   delivery_id bigint not null references deliveries (id) on delete cascade,

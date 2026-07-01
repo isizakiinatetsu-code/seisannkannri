@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback, useLayoutEffect } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 
@@ -9,12 +9,19 @@ interface Props {
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
   onDateClick?: (date: string) => void;
+  // 表示中の月が変わったら親へ通知（親はこの前後3か月だけ取得する）
+  onVisibleMonthChange?: (d: Date) => void;
 }
 
-export default function CalendarView({ deliveries, onSelectDelivery, onDateClick }: Props) {
+export default function CalendarView({ deliveries, onSelectDelivery, onDateClick, onVisibleMonthChange }: Props) {
   const [mode, setMode] = useState<CalViewMode>('月');
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
+
+  // 表示中の月が変わったら親に知らせる（データ取得範囲の更新用）
+  useEffect(() => {
+    onVisibleMonthChange?.(current);
+  }, [current, onVisibleMonthChange]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // スワイプ判定用（横移動アニメーションはせず、指を離した時に瞬時に月を入れ替える。
