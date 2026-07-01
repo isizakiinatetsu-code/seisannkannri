@@ -31,7 +31,7 @@ export default function DeliveryModal({
   const color = getCategoryColor(delivery.item);
 
   useEffect(() => {
-    fetch(`/api/deliveries/${delivery.id}/slips`)
+    fetch(`/api/deliveries/${delivery.id}/slips`, { cache: 'no-store' })
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setSlips(data); })
       .catch(() => {})

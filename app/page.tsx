@@ -74,7 +74,8 @@ export default function HomePage() {
   const fetchDeliveries = useCallback(async (f: SearchFilters) => {
     try {
       const q = buildQuery(f);
-      const res = await fetch(`/api/deliveries${q ? `?${q}` : ''}`);
+      // 常に最新を取得（ブラウザ/モバイルのHTTPキャッシュで古い一覧が返るのを防ぐ）
+      const res = await fetch(`/api/deliveries${q ? `?${q}` : ''}`, { cache: 'no-store' });
       const data = await res.json();
       setDeliveries(Array.isArray(data) ? data : []);
     } catch {
@@ -87,6 +88,21 @@ export default function HomePage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeliveries(filters);
+  }, [filters, fetchDeliveries]);
+
+  // 自動更新：アプリ再表示/フォーカス時と、30秒ごとに最新化する。
+  // これにより「アプリを閉じ直さないと反映されない」「他の人の変更が見えない」を解消。
+  useEffect(() => {
+    const refetch = () => fetchDeliveries(filters);
+    const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refetch);
+    const timer = setInterval(refetch, 30000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refetch);
+      clearInterval(timer);
+    };
   }, [filters, fetchDeliveries]);
 
   async function handleMarkDelivered(id: number) {
