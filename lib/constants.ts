@@ -7,9 +7,13 @@ export const ITEM_CATEGORIES = [
   'スプライス',
   'ブレース',
   'ボルト',
-  '支給品',
   '現場用ボルト',
   'ハイベース',
+  '支給材',
+  '支給品',
+  'ロール材',
+  '市中材',
+  '注文材',
   'その他',
 ] as const;
 
@@ -34,8 +38,12 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export function getCategoryColor(item: string): string {
-  for (const [key, color] of Object.entries(CATEGORY_COLORS)) {
-    if (item.includes(key)) return color;
+  // 完全一致を最優先。次に、より具体的な（長い）キーから部分一致させる。
+  // これをしないと「現場用ボルト」が短い「ボルト」に先に一致して誤色になる。
+  if (CATEGORY_COLORS[item]) return CATEGORY_COLORS[item];
+  const keys = Object.keys(CATEGORY_COLORS).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (item.includes(key)) return CATEGORY_COLORS[key];
   }
   return CATEGORY_COLORS['その他'];
 }

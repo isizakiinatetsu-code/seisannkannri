@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { ITEM_CATEGORIES as BASE_ITEM_CATEGORIES } from '@/lib/constants';
 
 interface SearchFilters {
   project_name: string;
@@ -27,10 +28,8 @@ interface Props {
   onSearch?: () => void;
 }
 
-const ITEM_CATEGORIES = [
-  'すべて', '型板', '一次加工品', '二次部材', '副資材', '鋼材',
-  'スプライス', 'ブレース', 'ボルト', '支給品', '現場用ボルト', 'ハイベース', 'その他',
-];
+// 検索は先頭に「すべて」を足す（品目リスト本体は lib/constants と共通化して分岐を防ぐ）
+const ITEM_CATEGORIES = ['すべて', ...BASE_ITEM_CATEGORIES];
 
 export default function SearchPanel({ filters, onChange, onClose, total, vendors = [], projects = [], unloadLocations = [], onDirtyChange, onSearch }: Props) {
   // 検索ボタンを押すまでは入力内容を確定しない（draft）。確定済みの検索条件は親から渡される filters。
