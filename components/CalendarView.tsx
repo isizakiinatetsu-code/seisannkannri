@@ -304,17 +304,23 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   });
   const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
+  // 土日は予定がある時だけ表示する（無い週は隠して平日に高さを回す）。
+  const rows = days
+    .map((day, i) => {
+      const dateStr = fmt(day);
+      const items = deliveriesForDate(dateStr);
+      const isSat = i === 5;
+      const isSun = i === 6;
+      const show = (!isSat && !isSun) || items.length > 0;
+      return { day, i, dateStr, items, isSat, isSun, show };
+    })
+    .filter(r => r.show);
+
   return (
-    // 7日分をgridで厳密に等分（flexのmin-height:autoだと予定がない曜日
-    // ―特に最終行の日曜―だけ高さが詰まって見えてしまうため、
-    // minmax(0,1fr)で内容量に関わらず均等な行高にする）
-    <div className="h-full" style={{ display: 'grid', gridTemplateRows: 'repeat(7, minmax(0, 1fr))' }}>
-      {days.map((day, i) => {
-        const dateStr = fmt(day);
-        const items = deliveriesForDate(dateStr);
+    // 表示する曜日数でgridを厳密に等分（内容量に関わらず均等な行高にする）
+    <div className="h-full" style={{ display: 'grid', gridTemplateRows: `repeat(${rows.length}, minmax(0, 1fr))` }}>
+      {rows.map(({ day, i, dateStr, items, isSat, isSun }) => {
         const isToday = dateStr === fmt(today);
-        const isSat = i === 5;
-        const isSun = i === 6;
         const isHoliday = HOLIDAYS.has(dateStr);
         return (
           <div key={i} className={`flex gap-2 px-2 py-1 border-t border-gray-100 min-h-0 overflow-hidden ${isSat || isSun ? 'bg-gray-50/70' : 'bg-white'}`}>
