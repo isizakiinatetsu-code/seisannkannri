@@ -448,7 +448,9 @@ function WeekdayHeader() {
 }
 
 function CategoryLegend() {
-  // カードに出る色はすべて凡例に載せる（説明の無い色が出ないようにする）。
+  // 画面の縦を節約するため、凡例は折りたたみ式（初期は閉じてカレンダーを広く使う）。
+  const [open, setOpen] = useState(false);
+  // 納入済みは打ち消し線で分かるため凡例からは省く。ボルト系は1つに統合。
   const items = [
     { label: '型板', color: '#c2453f' },
     { label: '一次加工品', color: '#cf6a3c' },
@@ -458,20 +460,29 @@ function CategoryLegend() {
     { label: 'スプライス', color: '#3f8c86' },
     { label: 'ブレース', color: '#4f6fb0' },
     { label: 'ボルト', color: '#6f5aa8' },
-    { label: '現場用ボルト', color: '#8a5fa8' },
     { label: 'ハイベース', color: '#a85f9c' },
     { label: '支給材/支給品', color: '#bd6188' },
     { label: 'その他(未分類)', color: '#7b8794' },
-    { label: '納入済み', color: '#9ca3af' },
   ];
   return (
-    <div className="bg-white border-b px-3 py-2 flex flex-wrap gap-x-3 gap-y-1.5 flex-shrink-0">
-      {items.map(it => (
-        <div key={it.label} className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: it.color }} />
-          <span className="text-xs font-medium text-gray-700">{it.label}</span>
+    <div className="bg-white border-b flex-shrink-0">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-1 px-3 py-1 text-xs text-gray-500 hover:bg-gray-50"
+      >
+        <span>🎨 色の凡例</span>
+        <span>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-2 flex flex-wrap gap-x-3 gap-y-1.5">
+          {items.map(it => (
+            <div key={it.label} className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: it.color }} />
+              <span className="text-xs font-medium text-gray-700">{it.label}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
