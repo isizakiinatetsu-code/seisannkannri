@@ -173,6 +173,14 @@ export default function HomePage() {
     fetchDeliveries(effectiveQuery);
   }
 
+  async function handleDelete(id: number) {
+    // 即時反映：先に画面から消す
+    setDeliveries(prev => prev.filter(d => d.id !== id));
+    setEditDelivery(null);
+    await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
+    fetchDeliveries(effectiveQuery);
+  }
+
   async function handleGsSync() {
     setGsSyncing(true);
     setImportMsg('');
@@ -539,6 +547,7 @@ export default function HomePage() {
           initial={editDelivery}
           onSave={handleEdit}
           onCancel={() => setEditDelivery(null)}
+          onDelete={handleDelete}
           vendors={vendorOptions}
           projects={projectOptions}
           unloadLocations={unloadLocationOptions}
