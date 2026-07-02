@@ -13,12 +13,13 @@ interface Props {
   defaultDate?: string;
   onSave: (data: Partial<Delivery>) => void;
   onCancel: () => void;
+  onDelete?: (id: number) => void;
   vendors?: string[];
   projects?: string[];
   unloadLocations?: string[];
 }
 
-export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, vendors = [], projects = [], unloadLocations = [] }: Props) {
+export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, onDelete, vendors = [], projects = [], unloadLocations = [] }: Props) {
   const [form, setForm] = useState({
     delivery_date: initial?.delivery_date ?? defaultDate ?? new Date().toISOString().split('T')[0],
     delivery_time: initial?.delivery_time ?? '',
@@ -149,6 +150,23 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, v
             {initial?.id ? '更新する' : '登録する'}
           </button>
         </div>
+
+        {/* 編集時のみ：重複整理などのための削除（控えめに配置＋二重確認で誤操作を防ぐ） */}
+        {initial?.id && onDelete && (
+          <div className="px-4 pb-4 -mt-1 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('この予定を削除します。よろしいですか？\n※重複した予定の整理などにお使いください。元に戻せません。')) {
+                  onDelete(initial.id!);
+                }
+              }}
+              className="text-xs text-red-500 underline hover:text-red-700"
+            >
+              この予定を削除する
+            </button>
+          </div>
+        )}
       </div>
 
       <style jsx>{`
