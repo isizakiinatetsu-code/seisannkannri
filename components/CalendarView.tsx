@@ -439,16 +439,23 @@ function WeekdayHeader() {
 }
 
 function CategoryLegend() {
+  // カードに出る色はすべて凡例に載せる（説明の無い色が出ないようにする）。
   const items = [
     { label: '型板', color: '#dc2626' },
-    { label: '一次加工品', color: '#ea580c' },
+    { label: '一次加工品', color: '#f97316' },
+    { label: '二次部材', color: '#b45309' },
     { label: '副資材', color: '#ca8a04' },
-    { label: '鋼材', color: '#16a34a' },
-    { label: 'スプライス', color: '#0891b2' },
+    { label: '鋼材', color: '#15803d' },
+    { label: 'ロール材/市中材', color: '#65a30d' },
+    { label: 'スプライス', color: '#0d9488' },
+    { label: '注文材', color: '#0284c7' },
     { label: 'ブレース', color: '#2563eb' },
-    { label: 'ボルト', color: '#7c3aed' },
-    { label: '支給材', color: '#ec4899' },
-    { label: 'ロール材/市中材', color: '#84cc16' },
+    { label: 'ボルト', color: '#6d28d9' },
+    { label: '現場用ボルト', color: '#9333ea' },
+    { label: 'ハイベース', color: '#c026d3' },
+    { label: '支給材', color: '#db2777' },
+    { label: '支給品', color: '#7c2d12' },
+    { label: 'その他(未分類)', color: '#64748b' },
     { label: '納入済み', color: '#9ca3af' },
   ];
   return (
