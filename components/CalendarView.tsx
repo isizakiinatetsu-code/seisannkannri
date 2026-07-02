@@ -376,20 +376,24 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
         <div>
           <div className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wide">終日・時刻未定</div>
           <div className="space-y-2">
-            {allDay.map(item => (
+            {allDay.map(item => {
+              const done = item.status === '納入済み';
+              return (
               <button
                 key={item.id}
                 onClick={() => onSelectDelivery(item)}
-                className="w-full text-left p-3 rounded-xl text-white flex items-center gap-3"
-                style={{ background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item) }}
+                className={`w-full text-left p-3 rounded-xl flex items-center gap-3 ${done ? 'bg-gray-100 border border-gray-200' : 'text-white'}`}
+                style={done ? undefined : { background: getCategoryColor(item.item) }}
               >
+                {done && <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: '#16a34a' }}>✓</span>}
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold truncate">{item.project_name}</div>
-                  <div className="text-xs opacity-80">{item.item} · {item.vendor} · {item.unload_location}</div>
+                  <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
+                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor} · {item.unload_location}</div>
                 </div>
-                <span className="text-xs px-2 py-0.5 bg-white/20 rounded-full flex-shrink-0">{item.status}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${done ? 'text-white' : 'bg-white/20'}`} style={done ? { background: '#16a34a' } : undefined}>{done ? '✓ 納入済み' : item.status}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -397,21 +401,24 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
         <div>
           <div className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wide">時刻指定</div>
           <div className="space-y-2">
-            {[...timed].sort((a, b) => (a.delivery_time ?? '').localeCompare(b.delivery_time ?? '')).map(item => (
+            {[...timed].sort((a, b) => (a.delivery_time ?? '').localeCompare(b.delivery_time ?? '')).map(item => {
+              const done = item.status === '納入済み';
+              return (
               <button
                 key={item.id}
                 onClick={() => onSelectDelivery(item)}
-                className="w-full text-left p-3 rounded-xl text-white flex items-center gap-3"
-                style={{ background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item) }}
+                className={`w-full text-left p-3 rounded-xl flex items-center gap-3 ${done ? 'bg-gray-100 border border-gray-200' : 'text-white'}`}
+                style={done ? undefined : { background: getCategoryColor(item.item) }}
               >
-                <span className="font-mono font-bold text-sm w-12 flex-shrink-0">{item.delivery_time}</span>
+                <span className={`font-mono font-bold text-sm w-12 flex-shrink-0 ${done ? 'text-gray-400' : ''}`}>{item.delivery_time}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold truncate">{item.project_name}</div>
-                  <div className="text-xs opacity-80">{item.item} · {item.vendor}</div>
+                  <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
+                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor}</div>
                 </div>
-                <span className="text-xs px-2 py-0.5 bg-white/20 rounded-full flex-shrink-0">{item.status}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${done ? 'text-white' : 'bg-white/20'}`} style={done ? { background: '#16a34a' } : undefined}>{done ? '✓ 納入済み' : item.status}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -441,21 +448,21 @@ function WeekdayHeader() {
 function CategoryLegend() {
   // カードに出る色はすべて凡例に載せる（説明の無い色が出ないようにする）。
   const items = [
-    { label: '型板', color: '#dc2626' },
-    { label: '一次加工品', color: '#f97316' },
-    { label: '二次部材', color: '#b45309' },
-    { label: '副資材', color: '#ca8a04' },
-    { label: '鋼材', color: '#15803d' },
-    { label: 'ロール材/市中材', color: '#65a30d' },
-    { label: 'スプライス', color: '#0d9488' },
-    { label: '注文材', color: '#0284c7' },
-    { label: 'ブレース', color: '#2563eb' },
-    { label: 'ボルト', color: '#6d28d9' },
-    { label: '現場用ボルト', color: '#9333ea' },
-    { label: 'ハイベース', color: '#c026d3' },
-    { label: '支給材', color: '#db2777' },
-    { label: '支給品', color: '#7c2d12' },
-    { label: 'その他(未分類)', color: '#64748b' },
+    { label: '型板', color: '#c2453f' },
+    { label: '一次加工品', color: '#cf6a3c' },
+    { label: '二次部材', color: '#9c6b3f' },
+    { label: '副資材', color: '#b08a2e' },
+    { label: '鋼材', color: '#3f8f5f' },
+    { label: 'ロール材/市中材', color: '#7a9a45' },
+    { label: 'スプライス', color: '#3f8c86' },
+    { label: '注文材', color: '#4b8ab0' },
+    { label: 'ブレース', color: '#4f6fb0' },
+    { label: 'ボルト', color: '#6f5aa8' },
+    { label: '現場用ボルト', color: '#8a5fa8' },
+    { label: 'ハイベース', color: '#a85f9c' },
+    { label: '支給材', color: '#bd6188' },
+    { label: '支給品', color: '#8a5a4a' },
+    { label: 'その他(未分類)', color: '#7b8794' },
     { label: '納入済み', color: '#9ca3af' },
   ];
   return (
