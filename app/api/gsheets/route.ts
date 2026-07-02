@@ -121,32 +121,21 @@ export async function POST(req: NextRequest) {
       const timeVal = idxTime >= 0 ? String(row[idxTime] ?? '').trim() || null : null;
       const notesVal = idxNotes >= 0 ? String(row[idxNotes] ?? '').trim() || null : null;
 
-      const { data: dup, error: dupError } = await supabase
+      // 重複判定は「日付＋物件名＋品目＋業者名＋内容・規格」で行う。
+      // 同じ日・同じ物件・同じ品目でも、業者や規格（便）が違えば別の納入として取り込む。
+      // （以前は日付＋物件名＋品目だけで判定していたため、同日同品目の別便が
+      //   重複扱いで取り込まれずに漏れていた）
+      let dupQuery = supabase
         .from('deliveries')
-        .select('id, vendor, unload_location, specification, delivery_time')
+        .select('id')
         .eq('delivery_date', dateVal)
         .eq('project_name', project)
         .eq('item', item)
-        .limit(1)
-        .maybeSingle();
+        .eq('vendor', vendorVal);
+      dupQuery = specVal === null ? dupQuery.is('specification', null) : dupQuery.eq('specification', specVal);
+      const { data: dup, error: dupError } = await dupQuery.limit(1).maybeSingle();
       if (dupError) throw dupError;
       if (dup) {
-        // DB側が未設定/空で、スプレッドシートに実値がある項目だけを埋める。
-        // （既存の値を空やスプレッドシートの別値で上書きして消さないようにする）
-        const patch: Record<string, unknown> = {};
-        if (dup.vendor === '未設定' && vendorVal !== '未設定') patch.vendor = vendorVal;
-        if (dup.unload_location === '未設定' && unloadVal !== '未設定') patch.unload_location = unloadVal;
-        if (!dup.specification && specVal) patch.specification = specVal;
-        if (!dup.delivery_time && timeVal) patch.delivery_time = timeVal;
-        if (Object.keys(patch).length > 0) {
-          const { error: updateError } = await supabase.from('deliveries').update(patch).eq('id', dup.id);
-          if (updateError) {
-            console.error('Update error for id', dup.id, updateError);
-          } else {
-            updated++;
-            console.log(`Updated id=${dup.id}:`, JSON.stringify(patch));
-          }
-        }
         skipped++;
         continue;
       }
