@@ -98,68 +98,87 @@ export async function POST(req: NextRequest) {
     const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
     const minDate = threeMonthsAgo.toISOString().slice(0, 10);
 
-    let imported = 0;
     let skipped = 0;
-    let updated = 0;
     const toInsert: Record<string, unknown>[] = [];
 
     console.log('Column indices:', { idxDate, idxTime, idxProject, idxItem, idxSpec, idxVendor, idxUnload, idxNotes });
 
+    // スプレッドシートの各行は「1行＝1納入」。フィールドが一致しても別の行なら別の納入。
+    // そこで重複判定は「同じ内容の行を二度取り込まない」ためだけに使い、件数で調整する。
+    // 例: シートに同内容が2行あってDBに1行なら不足1件だけ追加する（行の取りこぼしゼロ・再同期でも二重登録なし）。
+    type Cand = {
+      dateVal: string; project: string; item: string;
+      specVal: string | null; vendorVal: string; unloadVal: string;
+      timeVal: string | null; notesVal: string | null;
+    };
+    const norm = (v: string | null) => v ?? '';
+    const keyOf = (c: { delivery_date: string; project_name: string; item: string; specification: string | null; vendor: string; unload_location: string; delivery_time: string | null; }) =>
+      JSON.stringify([c.delivery_date, c.project_name, c.item, norm(c.specification), c.vendor, c.unload_location, norm(c.delivery_time)]);
+
+    // 1) シートの取り込み対象行を集める
+    const candidates: Cand[] = [];
     for (const row of rows.slice(1)) {
       const dateVal = normalizeDate(idxDate >= 0 ? row[idxDate] : '');
       const project = idxProject >= 0 ? String(row[idxProject] ?? '').trim() : '';
       const item = idxItem >= 0 ? String(row[idxItem] ?? '').trim() : '';
       if (!dateVal || !project || !item) { skipped++; continue; }
-      // 直近3か月より古いデータはスキップ
       if (dateVal < minDate) { skipped++; continue; }
-
-      const vendorRaw = idxVendor >= 0 ? String(row[idxVendor] ?? '').trim() : '';
-      const unloadRaw = idxUnload >= 0 ? String(row[idxUnload] ?? '').trim() : '';
-      const vendorVal = vendorRaw || '未設定';
-      const unloadVal = unloadRaw || '未設定';
+      const vendorVal = (idxVendor >= 0 ? String(row[idxVendor] ?? '').trim() : '') || '未設定';
+      const unloadVal = (idxUnload >= 0 ? String(row[idxUnload] ?? '').trim() : '') || '未設定';
       const specVal = idxSpec >= 0 ? String(row[idxSpec] ?? '').trim() || null : null;
       const timeVal = idxTime >= 0 ? String(row[idxTime] ?? '').trim() || null : null;
       const notesVal = idxNotes >= 0 ? String(row[idxNotes] ?? '').trim() || null : null;
+      candidates.push({ dateVal, project, item, specVal, vendorVal, unloadVal, timeVal, notesVal });
+    }
 
-      // 重複判定は「日付＋物件名＋品目＋業者名＋内容・規格」で行う。
-      // 同じ日・同じ物件・同じ品目でも、業者や規格（便）が違えば別の納入として取り込む。
-      // （以前は日付＋物件名＋品目だけで判定していたため、同日同品目の別便が
-      //   重複扱いで取り込まれずに漏れていた）
-      let dupQuery = supabase
-        .from('deliveries')
-        .select('id')
-        .eq('delivery_date', dateVal)
-        .eq('project_name', project)
-        .eq('item', item)
-        .eq('vendor', vendorVal);
-      dupQuery = specVal === null ? dupQuery.is('specification', null) : dupQuery.eq('specification', specVal);
-      const { data: dup, error: dupError } = await dupQuery.limit(1).maybeSingle();
-      if (dupError) throw dupError;
-      if (dup) {
-        skipped++;
-        continue;
-      }
+    // 2) DBの既存件数を同一キーで数える（直近3か月分）
+    const { data: existing, error: existingErr } = await supabase
+      .from('deliveries')
+      .select('delivery_date, project_name, item, specification, vendor, unload_location, delivery_time')
+      .gte('delivery_date', minDate);
+    if (existingErr) throw existingErr;
+    const dbCount = new Map<string, number>();
+    for (const e of existing ?? []) {
+      const k = keyOf(e as never);
+      dbCount.set(k, (dbCount.get(k) ?? 0) + 1);
+    }
 
-      toInsert.push({
-        delivery_date: dateVal,
-        delivery_time: timeVal,
-        project_name: project,
-        item,
-        specification: specVal,
-        vendor: vendorVal,
-        unload_location: unloadVal,
-        notes: notesVal,
-        status: '予定',
+    // 3) シートを同一キーでグループ化し、DBに足りない件数だけ追加する
+    const groups = new Map<string, Cand[]>();
+    for (const c of candidates) {
+      const k = keyOf({
+        delivery_date: c.dateVal, project_name: c.project, item: c.item,
+        specification: c.specVal, vendor: c.vendorVal, unload_location: c.unloadVal, delivery_time: c.timeVal,
       });
-      imported++;
+      const arr = groups.get(k); if (arr) arr.push(c); else groups.set(k, [c]);
+    }
+    for (const [k, list] of groups) {
+      const have = dbCount.get(k) ?? 0;
+      const need = list.length - have;
+      for (let i = 0; i < need; i++) {
+        const c = list[i];
+        toInsert.push({
+          delivery_date: c.dateVal,
+          delivery_time: c.timeVal,
+          project_name: c.project,
+          item: c.item,
+          specification: c.specVal,
+          vendor: c.vendorVal,
+          unload_location: c.unloadVal,
+          notes: c.notesVal,
+          status: '予定',
+        });
+      }
     }
 
     if (toInsert.length > 0) {
       const { error: insertError } = await supabase.from('deliveries').insert(toInsert);
       if (insertError) throw insertError;
     }
+    const imported = toInsert.length;
+    skipped = candidates.length - imported;
 
-    return NextResponse.json({ imported, updated, skipped });
+    return NextResponse.json({ imported, skipped });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: `エラー: ${e}` }, { status: 500 });
