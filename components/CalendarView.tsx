@@ -388,6 +388,7 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
                 {done && <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: '#16a34a' }}>✓</span>}
                 <div className="flex-1 min-w-0">
                   <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
+                  {item.specification && <div className={`text-xs truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.specification}</div>}
                   <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor} · {item.unload_location}</div>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${done ? 'text-white' : 'bg-white/20'}`} style={done ? { background: '#16a34a' } : undefined}>{done ? '✓ 納入済み' : item.status}</span>
@@ -413,6 +414,7 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
                 <span className={`font-mono font-bold text-sm w-12 flex-shrink-0 ${done ? 'text-gray-400' : ''}`}>{item.delivery_time}</span>
                 <div className="flex-1 min-w-0">
                   <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
+                  {item.specification && <div className={`text-xs truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.specification}</div>}
                   <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor}</div>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${done ? 'text-white' : 'bg-white/20'}`} style={done ? { background: '#16a34a' } : undefined}>{done ? '✓ 納入済み' : item.status}</span>
