@@ -444,7 +444,7 @@ export default function HomePage() {
         )}
 
         {/* 今日の予定サマリー */}
-        <div className="flex-shrink-0 px-4 py-2 bg-white border-b flex items-center gap-2 flex-wrap">
+        <div className="flex-shrink-0 px-4 py-1.5 bg-white border-b flex items-center gap-2 flex-wrap">
           <span className="text-sm">📅</span>
           <span className="text-sm font-bold text-gray-800">今日の納入</span>
           {todaySummary.total === 0 ? (
