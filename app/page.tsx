@@ -106,15 +106,29 @@ export default function HomePage() {
     }
   }, []);
 
+  // 今日の予定サマリー（表示中の月に関係なく、常に「今日」の件数を出すため専用取得）
+  const [todayItems, setTodayItems] = useState<Delivery[]>([]);
+  const fetchToday = useCallback(async () => {
+    const t = ymd(new Date());
+    try {
+      const res = await fetch(`/api/deliveries?date_from=${t}&date_to=${t}`, { cache: 'no-store' });
+      const data = await res.json();
+      setTodayItems(Array.isArray(data) ? data : []);
+    } catch { /* サマリーは失敗しても本体表示に影響させない */ }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeliveries(effectiveQuery);
+    fetchToday();
   }, [effectiveQuery, fetchDeliveries]);
+
+  useEffect(() => { fetchToday(); }, [fetchToday]);
 
   // 自動更新：アプリ再表示/フォーカス時と、30秒ごとに最新化する。
   // これにより「アプリを閉じ直さないと反映されない」「他の人の変更が見えない」を解消。
   useEffect(() => {
-    const refetch = () => fetchDeliveries(effectiveQuery);
+    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); };
     const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refetch);
@@ -124,7 +138,13 @@ export default function HomePage() {
       window.removeEventListener('focus', refetch);
       clearInterval(timer);
     };
-  }, [effectiveQuery, fetchDeliveries]);
+  }, [effectiveQuery, fetchDeliveries, fetchToday]);
+
+  const todaySummary = useMemo(() => {
+    const total = todayItems.length;
+    const done = todayItems.filter(d => d.status === '納入済み').length;
+    return { total, done, pending: total - done };
+  }, [todayItems]);
 
   async function handleMarkDelivered(id: number) {
     const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -136,6 +156,7 @@ export default function HomePage() {
       body: JSON.stringify({ status: '納入済み', delivered_at: now }),
     });
     fetchDeliveries(effectiveQuery);
+    fetchToday();
   }
 
   async function handleRevertDelivered(id: number) {
@@ -147,6 +168,7 @@ export default function HomePage() {
       body: JSON.stringify({ status: '予定', delivered_at: null }),
     });
     fetchDeliveries(effectiveQuery);
+    fetchToday();
   }
 
   async function handleAdd(data: Partial<Delivery>) {
@@ -157,6 +179,7 @@ export default function HomePage() {
     });
     setShowAddForm(false);
     fetchDeliveries(effectiveQuery);
+    fetchToday();
   }
 
   async function handleEdit(data: Partial<Delivery>) {
@@ -171,6 +194,7 @@ export default function HomePage() {
     });
     setEditDelivery(null);
     fetchDeliveries(effectiveQuery);
+    fetchToday();
   }
 
   async function handleDelete(id: number) {
@@ -179,6 +203,7 @@ export default function HomePage() {
     setEditDelivery(null);
     await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
     fetchDeliveries(effectiveQuery);
+    fetchToday();
   }
 
   async function handleGsSync() {
@@ -397,6 +422,21 @@ export default function HomePage() {
             {importMsg}
           </div>
         )}
+
+        {/* 今日の予定サマリー */}
+        <div className="flex-shrink-0 px-4 py-2 bg-white border-b flex items-center gap-2 flex-wrap">
+          <span className="text-sm">📅</span>
+          <span className="text-sm font-bold text-gray-800">今日の納入</span>
+          {todaySummary.total === 0 ? (
+            <span className="text-sm text-gray-400">予定はありません</span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-sm">
+              <span className="font-bold text-gray-800">{todaySummary.total}件</span>
+              <span className="px-2 py-0.5 rounded-full text-white text-xs font-medium" style={{ background: '#d97706' }}>未納入 {todaySummary.pending}</span>
+              <span className="px-2 py-0.5 rounded-full text-white text-xs font-medium" style={{ background: '#16a34a' }}>納入済み {todaySummary.done}</span>
+            </span>
+          )}
+        </div>
 
         {/* ---- コンテンツ本体 ---- */}
         {/* ホーム画面追加(standalone PWA)時はホームインジケータ分のsafe-area-inset-bottomが
