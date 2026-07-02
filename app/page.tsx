@@ -4,6 +4,7 @@ import { Delivery } from '@/lib/supabase';
 import CalendarView from '@/components/CalendarView';
 import ListView from '@/components/ListView';
 import DeliveryModal from '@/components/DeliveryModal';
+import DuplicateCheck from '@/components/DuplicateCheck';
 import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
 
@@ -36,6 +37,7 @@ export default function HomePage() {
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [editDelivery, setEditDelivery] = useState<Delivery | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [showSearch, setShowSearch] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
@@ -300,6 +302,15 @@ export default function HomePage() {
           )}
           {canEdit && (
             <button
+              onClick={() => setShowDuplicates(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+            >
+              <span>🔁</span>
+              <span>重複チェック</span>
+            </button>
+          )}
+          {canEdit && (
+            <button
               onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-colors"
               style={{ background: '#f5c000', color: '#0d2c66' }}
@@ -330,6 +341,15 @@ export default function HomePage() {
             <h1 className="font-bold text-base">INATETSU納入管理カレンダー</h1>
           </div>
           <div className="flex items-center gap-2">
+            {canEdit && (
+              <button
+                onClick={() => setShowDuplicates(true)}
+                aria-label="重複チェック"
+                className="flex items-center px-2.5 py-1.5 rounded-lg text-sm bg-white/20 hover:bg-white/30 border border-white/30"
+              >
+                🔁
+              </button>
+            )}
             {canEdit && (
               <button
                 onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
@@ -591,6 +611,12 @@ export default function HomePage() {
           vendors={vendorOptions}
           projects={projectOptions}
           unloadLocations={unloadLocationOptions}
+        />
+      )}
+      {canEdit && showDuplicates && (
+        <DuplicateCheck
+          onClose={() => setShowDuplicates(false)}
+          onSelectDelivery={setSelectedDelivery}
         />
       )}
     </div>
