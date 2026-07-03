@@ -309,6 +309,13 @@ export default function HomePage() {
               <span>重複チェック</span>
             </button>
           )}
+          <a
+            href="/api/deliveries/export"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+          >
+            <span>📥</span>
+            <span>Excel/CSVで書き出し</span>
+          </a>
           {canEdit && (
             <button
               onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
@@ -341,6 +348,13 @@ export default function HomePage() {
             <h1 className="font-bold text-base">INATETSU納入管理カレンダー</h1>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/api/deliveries/export"
+              aria-label="Excel/CSVで書き出し"
+              className="flex items-center px-2.5 py-1.5 rounded-lg text-sm bg-white/20 hover:bg-white/30 border border-white/30"
+            >
+              📥
+            </a>
             {canEdit && (
               <button
                 onClick={() => setShowDuplicates(true)}
