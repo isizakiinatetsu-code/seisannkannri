@@ -39,7 +39,6 @@ export default function HomePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
-  const [showSearch, setShowSearch] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   // 検索パネルの入力中(未検索)フラグ。trueの間は古い検索結果を表示せず、
   // 検索ボタンを押すまで結果が変わらないことが分かるようにする。
@@ -429,36 +428,13 @@ export default function HomePage() {
             <h2 className="font-bold text-gray-800">{tabItems.find(t => t.id === tab)?.label}</h2>
             {tab === 'list' && <span className="text-sm text-gray-400">{deliveries.length}件</span>}
           </div>
-          {tab === 'list' && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowSearch(s => !s)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${hasFilters ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              >
-                🔍 {showSearch ? '閉じる' : '絞り込み検索'}
-              </button>
-              {hasFilters && (
-                <button onClick={() => setFilters(emptyFilters)} className="text-xs text-blue-600 hover:underline">クリア</button>
-              )}
-            </div>
+          {tab === 'list' && hasFilters && (
+            <button onClick={() => setFilters(emptyFilters)} className="text-xs text-blue-600 hover:underline">条件をクリア</button>
           )}
         </div>
 
-        {/* ---- iPad用 一覧タブの検索バー ---- */}
-        {tab === 'list' && (
-          <div className="hidden md:flex lg:hidden bg-white border-b px-4 py-2 items-center gap-3 flex-shrink-0">
-            <button
-              onClick={() => setShowSearch(s => !s)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${hasFilters ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            >
-              🔍 {showSearch ? '閉じる' : '絞り込み検索'}
-            </button>
-            <span className="text-sm text-gray-500">{deliveries.length}件</span>
-            {hasFilters && <button onClick={() => setFilters(emptyFilters)} className="text-xs text-blue-600 hover:underline">クリア</button>}
-          </div>
-        )}
-
-        {/* スマホ用 検索タブは検索パネルを常時上部に表示するため個別バー不要 */}
+        {/* スマホ用 検索タブは検索パネルを常時上部に表示するため個別バー不要。
+            PC/iPadは検索パネルを右側に常時表示するため、ここに切替バーは不要。 */}
 
         {/* インポートメッセージ */}
         {importMsg && (
@@ -506,23 +482,16 @@ export default function HomePage() {
                     onVisibleMonthChange={setCalendarMonth}
                   />
                 )}
-                {/* PC/iPad: 検索結果のみ表示（検索パネルは別途オーバーレイ/サイド表示） */}
+                {/* PC/iPad: 検索結果（検索パネルは右側に常時表示） */}
                 {tab === 'list' && (
                   <div className="hidden md:flex flex-1 flex-col overflow-y-auto min-h-0">
                     {searchDirty
                       ? <div className="flex-1" />
                       : hasFilters
                       ? <ListView deliveries={deliveries} onSelectDelivery={setSelectedDelivery} />
-                      : <div className="flex flex-1 flex-col items-center justify-center text-gray-400 gap-3">
+                      : <div className="flex flex-1 flex-col items-center justify-center text-gray-400 gap-2">
                           <div className="text-5xl">🔍</div>
-                          <div className="font-medium text-base">検索条件を選択してください</div>
-                          <button
-                            onClick={() => setShowSearch(true)}
-                            className="mt-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm"
-                            style={{ background: '#0d2c66' }}
-                          >
-                            絞り込み検索を開く
-                          </button>
+                          <div className="font-medium text-base">右の条件で絞り込んでください</div>
                         </div>
                     }
                   </div>
@@ -568,21 +537,12 @@ export default function HomePage() {
                 }
               </div>
             )}
-            {/* iPad: 検索パネルオーバーレイ */}
-            {tab === 'list' && showSearch && (
-              <>
-                <div className="absolute inset-0 bg-black/20 z-20 hidden md:block lg:hidden" onClick={() => setShowSearch(false)} />
-                <div className="absolute inset-x-0 top-0 z-30 px-3 pt-3 max-h-full overflow-y-auto pb-4 hidden md:block lg:hidden">
-                  <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} onSearch={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
-                </div>
-              </>
-            )}
           </div>
 
-          {/* PC: 検索パネルをサイド表示 */}
-          {tab === 'list' && showSearch && (
-            <div className="hidden lg:block w-80 xl:w-96 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
-              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setShowSearch(false)} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
+          {/* PC/iPad: 検索パネルを右側に常時表示（押して開く操作を不要にする） */}
+          {tab === 'list' && (
+            <div className="hidden md:block w-72 lg:w-80 xl:w-96 flex-shrink-0 border-l bg-gray-50 overflow-y-auto p-3">
+              <SearchPanel filters={filters} onChange={setFilters} onClose={() => setTab('calendar')} total={deliveries.length} vendors={vendorOptions} projects={projectOptions} unloadLocations={unloadLocationOptions} onDirtyChange={setSearchDirty} />
             </div>
           )}
         </main>
