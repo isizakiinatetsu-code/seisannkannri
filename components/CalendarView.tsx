@@ -466,23 +466,22 @@ function CategoryLegend() {
   ];
   return (
     <div className="bg-white border-b flex-shrink-0">
+      {/* スマホのみ折りたたみトグル。PC/iPad(md以上)は画面が広いので常時表示 */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-1 px-3 py-1 text-xs text-gray-500 hover:bg-gray-50"
+        className="md:hidden w-full flex items-center gap-1 px-3 py-1 text-xs text-gray-500 hover:bg-gray-50"
       >
         <span>🎨 色の凡例</span>
         <span>{open ? '▲' : '▼'}</span>
       </button>
-      {open && (
-        <div className="px-3 pb-2 flex flex-wrap gap-x-3 gap-y-1.5">
-          {items.map(it => (
-            <div key={it.label} className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: it.color }} />
-              <span className="text-xs font-medium text-gray-700">{it.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className={`px-3 pb-2 md:pt-2 flex-wrap gap-x-3 gap-y-1.5 ${open ? 'flex' : 'hidden'} md:flex`}>
+        {items.map(it => (
+          <div key={it.label} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: it.color }} />
+            <span className="text-xs font-medium text-gray-700">{it.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

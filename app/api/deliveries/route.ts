@@ -46,7 +46,28 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
   try {
     const supabase = getSupabase();
-    const body: DeliveryInput = await req.json();
+    const body: DeliveryInput & { force?: boolean } = await req.json();
+
+    // 二重登録の警告：同じ「日付＋物件名＋品目＋業者名＋内容・規格」が既にあれば、
+    // force指定が無い限り409を返して呼び出し側で確認させる（総務と購買が同じものを
+    // それぞれ入力してしまう事故を防ぐ）。
+    if (!body.force) {
+      let dupQuery = supabase
+        .from('deliveries')
+        .select('id, status')
+        .eq('delivery_date', body.delivery_date)
+        .eq('project_name', body.project_name)
+        .eq('item', body.item)
+        .eq('vendor', body.vendor);
+      dupQuery = (body.specification == null || body.specification === '')
+        ? dupQuery.is('specification', null)
+        : dupQuery.eq('specification', body.specification);
+      const { data: dup, error: dupError } = await dupQuery.limit(1).maybeSingle();
+      if (dupError) throw dupError;
+      if (dup) {
+        return NextResponse.json({ duplicate: true, existingStatus: dup.status }, { status: 409 });
+      }
+    }
 
     const { data, error } = await supabase
       .from('deliveries')
