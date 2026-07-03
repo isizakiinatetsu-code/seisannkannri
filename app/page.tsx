@@ -174,11 +174,21 @@ export default function HomePage() {
   }
 
   async function handleAdd(data: Partial<Delivery>) {
-    await fetch('/api/deliveries', {
+    const res = await fetch('/api/deliveries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, status: '予定' }),
     });
+    // 二重登録の警告：同じ内容が既にある場合は確認してから登録する
+    if (res.status === 409) {
+      const ok = confirm('⚠️ 同じ内容の予定が既に登録されています。\n（日付・物件名・品目・業者・内容規格が同じ）\n\n他の人が既に入力しているかもしれません。それでも追加しますか？');
+      if (!ok) return; // フォームは開いたまま
+      await fetch('/api/deliveries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, status: '予定', force: true }),
+      });
+    }
     setShowAddForm(false);
     fetchDeliveries(effectiveQuery);
     fetchToday();
