@@ -48,6 +48,14 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabase();
     const body: DeliveryInput & { force?: boolean } = await req.json();
 
+    // 前後の空白は重複判定・保存の両方でズレの原因になるため揃える。
+    const trim = (v: string | null | undefined) => (typeof v === 'string' ? v.trim() : v);
+    const projectName = trim(body.project_name) as string;
+    const itemName = trim(body.item) as string;
+    const vendorName = trim(body.vendor) as string;
+    const spec = trim(body.specification);
+    const specEmpty = spec == null || spec === '';
+
     // 二重登録の警告：同じ「日付＋物件名＋品目＋業者名＋内容・規格」が既にあれば、
     // force指定が無い限り409を返して呼び出し側で確認させる（総務と購買が同じものを
     // それぞれ入力してしまう事故を防ぐ）。
@@ -56,12 +64,12 @@ export async function POST(req: NextRequest) {
         .from('deliveries')
         .select('id, status')
         .eq('delivery_date', body.delivery_date)
-        .eq('project_name', body.project_name)
-        .eq('item', body.item)
-        .eq('vendor', body.vendor);
-      dupQuery = (body.specification == null || body.specification === '')
+        .eq('project_name', projectName)
+        .eq('item', itemName)
+        .eq('vendor', vendorName);
+      dupQuery = specEmpty
         ? dupQuery.is('specification', null)
-        : dupQuery.eq('specification', body.specification);
+        : dupQuery.eq('specification', spec);
       const { data: dup, error: dupError } = await dupQuery.limit(1).maybeSingle();
       if (dupError) throw dupError;
       if (dup) {
@@ -74,10 +82,10 @@ export async function POST(req: NextRequest) {
       .insert({
         delivery_date: body.delivery_date,
         delivery_time: body.delivery_time ?? null,
-        project_name: body.project_name,
-        item: body.item,
-        specification: body.specification ?? null,
-        vendor: body.vendor,
+        project_name: projectName,
+        item: itemName,
+        specification: specEmpty ? null : spec,
+        vendor: vendorName,
         unload_location: body.unload_location,
         storage_location: body.storage_location ?? null,
         quantity: body.quantity ?? null,

@@ -27,5 +27,10 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image).*)'],
+  // 静的アセット（画像・アイコン・manifest・テンプレート等）は認証対象外にする。
+  // これを除外しないと、未ログイン時にログイン画面のロゴ等まで /login にリダイレクト
+  // されて画像が壊れる。
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|robots.txt|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|xlsx|webmanifest)$).*)',
+  ],
 };

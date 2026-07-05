@@ -82,17 +82,6 @@ export async function POST(req: NextRequest) {
       return `${y}-${mo}-${da}`;
     }
 
-    // 過去に "/" 形式で保存された不正日付レコードを削除（一度きりの修復）
-    const { data: badRecords } = await supabase
-      .from('deliveries')
-      .select('id')
-      .like('delivery_date', '%/%');
-    if (badRecords && badRecords.length > 0) {
-      const badIds = badRecords.map((r: { id: number }) => r.id);
-      await supabase.from('deliveries').delete().in('id', badIds);
-      console.log(`Deleted ${badIds.length} records with malformed dates`);
-    }
-
     // 直近3か月の範囲でのみインポート
     const now = new Date();
     const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());

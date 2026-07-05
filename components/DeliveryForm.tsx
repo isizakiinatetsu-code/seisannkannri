@@ -8,6 +8,15 @@ const TIME_OPTIONS = [
   '13:00', '14:00', '15:00', '16:00', '17:00',
 ];
 
+// 今日の日付を「ローカル時刻」で YYYY-MM-DD にする。
+// new Date().toISOString() はUTC変換のため、日本の朝(0〜9時)は前日になってしまう。
+function todayLocalYmd() {
+  const d = new Date();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mo}-${da}`;
+}
+
 interface Props {
   initial?: Partial<Delivery>;
   defaultDate?: string;
@@ -21,7 +30,7 @@ interface Props {
 
 export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, onDelete, vendors = [], projects = [], unloadLocations = [] }: Props) {
   const [form, setForm] = useState({
-    delivery_date: initial?.delivery_date ?? defaultDate ?? new Date().toISOString().split('T')[0],
+    delivery_date: initial?.delivery_date ?? defaultDate ?? todayLocalYmd(),
     delivery_time: initial?.delivery_time ?? '',
     project_name: initial?.project_name ?? '',
     item: initial?.item ?? '',

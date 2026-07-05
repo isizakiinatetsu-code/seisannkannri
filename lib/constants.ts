@@ -46,6 +46,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export function getCategoryColor(item: string): string {
+  if (!item) return CATEGORY_COLORS['その他'];
   // 完全一致を最優先。次に、より具体的な（長い）キーから部分一致させる。
   // これをしないと「現場用ボルト」が短い「ボルト」に先に一致して誤色になる。
   if (CATEGORY_COLORS[item]) return CATEGORY_COLORS[item];

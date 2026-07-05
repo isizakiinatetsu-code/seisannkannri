@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { requireEditRole } from '@/lib/auth';
 
 const BUCKET = 'slips';
+const MAX_SIZE = 15 * 1024 * 1024; // 15MB
 
 export async function POST(req: NextRequest) {
+  const denied = requireEditRole(req);
+  if (denied) return denied;
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
+
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ error: 'ファイルサイズが大きすぎます（上限15MB）' }, { status: 400 });
+    }
 
     const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
     if (!['jpg', 'jpeg', 'png', 'pdf', 'webp'].includes(ext)) {
