@@ -293,7 +293,8 @@ export default function HomePage() {
     [deliveries]
   );
   const unloadLocationOptions = useMemo(() =>
-    [...new Set(deliveries.map(d => d.unload_location).filter(Boolean))].sort() as string[],
+    // 「事務所」はデータに無くても常に候補へ含める
+    [...new Set(['事務所', ...deliveries.map(d => d.unload_location).filter(Boolean)])].sort() as string[],
     [deliveries]
   );
   const projectOptions = useMemo(() => {
