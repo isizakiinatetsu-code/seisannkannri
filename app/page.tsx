@@ -174,9 +174,18 @@ export default function HomePage() {
     return { total, done, pending: total - done };
   }, [todayItems]);
 
-  // 保存系の共通後処理：失敗時はメッセージを出して最新状態に戻す（楽観更新の巻き戻し）。
+  // 対象IDの updated_at を現在の表示状態から探す（楽観ロック用）。
+  function findUpdatedAt(id: number): string | undefined {
+    const d = deliveries.find(x => x.id === id) ?? todayItems.find(x => x.id === id);
+    return d?.updated_at;
+  }
+
+  // 保存系の共通後処理：失敗・競合時はメッセージを出して最新状態に戻す（楽観更新の巻き戻し）。
   async function finalizeMutation(res: Response, failMsg: string) {
-    if (!res.ok) {
+    if (res.status === 409) {
+      // 楽観ロックの競合：他の人が先に更新していた
+      alert('⚠️ 他の人が先にこの予定を更新していました。\n画面を最新の内容に更新します。あなたの操作は反映されていません。もう一度ご確認ください。');
+    } else if (!res.ok) {
       let detail = '';
       try { detail = (await res.json())?.error ?? ''; } catch { /* noop */ }
       alert(`${failMsg}${detail ? `\n（${detail}）` : ''}`);
@@ -192,7 +201,7 @@ export default function HomePage() {
     const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: '納入済み', delivered_at: now }),
+      body: JSON.stringify({ status: '納入済み', delivered_at: now, expected_updated_at: findUpdatedAt(id) }),
     });
     await finalizeMutation(res, '「納入済み」への変更を保存できませんでした。');
   }
@@ -203,7 +212,7 @@ export default function HomePage() {
     const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: '予定', delivered_at: null }),
+      body: JSON.stringify({ status: '予定', delivered_at: null, expected_updated_at: findUpdatedAt(id) }),
     });
     await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
@@ -232,12 +241,13 @@ export default function HomePage() {
   async function handleEdit(data: Partial<Delivery>) {
     if (!editDelivery) return;
     const id = editDelivery.id;
+    const expectedUpdatedAt = editDelivery.updated_at;
     // 即時反映：編集内容を先に画面へ反映
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, ...data } as Delivery : d));
     const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, expected_updated_at: expectedUpdatedAt }),
     });
     setEditDelivery(null);
     await finalizeMutation(res, '編集内容を保存できませんでした。');
