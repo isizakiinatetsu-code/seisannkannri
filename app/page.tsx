@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Delivery } from '@/lib/supabase';
 import CalendarView from '@/components/CalendarView';
 import ListView from '@/components/ListView';
@@ -62,6 +62,28 @@ export default function HomePage() {
     window.location.href = '/login';
   }
 
+  // CSV書き出し。<a href>で直接遷移するとスマホ（特にホーム画面追加のPWA）では
+  // アプリ画面から離れて戻れなくなるため、Blobでダウンロードして画面はそのまま保つ。
+  async function handleExport() {
+    try {
+      const res = await fetch('/api/deliveries/export');
+      if (!res.ok) throw new Error('export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nouhin_${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      alert('書き出しに失敗しました。通信環境を確認してもう一度お試しください。');
+    }
+  }
+
   const buildQuery = useCallback((f: SearchFilters) => {
     const params = new URLSearchParams();
     if (f.project_name) params.set('project_name', f.project_name);
@@ -94,16 +116,21 @@ export default function HomePage() {
     return p.toString();
   }, [hasActiveFilters, filters, calendarMonth, buildQuery]);
 
+  // 月スワイプ・30秒間隔・フォーカス復帰が同時に走ると、遅れて返った古い応答が
+  // 新しい一覧を上書きしてしまう。リクエスト番号で最新の応答だけを採用する。
+  const fetchSeqRef = useRef(0);
   const fetchDeliveries = useCallback(async (query: string) => {
+    const seq = ++fetchSeqRef.current;
     try {
       // 常に最新を取得（ブラウザ/モバイルのHTTPキャッシュで古い一覧が返るのを防ぐ）
       const res = await fetch(`/api/deliveries${query ? `?${query}` : ''}`, { cache: 'no-store' });
       const data = await res.json();
+      if (seq !== fetchSeqRef.current) return; // より新しい取得が始まっていれば破棄
       setDeliveries(Array.isArray(data) ? data : []);
     } catch {
-      setDeliveries([]);
+      if (seq === fetchSeqRef.current) setDeliveries([]);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -147,29 +174,38 @@ export default function HomePage() {
     return { total, done, pending: total - done };
   }, [todayItems]);
 
+  // 保存系の共通後処理：失敗時はメッセージを出して最新状態に戻す（楽観更新の巻き戻し）。
+  async function finalizeMutation(res: Response, failMsg: string) {
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json())?.error ?? ''; } catch { /* noop */ }
+      alert(`${failMsg}${detail ? `\n（${detail}）` : ''}`);
+    }
+    fetchDeliveries(effectiveQuery);
+    fetchToday();
+  }
+
   async function handleMarkDelivered(id: number) {
     const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     // 即時反映：先に画面を更新してから保存する
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '納入済み', delivered_at: now } : d));
-    await fetch(`/api/deliveries/${id}`, {
+    const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '納入済み', delivered_at: now }),
     });
-    fetchDeliveries(effectiveQuery);
-    fetchToday();
+    await finalizeMutation(res, '「納入済み」への変更を保存できませんでした。');
   }
 
   async function handleRevertDelivered(id: number) {
     // 即時反映
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null } : d));
-    await fetch(`/api/deliveries/${id}`, {
+    const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '予定', delivered_at: null }),
     });
-    fetchDeliveries(effectiveQuery);
-    fetchToday();
+    await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
 
   async function handleAdd(data: Partial<Delivery>) {
@@ -179,18 +215,18 @@ export default function HomePage() {
       body: JSON.stringify({ ...data, status: '予定' }),
     });
     // 二重登録の警告：同じ内容が既にある場合は確認してから登録する
+    let finalRes = res;
     if (res.status === 409) {
       const ok = confirm('⚠️ 同じ内容の予定が既に登録されています。\n（日付・物件名・品目・業者・内容規格が同じ）\n\n他の人が既に入力しているかもしれません。それでも追加しますか？');
       if (!ok) return; // フォームは開いたまま
-      await fetch('/api/deliveries', {
+      finalRes = await fetch('/api/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, status: '予定', force: true }),
       });
     }
     setShowAddForm(false);
-    fetchDeliveries(effectiveQuery);
-    fetchToday();
+    await finalizeMutation(finalRes, '予定の登録に失敗しました。もう一度お試しください。');
   }
 
   async function handleEdit(data: Partial<Delivery>) {
@@ -198,23 +234,21 @@ export default function HomePage() {
     const id = editDelivery.id;
     // 即時反映：編集内容を先に画面へ反映
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, ...data } as Delivery : d));
-    await fetch(`/api/deliveries/${id}`, {
+    const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     setEditDelivery(null);
-    fetchDeliveries(effectiveQuery);
-    fetchToday();
+    await finalizeMutation(res, '編集内容を保存できませんでした。');
   }
 
   async function handleDelete(id: number) {
     // 即時反映：先に画面から消す
     setDeliveries(prev => prev.filter(d => d.id !== id));
     setEditDelivery(null);
-    await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
-    fetchDeliveries(effectiveQuery);
-    fetchToday();
+    const res = await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
+    await finalizeMutation(res, '削除できませんでした。');
   }
 
   async function handleGsSync() {
@@ -318,13 +352,13 @@ export default function HomePage() {
               <span>重複チェック</span>
             </button>
           )}
-          <a
-            href="/api/deliveries/export"
+          <button
+            onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
           >
             <span>📥</span>
             <span>Excel/CSVで書き出し</span>
-          </a>
+          </button>
           {canEdit && (
             <button
               onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
@@ -350,25 +384,25 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* ---- スマホ用ヘッダー (md未満) ---- */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 text-white flex-shrink-0" style={{ background: '#0d2c66' }}>
-          <div className="flex items-center gap-2">
+        <header className="md:hidden flex items-center justify-between gap-2 px-3 py-3 text-white flex-shrink-0" style={{ background: '#0d2c66' }}>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/inatetsu-logo.jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5" />
-            <h1 className="font-bold text-base">INATETSU納入管理カレンダー</h1>
+            <img src="/inatetsu-logo.jpg" alt="INATETSU" className="w-7 h-7 object-contain rounded bg-white p-0.5 flex-shrink-0" />
+            <h1 className="font-bold text-sm truncate">INATETSU納入カレンダー</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <a
-              href="/api/deliveries/export"
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={handleExport}
               aria-label="Excel/CSVで書き出し"
-              className="flex items-center px-2.5 py-1.5 rounded-lg text-sm bg-white/20 hover:bg-white/30 border border-white/30"
+              className="flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30"
             >
               📥
-            </a>
+            </button>
             {canEdit && (
               <button
                 onClick={() => setShowDuplicates(true)}
                 aria-label="重複チェック"
-                className="flex items-center px-2.5 py-1.5 rounded-lg text-sm bg-white/20 hover:bg-white/30 border border-white/30"
+                className="flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30"
               >
                 🔁
               </button>
@@ -376,9 +410,11 @@ export default function HomePage() {
             {canEdit && (
               <button
                 onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 border border-white/30"
+                aria-label="予定を追加"
+                className="flex items-center justify-center w-9 h-9 rounded-lg text-xl font-bold border border-white/40"
+                style={{ background: '#f5c000', color: '#0d2c66' }}
               >
-                ＋ 追加
+                ＋
               </button>
             )}
           </div>
