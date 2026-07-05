@@ -62,88 +62,91 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
   }
 
   return (
-    <div className="bg-white border rounded-2xl shadow-lg p-4 space-y-3">
-      <div className="flex items-center justify-between mb-1">
+    <div className="bg-white border rounded-2xl shadow-lg p-3.5">
+      <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-blue-600 font-normal">{total}件</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 rounded-lg hover:bg-gray-100">
           閉じる
         </button>
       </div>
 
-      <div>
-        <label className="label">物件名</label>
-        <select value={draft.project_name} onChange={set('project_name')} className="input">
-          <option value="">すべて</option>
-          {projects.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-      </div>
+      {/* 2列に並べて縦の高さを抑え、スマホでも画面に収まるようにする */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <div className="col-span-2">
+          <label className="label">物件名</label>
+          <select value={draft.project_name} onChange={set('project_name')} className="input">
+            <option value="">すべて</option>
+            {projects.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
 
-      <div>
-        <label className="label">品目カテゴリ</label>
-        <select value={draft.item} onChange={set('item')} className="input">
-          {ITEM_CATEGORIES.map(c => (
-            <option key={c} value={c === 'すべて' ? '' : c}>{c}</option>
-          ))}
-        </select>
-      </div>
+        <div className="col-span-2">
+          <label className="label">業者名</label>
+          <select value={draft.vendor} onChange={set('vendor')} className="input">
+            <option value="">すべて</option>
+            {vendors.map(v => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+        </div>
 
-      <div>
-        <label className="label">業者名</label>
-        <select value={draft.vendor} onChange={set('vendor')} className="input">
-          <option value="">すべて</option>
-          {vendors.map(v => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
-      </div>
+        <div>
+          <label className="label">品目カテゴリ</label>
+          <select value={draft.item} onChange={set('item')} className="input">
+            {ITEM_CATEGORIES.map(c => (
+              <option key={c} value={c === 'すべて' ? '' : c}>{c}</option>
+            ))}
+          </select>
+        </div>
 
-      <div>
-        <label className="label">降し場所</label>
-        <select value={draft.unload_location} onChange={set('unload_location')} className="input">
-          <option value="">すべて</option>
-          {unloadLocations.map(l => (
-            <option key={l} value={l}>{l}</option>
-          ))}
-        </select>
-      </div>
+        <div>
+          <label className="label">降し場所</label>
+          <select value={draft.unload_location} onChange={set('unload_location')} className="input">
+            <option value="">すべて</option>
+            {unloadLocations.map(l => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+        </div>
 
-      <div>
-        <label className="label">日付（開始）</label>
-        <input type="date" value={draft.date_from} onChange={set('date_from')} className="input" />
-      </div>
-      <div>
-        <label className="label">日付（終了）</label>
-        <input type="date" value={draft.date_to} onChange={set('date_to')} className="input" />
-      </div>
+        <div>
+          <label className="label">日付（開始）</label>
+          <input type="date" value={draft.date_from} onChange={set('date_from')} className="input" />
+        </div>
+        <div>
+          <label className="label">日付（終了）</label>
+          <input type="date" value={draft.date_to} onChange={set('date_to')} className="input" />
+        </div>
 
-      <div>
-        <label className="label">ステータス</label>
-        <select value={draft.status} onChange={set('status')} className="input">
-          <option value="">すべて</option>
-          <option value="予定">予定</option>
-          <option value="納入済み">納入済み</option>
-        </select>
+        <div className="col-span-2">
+          <label className="label">ステータス</label>
+          <select value={draft.status} onChange={set('status')} className="input">
+            <option value="">すべて</option>
+            <option value="予定">予定</option>
+            <option value="納入済み">納入済み</option>
+          </select>
+        </div>
       </div>
 
       <button
         onClick={handleSearch}
-        className="w-full py-2.5 text-sm text-white font-bold rounded-xl"
+        className="w-full mt-3 py-2.5 text-sm text-white font-bold rounded-xl"
         style={{ background: '#0d2c66' }}
       >
         検索
       </button>
 
       {(hasDraftFilters || isDirty) && (
-        <button onClick={handleClear} className="w-full py-2 text-sm text-gray-500 border border-gray-300 rounded-xl hover:bg-gray-50">
+        <button onClick={handleClear} className="w-full mt-2 py-2 text-sm text-gray-500 border border-gray-300 rounded-xl hover:bg-gray-50">
           フィルターをクリア
         </button>
       )}
 
       <style jsx>{`
-        .label { display: block; font-size: 12px; color: #6b7280; font-weight: 500; margin-bottom: 4px; }
-        .input { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; }
+        .label { display: block; font-size: 12px; color: #6b7280; font-weight: 500; margin-bottom: 3px; }
+        .input { width: 100%; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; }
         .input:focus { border-color: #2f8fcf; }
       `}</style>
     </div>
