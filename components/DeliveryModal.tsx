@@ -185,6 +185,11 @@ export default function DeliveryModal({
               <span className="text-sm text-gray-600">{delivery.delivered_at}</span>
             </Row>
           )}
+          {delivery.created_by && (
+            <Row label="追加者">
+              <span className="text-gray-700">🧑‍💼 {delivery.created_by}</span>
+            </Row>
+          )}
 
           {/* Slip images */}
           <div>

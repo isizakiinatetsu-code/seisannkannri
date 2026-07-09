@@ -18,9 +18,13 @@ create table if not exists deliveries (
   status text not null default '予定' check (status in ('予定', '納入済み')),
   delivered_at timestamptz,
   slip_image_path text,
+  created_by text, -- 追加者（部署）: 購買課 / 総務部
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 既存テーブルに追加者カラムを足す（新規作成時は上のCREATEに含まれる）
+alter table deliveries add column if not exists created_by text;
 
 create index if not exists idx_deliveries_delivery_date on deliveries (delivery_date);
 create index if not exists idx_deliveries_status on deliveries (status);
