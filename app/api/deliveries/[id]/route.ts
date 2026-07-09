@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
+import { isMissingCreatedByColumn } from '@/lib/dbErrors';
 
 export async function GET(
   _req: NextRequest,
@@ -47,11 +48,17 @@ export async function PATCH(
       return NextResponse.json(existing);
     }
 
-    let updateQuery = supabase.from('deliveries').update(fields).eq('id', id);
-    if (expectedUpdatedAt) {
-      updateQuery = updateQuery.eq('updated_at', expectedUpdatedAt);
+    const runUpdate = () => {
+      let q = supabase.from('deliveries').update(fields).eq('id', id);
+      if (expectedUpdatedAt) q = q.eq('updated_at', expectedUpdatedAt);
+      return q.select().maybeSingle();
+    };
+    let { data, error } = await runUpdate();
+    // created_by 列がまだ無いDBでも編集できるよう、その場合は列を外して再試行する。
+    if (error && isMissingCreatedByColumn(error) && 'created_by' in fields) {
+      delete fields.created_by;
+      ({ data, error } = await runUpdate());
     }
-    const { data, error } = await updateQuery.select().maybeSingle();
 
     if (error) throw error;
     if (!data) {

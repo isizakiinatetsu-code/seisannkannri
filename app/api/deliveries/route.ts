@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase, DeliveryInput } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
+import { isMissingCreatedByColumn } from '@/lib/dbErrors';
 
 export async function GET(req: NextRequest) {
   try {
@@ -77,28 +78,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { data, error } = await supabase
-      .from('deliveries')
-      .insert({
-        delivery_date: body.delivery_date,
-        delivery_time: body.delivery_time ?? null,
-        project_name: projectName,
-        item: itemName,
-        specification: specEmpty ? null : spec,
-        vendor: vendorName,
-        unload_location: body.unload_location,
-        storage_location: body.storage_location ?? null,
-        quantity: body.quantity ?? null,
-        unit: body.unit ?? null,
-        order_number: body.order_number ?? null,
-        notes: body.notes ?? null,
-        status: body.status ?? '予定',
-        delivered_at: body.delivered_at ?? null,
-        slip_image_path: body.slip_image_path ?? null,
-        created_by: trim(body.created_by) ?? null,
-      })
-      .select()
-      .single();
+    const insertPayload: Record<string, unknown> = {
+      delivery_date: body.delivery_date,
+      delivery_time: body.delivery_time ?? null,
+      project_name: projectName,
+      item: itemName,
+      specification: specEmpty ? null : spec,
+      vendor: vendorName,
+      unload_location: body.unload_location,
+      storage_location: body.storage_location ?? null,
+      quantity: body.quantity ?? null,
+      unit: body.unit ?? null,
+      order_number: body.order_number ?? null,
+      notes: body.notes ?? null,
+      status: body.status ?? '予定',
+      delivered_at: body.delivered_at ?? null,
+      slip_image_path: body.slip_image_path ?? null,
+      created_by: trim(body.created_by) ?? null,
+    };
+
+    let { data, error } = await supabase.from('deliveries').insert(insertPayload).select().single();
+    // created_by 列がまだ無いDBでも登録できるよう、その場合は列を外して再試行する。
+    if (error && isMissingCreatedByColumn(error)) {
+      delete insertPayload.created_by;
+      ({ data, error } = await supabase.from('deliveries').insert(insertPayload).select().single());
+    }
 
     if (error) throw error;
     return NextResponse.json(data, { status: 201 });
