@@ -154,6 +154,16 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
               <option value="その他">その他</option>
             </select>
           </FormRow>
+
+          <FormRow label="　 備考">
+            <textarea
+              value={form.notes}
+              onChange={set('notes')}
+              rows={3}
+              placeholder="連絡事項・分納の内容など（任意）"
+              className="input resize-y"
+            />
+          </FormRow>
         </form>
 
         <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-white">
