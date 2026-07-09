@@ -14,7 +14,7 @@ export async function GET() {
     if (error) throw error;
 
     const rows = (data ?? []) as Delivery[];
-    const headers = ['納入予定日', '納入予定時刻', '物件名', '品目', '内容・規格', '業者名', '降し場所', '数量', '単位', '備考', 'ステータス', '納入確認時刻'];
+    const headers = ['納入予定日', '納入予定時刻', '物件名', '品目', '内容・規格', '業者名', '降し場所', '数量', '単位', '備考', 'ステータス', '納入確認時刻', '追加者'];
     const esc = (v: unknown) => {
       const s = v == null ? '' : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -23,7 +23,7 @@ export async function GET() {
     for (const d of rows) {
       lines.push([
         d.delivery_date, d.delivery_time, d.project_name, d.item, d.specification,
-        d.vendor, d.unload_location, d.quantity, d.unit, d.notes, d.status, d.delivered_at,
+        d.vendor, d.unload_location, d.quantity, d.unit, d.notes, d.status, d.delivered_at, d.created_by,
       ].map(esc).join(','));
     }
     const csv = '﻿' + lines.join('\r\n');

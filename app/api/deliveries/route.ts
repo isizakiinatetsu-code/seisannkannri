@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
         status: body.status ?? '予定',
         delivered_at: body.delivered_at ?? null,
         slip_image_path: body.slip_image_path ?? null,
+        created_by: trim(body.created_by) ?? null,
       })
       .select()
       .single();

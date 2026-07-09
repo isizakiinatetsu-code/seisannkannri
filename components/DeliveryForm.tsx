@@ -32,6 +32,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
   const [form, setForm] = useState({
     delivery_date: initial?.delivery_date ?? defaultDate ?? todayLocalYmd(),
     delivery_time: initial?.delivery_time ?? '',
+    created_by: initial?.created_by ?? '',
     project_name: initial?.project_name ?? '',
     item: initial?.item ?? '',
     specification: initial?.specification ?? '',
@@ -53,7 +54,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.delivery_date || !form.project_name || !form.item || !form.vendor || !form.unload_location) {
+    if (!form.delivery_date || !form.project_name || !form.item || !form.vendor || !form.unload_location || !form.created_by) {
       alert('★必須項目をすべて入力してください');
       return;
     }
@@ -73,6 +74,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
       unit: form.unit || null,
       order_number: form.order_number || null,
       notes: notesValue,
+      created_by: form.created_by,
     });
   }
 
@@ -96,6 +98,14 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
             <select value={form.delivery_time} onChange={set('delivery_time')} className="input">
               <option value="">未定</option>
               {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </FormRow>
+
+          <FormRow label="★ 追加者（部署）">
+            <select value={form.created_by} onChange={set('created_by')} required className="input">
+              <option value="">選択してください...</option>
+              <option value="購買課">購買課</option>
+              <option value="総務部">総務部</option>
             </select>
           </FormRow>
 
