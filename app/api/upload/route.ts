@@ -6,7 +6,7 @@ const BUCKET = 'slips';
 const MAX_SIZE = 15 * 1024 * 1024; // 15MB
 
 export async function POST(req: NextRequest) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
     const formData = await req.formData();

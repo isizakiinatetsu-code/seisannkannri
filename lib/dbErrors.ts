@@ -2,6 +2,8 @@
 // （Postgres: 42703 undefined_column / PostgREST: PGRST204、メッセージに列名を含む）
 export function isMissingCreatedByColumn(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
-  if (error.code === '42703' || error.code === 'PGRST204') return true;
-  return typeof error.message === 'string' && error.message.includes('created_by');
+  // SQLコードで判定する（メッセージ部分一致だと、created_by に関する別のエラー
+  // ＝NOT NULL制約違反等まで「列が無い」と誤検知して黙って値を落とす恐れがある）。
+  // 42703 = Postgres undefined_column / PGRST204 = PostgRESTのスキーマ未検出
+  return error.code === '42703' || error.code === 'PGRST204';
 }

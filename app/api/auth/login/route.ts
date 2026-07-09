@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE } from '@/lib/auth';
+import { signSession } from '@/lib/session';
+
+const MAX_AGE = 60 * 60 * 24 * 30; // 30日
 
 export async function POST(req: NextRequest) {
   const { password } = await req.json();
@@ -15,13 +18,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'パスワードが正しくありません' }, { status: 401 });
   }
 
+  const token = await signSession(role, MAX_AGE);
   const res = NextResponse.json({ role });
-  res.cookies.set(AUTH_COOKIE, role, {
+  res.cookies.set(AUTH_COOKIE, token, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: MAX_AGE,
   });
   return res;
 }

@@ -229,7 +229,9 @@ export default function HomePage() {
   }, [todayItems]);
 
   // 対象IDの updated_at を現在の表示状態から探す（楽観ロック用）。
+  // お知らせ一覧から開いた予定は deliveries に無いことがあるため selectedDelivery も見る。
   function findUpdatedAt(id: number): string | undefined {
+    if (selectedDelivery?.id === id) return selectedDelivery.updated_at;
     const d = deliveries.find(x => x.id === id) ?? todayItems.find(x => x.id === id);
     return d?.updated_at;
   }
@@ -243,13 +245,26 @@ export default function HomePage() {
       let detail = '';
       try { detail = (await res.json())?.error ?? ''; } catch { /* noop */ }
       alert(`${failMsg}${detail ? `\n（${detail}）` : ''}`);
+    } else {
+      // 成功時：サーバーが返した最新行（特に updated_at）でローカルを更新する。
+      // これをしないと、続けて素早く操作したときに古い updated_at を送って
+      // 誤って「他の人が更新」と競合扱いになることがある。
+      try {
+        const saved = await res.json();
+        if (saved && typeof saved.id === 'number' && saved.updated_at) {
+          setDeliveries(prev => prev.map(d => d.id === saved.id ? { ...d, ...saved } as Delivery : d));
+          setSelectedDelivery(prev => (prev && prev.id === saved.id ? { ...prev, ...saved } as Delivery : prev));
+        }
+      } catch { /* 応答が無い/JSONでない場合は無視 */ }
     }
     fetchDeliveries(effectiveQuery);
     fetchToday();
   }
 
   async function handleMarkDelivered(id: number) {
-    const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    // timestamptz列にはISO(UTC)で保存する。ロケール文字列("2026/7/9 10:30")だと
+    // 解析に失敗したり時差がずれる。表示側でJSTに整形する。
+    const now = new Date().toISOString();
     // 即時反映：先に画面を更新してから保存する
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '納入済み', delivered_at: now } : d));
     const res = await fetch(`/api/deliveries/${id}`, {

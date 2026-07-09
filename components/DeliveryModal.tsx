@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Delivery, DeliverySlip } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
 import { processToScanStyle } from '@/lib/scanImage';
+import { formatDateTimeJst } from '@/lib/format';
 
 interface Props {
   delivery: Delivery;
@@ -184,7 +185,7 @@ export default function DeliveryModal({
           </Row>
           {delivery.status === '納入済み' && delivery.delivered_at && (
             <Row label="納入確認時刻">
-              <span className="text-sm text-gray-600">{delivery.delivered_at}</span>
+              <span className="text-sm text-gray-600">{formatDateTimeJst(delivery.delivered_at)}</span>
             </Row>
           )}
           {delivery.created_by && (

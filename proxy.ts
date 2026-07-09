@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE } from '@/lib/auth';
+import { verifySession } from '@/lib/session';
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (
@@ -13,7 +14,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const role = req.cookies.get(AUTH_COOKIE)?.value;
+  // 署名付きCookieを検証（偽造・改ざん・期限切れは拒否）
+  const role = await verifySession(req.cookies.get(AUTH_COOKIE)?.value);
   if (role !== 'edit' && role !== 'view') {
     if (pathname.startsWith('/api')) {
       return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 });
