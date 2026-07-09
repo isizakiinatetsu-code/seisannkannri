@@ -39,6 +39,8 @@ export default function HomePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
+  // 分納：既存予定を複製して残り分を登録するときの初期値（idは持たせず新規登録扱い）
+  const [addPrefill, setAddPrefill] = useState<Partial<Delivery> | null>(null);
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   // 検索パネルの入力中(未検索)フラグ。trueの間は古い検索結果を表示せず、
   // 検索ボタンを押すまで結果が変わらないことが分かるようにする。
@@ -153,10 +155,40 @@ export default function HomePage() {
 
   useEffect(() => { fetchToday(); }, [fetchToday]);
 
+  // ---- アプリ内お知らせ（新着：他の人が追加した予定）----
+  const lastSeenRef = useRef<string>('');
+  const [newItems, setNewItems] = useState<{ id: number; project_name: string; delivery_date: string; item: string; created_by: string | null; created_at: string }[]>([]);
+
+  const fetchNotifications = useCallback(async () => {
+    const since = lastSeenRef.current;
+    if (!since) return;
+    try {
+      const res = await fetch(`/api/deliveries/recent?since=${encodeURIComponent(since)}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (Array.isArray(data)) setNewItems(data);
+    } catch { /* お知らせ取得失敗は本体に影響させない */ }
+  }, []);
+
+  function markNotificationsSeen() {
+    const now = new Date().toISOString();
+    lastSeenRef.current = now;
+    if (typeof window !== 'undefined') localStorage.setItem('inatetsu_last_seen', now);
+    setNewItems([]);
+  }
+
+  useEffect(() => {
+    // 初回は「今」を基準にし、過去の全予定を新着扱いしない
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('inatetsu_last_seen') : null;
+    const base = stored || new Date().toISOString();
+    lastSeenRef.current = base;
+    if (!stored && typeof window !== 'undefined') localStorage.setItem('inatetsu_last_seen', base);
+    fetchNotifications();
+  }, [fetchNotifications]);
+
   // 自動更新：アプリ再表示/フォーカス時と、30秒ごとに最新化する。
   // これにより「アプリを閉じ直さないと反映されない」「他の人の変更が見えない」を解消。
   useEffect(() => {
-    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); };
+    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); fetchNotifications(); };
     const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refetch);
@@ -166,7 +198,7 @@ export default function HomePage() {
       window.removeEventListener('focus', refetch);
       clearInterval(timer);
     };
-  }, [effectiveQuery, fetchDeliveries, fetchToday]);
+  }, [effectiveQuery, fetchDeliveries, fetchToday, fetchNotifications]);
 
   const todaySummary = useMemo(() => {
     const total = todayItems.length;
@@ -217,6 +249,27 @@ export default function HomePage() {
     await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
 
+  // 分納：この予定を複製して「残り分」を新規登録する（内容を引き継いで別日で登録できる）
+  function handleDuplicate(d: Delivery) {
+    setAddPrefill({
+      delivery_date: d.delivery_date,
+      delivery_time: d.delivery_time,
+      project_name: d.project_name,
+      item: d.item,
+      specification: d.specification,
+      vendor: d.vendor,
+      unload_location: d.unload_location,
+      storage_location: d.storage_location,
+      quantity: d.quantity,
+      unit: d.unit,
+      order_number: d.order_number,
+      notes: d.notes,
+      created_by: '', // 登録者は選び直してもらう
+    });
+    setSelectedDelivery(null);
+    setShowAddForm(true);
+  }
+
   async function handleAdd(data: Partial<Delivery>) {
     const res = await fetch('/api/deliveries', {
       method: 'POST',
@@ -235,6 +288,9 @@ export default function HomePage() {
       });
     }
     setShowAddForm(false);
+    setAddPrefill(null);
+    // 自分が登録した分は「新着お知らせ」に出さないよう、既読時刻を進める
+    markNotificationsSeen();
     await finalizeMutation(finalRes, '予定の登録に失敗しました。もう一度お試しください。');
   }
 
@@ -490,6 +546,27 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* 新着お知らせ（他の人が追加した予定） */}
+        {newItems.length > 0 && (
+          <div className="flex-shrink-0 px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-start gap-2">
+            <span className="text-base leading-5">🔔</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-amber-800">新しく追加された予定が {newItems.length}件 あります</div>
+              <div className="text-xs text-amber-700 mt-0.5 truncate">
+                {newItems.slice(0, 3).map(n => `${n.delivery_date.slice(5)} ${n.project_name}`).join(' / ')}
+                {newItems.length > 3 ? ' ほか' : ''}
+              </div>
+            </div>
+            <button
+              onClick={markNotificationsSeen}
+              className="flex-shrink-0 text-xs font-bold text-white px-3 py-1.5 rounded-lg"
+              style={{ background: '#d97706' }}
+            >
+              確認
+            </button>
+          </div>
+        )}
+
         {/* 今日の予定サマリー */}
         <div className="flex-shrink-0 px-4 py-1.5 bg-white border-b flex items-center gap-2 flex-wrap">
           <span className="text-sm">📅</span>
@@ -619,15 +696,17 @@ export default function HomePage() {
           onMarkDelivered={handleMarkDelivered}
           onRevertDelivered={handleRevertDelivered}
           onEdit={(d) => { setEditDelivery(d); setSelectedDelivery(null); }}
+          onDuplicate={handleDuplicate}
           onSlipUploaded={handleSlipUploaded}
           canEdit={canEdit}
         />
       )}
       {canEdit && showAddForm && (
         <DeliveryForm
+          initial={addPrefill ?? undefined}
           defaultDate={addDefaultDate}
           onSave={handleAdd}
-          onCancel={() => setShowAddForm(false)}
+          onCancel={() => { setShowAddForm(false); setAddPrefill(null); }}
           vendors={vendorOptions}
           projects={projectOptions}
           unloadLocations={unloadLocationOptions}
