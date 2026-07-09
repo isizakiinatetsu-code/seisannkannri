@@ -1,6 +1,7 @@
 'use client';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
+import { formatDateTimeJst } from '@/lib/format';
 
 interface Props {
   deliveries: Delivery[];
@@ -84,7 +85,7 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
                     </div>
                     {item.status === '納入済み' && item.delivered_at && (
                       <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                        ✓ {item.delivered_at} 納入確認
+                        ✓ {formatDateTimeJst(item.delivered_at)} 納入確認
                       </div>
                     )}
                     {item.slip_image_path && (

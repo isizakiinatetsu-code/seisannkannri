@@ -54,7 +54,9 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.delivery_date || !form.project_name || !form.item || !form.vendor || !form.unload_location || !form.created_by) {
+    // 追加者は「新規追加」のときのみ必須（既存予定の編集では、未設定でもそのまま保存できる）
+    const isNew = !initial?.id;
+    if (!form.delivery_date || !form.project_name || !form.item || !form.vendor || !form.unload_location || (isNew && !form.created_by)) {
       alert('★必須項目をすべて入力してください');
       return;
     }
@@ -101,8 +103,8 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
             </select>
           </FormRow>
 
-          <FormRow label="★ 追加者（部署）">
-            <select value={form.created_by} onChange={set('created_by')} required className="input">
+          <FormRow label={`${initial?.id ? '　' : '★'} 追加者（部署）`}>
+            <select value={form.created_by} onChange={set('created_by')} required={!initial?.id} className="input">
               <option value="">選択してください...</option>
               <option value="購買課">購買課</option>
               <option value="総務部">総務部</option>

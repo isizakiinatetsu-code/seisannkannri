@@ -4,7 +4,7 @@ import { requireEditRole } from '@/lib/auth';
 
 // 日付形式が "2026/6/16" のような不正なレコードを削除し、件数を返す
 export async function POST(req: NextRequest) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
     const supabase = getSupabase();

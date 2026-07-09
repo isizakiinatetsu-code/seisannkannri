@@ -17,7 +17,7 @@ function getRedirectUri(req: NextRequest): string {
 }
 
 export async function GET(req: NextRequest) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
 
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;

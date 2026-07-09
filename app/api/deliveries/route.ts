@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
     const supabase = getSupabase();

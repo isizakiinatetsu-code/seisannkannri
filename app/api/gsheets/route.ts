@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
     const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;

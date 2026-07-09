@@ -24,7 +24,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
     const supabase = getSupabase();
@@ -82,7 +82,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = requireEditRole(req);
+  const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
     const supabase = getSupabase();
