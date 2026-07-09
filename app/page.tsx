@@ -7,6 +7,7 @@ import DeliveryModal from '@/components/DeliveryModal';
 import DuplicateCheck from '@/components/DuplicateCheck';
 import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
+import NotificationPanel from '@/components/NotificationPanel';
 
 type Tab = 'calendar' | 'list';
 
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [editDelivery, setEditDelivery] = useState<Delivery | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   // 分納：既存予定を複製して残り分を登録するときの初期値（idは持たせず新規登録扱い）
   const [addPrefill, setAddPrefill] = useState<Partial<Delivery> | null>(null);
@@ -174,6 +176,26 @@ export default function HomePage() {
     lastSeenRef.current = now;
     if (typeof window !== 'undefined') localStorage.setItem('inatetsu_last_seen', now);
     setNewItems([]);
+  }
+
+  // お知らせ一覧を開く（開いた時点で新着バッジは既読にする）
+  function openNotifications() {
+    setShowNotifications(true);
+    markNotificationsSeen();
+  }
+
+  // お知らせ一覧で予定を選んだら、その詳細を開く
+  async function openDeliveryById(id: number) {
+    const found = deliveries.find(d => d.id === id) ?? todayItems.find(d => d.id === id);
+    if (found) {
+      setSelectedDelivery(found);
+    } else {
+      try {
+        const res = await fetch(`/api/deliveries/${id}`, { cache: 'no-store' });
+        if (res.ok) setSelectedDelivery(await res.json());
+      } catch { /* 取得失敗時は何もしない */ }
+    }
+    setShowNotifications(false);
   }
 
   useEffect(() => {
@@ -400,6 +422,18 @@ export default function HomePage() {
           ))}
         </nav>
         <div className="p-3 space-y-2 border-t border-white/10">
+          <button
+            onClick={openNotifications}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+          >
+            <span>🔔</span>
+            <span>お知らせ</span>
+            {newItems.length > 0 && (
+              <span className="ml-auto text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ background: '#d97706' }}>
+                {newItems.length}
+              </span>
+            )}
+          </button>
           {canEdit && (
             <button
               onClick={handleGsSync}
@@ -458,6 +492,18 @@ export default function HomePage() {
             <h1 className="font-bold text-sm truncate">INATETSU納入カレンダー</h1>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={openNotifications}
+              aria-label="お知らせ"
+              className="relative flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30"
+            >
+              🔔
+              {newItems.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold text-white rounded-full" style={{ background: '#d97706' }}>
+                  {newItems.length}
+                </span>
+              )}
+            </button>
             <button
               onClick={handleExport}
               aria-label="Excel/CSVで書き出し"
@@ -727,6 +773,12 @@ export default function HomePage() {
         <DuplicateCheck
           onClose={() => setShowDuplicates(false)}
           onSelectDelivery={setSelectedDelivery}
+        />
+      )}
+      {showNotifications && (
+        <NotificationPanel
+          onClose={() => setShowNotifications(false)}
+          onSelect={openDeliveryById}
         />
       )}
     </div>
