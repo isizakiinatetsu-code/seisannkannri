@@ -585,17 +585,21 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* ---- PC用ページタイトルバー (lg以上) ---- */}
-        <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white border-b flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{tabItems.find(t => t.id === tab)?.icon}</span>
-            <h2 className="font-bold text-gray-800">{tabItems.find(t => t.id === tab)?.label}</h2>
-            {tab === 'list' && <span className="text-sm text-gray-400">{deliveries.length}件</span>}
+        {/* ---- PC用ページタイトルバー (lg以上) ----
+             カレンダータブでは「カレンダー」の見出しは冗長なので出さない。
+             検索タブでは件数・条件クリアを表示するため残す。 */}
+        {tab === 'list' && (
+          <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white border-b flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{tabItems.find(t => t.id === tab)?.icon}</span>
+              <h2 className="font-bold text-gray-800">{tabItems.find(t => t.id === tab)?.label}</h2>
+              <span className="text-sm text-gray-400">{deliveries.length}件</span>
+            </div>
+            {hasFilters && (
+              <button onClick={() => setFilters(emptyFilters)} className="text-xs text-blue-600 hover:underline">条件をクリア</button>
+            )}
           </div>
-          {tab === 'list' && hasFilters && (
-            <button onClick={() => setFilters(emptyFilters)} className="text-xs text-blue-600 hover:underline">条件をクリア</button>
-          )}
-        </div>
+        )}
 
         {/* スマホ用 検索タブは検索パネルを常時上部に表示するため個別バー不要。
             PC/iPadは検索パネルを右側に常時表示するため、ここに切替バーは不要。 */}
