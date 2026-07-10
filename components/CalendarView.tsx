@@ -278,7 +278,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
                         textDecoration: item.status === '納入済み' ? 'line-through' : 'none',
                       }}
                     >
-                      {item.project_name}
+                      {item.status !== '納入済み' && item.is_partial && <span title="一部納入（全納ではありません）">⚠️</span>}{item.project_name}
                     </span>
                   </button>
                 ))}
@@ -350,7 +350,7 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
                 >
                   <span className="flex-shrink-0 rounded-full" style={{ width: 8, height: 8, background: item.status === '納入済み' ? '#9ca3af' : getCategoryColor(item.item) }} />
                   <span className="truncate" style={{ color: item.status === '納入済み' ? '#9ca3af' : '#1f2937', textDecoration: item.status === '納入済み' ? 'line-through' : 'none' }}>
-                    {item.project_name}
+                    {item.status !== '納入済み' && item.is_partial && <span title="一部納入">⚠️</span>}{item.project_name}
                   </span>
                 </button>
               ))}
@@ -389,9 +389,9 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
                 <div className="flex-1 min-w-0">
                   <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
                   {item.specification && <div className={`text-xs truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.specification}</div>}
-                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor} · {item.unload_location}</div>
+                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor} · {item.unload_location}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${done ? 'text-white' : 'bg-white/20'}`} style={done ? { background: '#16a34a' } : undefined}>{done ? '✓ 納入済み' : item.status}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
               </button>
               );
             })}
@@ -415,9 +415,9 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
                 <div className="flex-1 min-w-0">
                   <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
                   {item.specification && <div className={`text-xs truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.specification}</div>}
-                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor}</div>
+                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${done ? 'text-white' : 'bg-white/20'}`} style={done ? { background: '#16a34a' } : undefined}>{done ? '✓ 納入済み' : item.status}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
               </button>
               );
             })}

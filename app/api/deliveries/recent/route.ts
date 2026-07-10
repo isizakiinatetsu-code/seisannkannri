@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { isMissingCreatedByColumn } from '@/lib/dbErrors';
+import { isMissingColumnError } from '@/lib/dbErrors';
 
 // 追加された予定を新しい順で返す。
 // - since 指定あり: その時刻より後に追加された分だけ（新着バナーの件数用）
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     // created_by 列がまだ無いDBでも動くよう、失敗したら列を外して再取得する。
     let { data, error } = await run('id, delivery_date, project_name, item, created_by, created_at');
-    if (error && isMissingCreatedByColumn(error)) {
+    if (error && isMissingColumnError(error)) {
       ({ data, error } = await run('id, delivery_date, project_name, item, created_at'));
     }
     if (error) throw error;

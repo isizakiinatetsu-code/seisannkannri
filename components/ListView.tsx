@@ -65,6 +65,11 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
                         >
                           {item.status}
                         </span>
+                        {item.status !== '納入済み' && item.is_partial && (
+                          <span className="text-xs px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#dc2626' }}>
+                            ⚠️一部納入
+                          </span>
+                        )}
                       </div>
                     </div>
                     {item.specification && (
@@ -82,6 +87,12 @@ export default function ListView({ deliveries, onSelectDelivery }: Props) {
                       <span className="flex items-center gap-0.5">
                         🏢 {item.vendor}
                       </span>
+                      {item.created_by && (
+                        <>
+                          <span>·</span>
+                          <span className="flex items-center gap-0.5">🧑‍💼 {item.created_by}</span>
+                        </>
+                      )}
                     </div>
                     {item.status === '納入済み' && item.delivered_at && (
                       <div className="text-xs text-green-600 mt-1 flex items-center gap-1">

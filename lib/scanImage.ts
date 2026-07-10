@@ -1,6 +1,6 @@
-// 納入伝票の写真を「スキャンした書類」のように加工する。
-// OpenCV.js で書類の四隅を自動検出し、切り抜き＋台形補正（パースぺクティブ変換）した上で
-// 白黒の文書スキャン風に二値化する。検出に失敗した場合は全体を白黒加工してフォールバックする。
+// 納入伝票の写真を「スキャンした書類」のように加工する（カラーのまま）。
+// OpenCV.js で書類の四隅を自動検出し、切り抜き＋台形補正（パースぺクティブ変換）する。
+// 白黒二値化はせず色を保持する。検出に失敗した場合は、カラーのまま軽く補正してフォールバックする。
 
 const OPENCV_URL = 'https://docs.opencv.org/4.10.0/opencv.js';
 
@@ -121,14 +121,9 @@ function scanWithOpenCV(cv: any, srcCanvas: HTMLCanvasElement): HTMLCanvasElemen
     const warped = track(new cv.Mat());
     cv.warpPerspective(src, warped, M, new cv.Size(dstW, dstH), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
 
-    // 文書スキャン風に二値化（適応的しきい値）
-    const warpedGray = track(new cv.Mat());
-    cv.cvtColor(warped, warpedGray, cv.COLOR_RGBA2GRAY);
-    const thresh = track(new cv.Mat());
-    cv.adaptiveThreshold(warpedGray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 12);
-
+    // カラーのまま出力する（切り抜き＋傾き補正のみ。白黒二値化はしない）。
     const out = document.createElement('canvas');
-    cv.imshow(out, thresh);
+    cv.imshow(out, warped);
     return out;
   } catch (e) {
     console.error('OpenCV scan failed', e);
@@ -140,18 +135,19 @@ function scanWithOpenCV(cv: any, srcCanvas: HTMLCanvasElement): HTMLCanvasElemen
   }
 }
 
-// フォールバック：全体を白黒・コントラスト強調するだけの簡易加工。
-function simpleGrayscale(canvas: HTMLCanvasElement): void {
+// フォールバック：カラーのまま、軽くコントラスト・明るさだけ整える（白黒化しない）。
+function enhanceColor(canvas: HTMLCanvasElement): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
-  const contrast = 1.35;
-  const brightness = 18;
+  const contrast = 1.12;
+  const brightness = 8;
   for (let i = 0; i < data.length; i += 4) {
-    const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-    const adjusted = Math.min(255, Math.max(0, (gray - 128) * contrast + 128 + brightness));
-    data[i] = data[i + 1] = data[i + 2] = adjusted;
+    for (let c = 0; c < 3; c++) {
+      const v = data[i + c];
+      data[i + c] = Math.min(255, Math.max(0, (v - 128) * contrast + 128 + brightness));
+    }
   }
   ctx.putImageData(imageData, 0, 0);
 }
@@ -192,8 +188,8 @@ export function processToScanStyle(file: File): Promise<File> {
         console.warn('OpenCV 利用不可、簡易加工にフォールバック', e);
       }
 
-      // フォールバック：全体を白黒加工
-      simpleGrayscale(canvas);
+      // フォールバック：カラーのまま軽く補正
+      enhanceColor(canvas);
       resolve(await canvasToFile(canvas, file.name, file));
     };
     img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase, DeliveryInput } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
-import { isMissingCreatedByColumn } from '@/lib/dbErrors';
+import { isMissingColumnError, stripOptionalColumns } from '@/lib/dbErrors';
 
 export async function GET(req: NextRequest) {
   try {
@@ -95,12 +95,13 @@ export async function POST(req: NextRequest) {
       delivered_at: body.delivered_at ?? null,
       slip_image_path: body.slip_image_path ?? null,
       created_by: trim(body.created_by) ?? null,
+      is_partial: body.is_partial ?? false,
     };
 
     let { data, error } = await supabase.from('deliveries').insert(insertPayload).select().single();
-    // created_by 列がまだ無いDBでも登録できるよう、その場合は列を外して再試行する。
-    if (error && isMissingCreatedByColumn(error)) {
-      delete insertPayload.created_by;
+    // 後付けの任意列(created_by/is_partial)がまだ無いDBでも登録できるよう、外して再試行。
+    if (error && isMissingColumnError(error)) {
+      stripOptionalColumns(insertPayload);
       ({ data, error } = await supabase.from('deliveries').insert(insertPayload).select().single());
     }
 
