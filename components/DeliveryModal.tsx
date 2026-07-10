@@ -9,6 +9,7 @@ interface Props {
   delivery: Delivery;
   onClose: () => void;
   onMarkDelivered: (id: number) => void;
+  onMarkPartial?: (id: number) => void;
   onRevertDelivered: (id: number) => void;
   onEdit: (delivery: Delivery) => void;
   onDuplicate?: (delivery: Delivery) => void;
@@ -20,6 +21,7 @@ export default function DeliveryModal({
   delivery,
   onClose,
   onMarkDelivered,
+  onMarkPartial,
   onRevertDelivered,
   onEdit,
   onDuplicate,
@@ -181,7 +183,14 @@ export default function DeliveryModal({
             </Row>
           )}
           <Row label="ステータス">
-            <StatusBadge status={delivery.status} />
+            <span className="flex items-center gap-2">
+              <StatusBadge status={delivery.status} />
+              {delivery.status !== '納入済み' && delivery.is_partial && (
+                <span className="text-xs px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#dc2626' }}>
+                  ⚠️ 一部納入（全納ではありません）
+                </span>
+              )}
+            </span>
           </Row>
           {delivery.status === '納入済み' && delivery.delivered_at && (
             <Row label="納入確認時刻">
@@ -261,13 +270,33 @@ export default function DeliveryModal({
         <div className="p-4 space-y-2 border-t sticky bottom-0 bg-white">
           {canEdit && (
             delivery.status !== '納入済み' ? (
-              <button
-                onClick={() => { onMarkDelivered(delivery.id); onClose(); }}
-                className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
-                style={{ background: '#16a34a' }}
-              >
-                ✓ 納入済みにする
-              </button>
+              <>
+                <button
+                  onClick={() => { onMarkDelivered(delivery.id); onClose(); }}
+                  className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
+                  style={{ background: '#16a34a' }}
+                >
+                  ✓ 納入済みにする（全納）
+                </button>
+                {onMarkPartial && !delivery.is_partial && (
+                  <button
+                    onClick={() => { onMarkPartial(delivery.id); onClose(); }}
+                    className="w-full py-3 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2"
+                    style={{ background: '#dc2626' }}
+                  >
+                    ⚠️ 一部納入にする（まだ全部届いていない）
+                  </button>
+                )}
+                {onMarkPartial && delivery.is_partial && (
+                  <button
+                    onClick={() => { onRevertDelivered(delivery.id); onClose(); }}
+                    className="w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 border-2"
+                    style={{ borderColor: '#d97706', color: '#d97706' }}
+                  >
+                    ↩ 「一部納入」を解除して通常の予定に戻す
+                  </button>
+                )}
+              </>
             ) : (
               <button
                 onClick={() => { if (confirm('納入済みを「予定」に戻しますか？')) { onRevertDelivered(delivery.id); onClose(); } }}

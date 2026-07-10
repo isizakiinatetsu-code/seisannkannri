@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
-import { isMissingCreatedByColumn } from '@/lib/dbErrors';
+import { isMissingColumnError, stripOptionalColumns } from '@/lib/dbErrors';
 
 export async function GET(
   _req: NextRequest,
@@ -54,9 +54,9 @@ export async function PATCH(
       return q.select().maybeSingle();
     };
     let { data, error } = await runUpdate();
-    // created_by 列がまだ無いDBでも編集できるよう、その場合は列を外して再試行する。
-    if (error && isMissingCreatedByColumn(error) && 'created_by' in fields) {
-      delete fields.created_by;
+    // 後付けの任意列(created_by/is_partial)がまだ無いDBでも編集できるよう、外して再試行。
+    if (error && isMissingColumnError(error)) {
+      stripOptionalColumns(fields);
       ({ data, error } = await runUpdate());
     }
 

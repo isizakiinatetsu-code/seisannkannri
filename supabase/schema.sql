@@ -19,12 +19,14 @@ create table if not exists deliveries (
   delivered_at timestamptz,
   slip_image_path text,
   created_by text, -- 追加者（部署）: 購買課 / 総務部
+  is_partial boolean not null default false, -- 一部納入（分納の途中）フラグ
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- 既存テーブルに追加者カラムを足す（新規作成時は上のCREATEに含まれる）
+-- 既存テーブルに列を足す（新規作成時は上のCREATEに含まれる）
 alter table deliveries add column if not exists created_by text;
+alter table deliveries add column if not exists is_partial boolean not null default false;
 
 create index if not exists idx_deliveries_delivery_date on deliveries (delivery_date);
 create index if not exists idx_deliveries_status on deliveries (status);

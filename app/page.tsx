@@ -265,23 +265,34 @@ export default function HomePage() {
     // timestamptz列にはISO(UTC)で保存する。ロケール文字列("2026/7/9 10:30")だと
     // 解析に失敗したり時差がずれる。表示側でJSTに整形する。
     const now = new Date().toISOString();
-    // 即時反映：先に画面を更新してから保存する
-    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '納入済み', delivered_at: now } : d));
+    // 全納なので一部納入フラグは解除する
+    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '納入済み', delivered_at: now, is_partial: false } : d));
     const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: '納入済み', delivered_at: now, expected_updated_at: findUpdatedAt(id) }),
+      body: JSON.stringify({ status: '納入済み', delivered_at: now, is_partial: false, expected_updated_at: findUpdatedAt(id) }),
     });
     await finalizeMutation(res, '「納入済み」への変更を保存できませんでした。');
   }
 
-  async function handleRevertDelivered(id: number) {
-    // 即時反映
-    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null } : d));
+  // 一部納入：まだ全部は届いていないことを示す（ステータスは「予定」のまま＝未納入として扱う）
+  async function handleMarkPartial(id: number) {
+    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null, is_partial: true } : d));
     const res = await fetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: '予定', delivered_at: null, expected_updated_at: findUpdatedAt(id) }),
+      body: JSON.stringify({ status: '予定', delivered_at: null, is_partial: true, expected_updated_at: findUpdatedAt(id) }),
+    });
+    await finalizeMutation(res, '「一部納入」への変更を保存できませんでした。');
+  }
+
+  async function handleRevertDelivered(id: number) {
+    // 即時反映（納入済み・一部納入のどちらからも通常の「予定」に戻す）
+    setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null, is_partial: false } : d));
+    const res = await fetch(`/api/deliveries/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: '予定', delivered_at: null, is_partial: false, expected_updated_at: findUpdatedAt(id) }),
     });
     await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
@@ -759,6 +770,7 @@ export default function HomePage() {
           delivery={selectedDelivery}
           onClose={() => setSelectedDelivery(null)}
           onMarkDelivered={handleMarkDelivered}
+          onMarkPartial={handleMarkPartial}
           onRevertDelivered={handleRevertDelivered}
           onEdit={(d) => { setEditDelivery(d); setSelectedDelivery(null); }}
           onDuplicate={handleDuplicate}
