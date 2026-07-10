@@ -197,11 +197,11 @@ export default function DeliveryModal({
               <span className="text-sm text-gray-600">{formatDateTimeJst(delivery.delivered_at)}</span>
             </Row>
           )}
-          {delivery.created_by && (
-            <Row label="追加者">
-              <span className="text-gray-700">🧑‍💼 {delivery.created_by}</span>
-            </Row>
-          )}
+          <Row label="追加者">
+            {delivery.created_by
+              ? <span className="text-gray-700">🧑‍💼 {delivery.created_by}</span>
+              : <span className="text-gray-400">未登録（「編集する」から設定できます）</span>}
+          </Row>
 
           {/* Slip images */}
           <div>
