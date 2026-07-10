@@ -10,16 +10,17 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabase();
     const since = new URL(req.url).searchParams.get('since');
 
-    const run = (cols: string) => {
+    const run = (cols: string, excludeDeleted: boolean) => {
       let q = supabase.from('deliveries').select(cols).order('created_at', { ascending: false }).limit(100);
       if (since) q = q.gt('created_at', since);
+      if (excludeDeleted) q = q.eq('deleted', false);
       return q;
     };
 
-    // created_by 列がまだ無いDBでも動くよう、失敗したら列を外して再取得する。
-    let { data, error } = await run('id, delivery_date, project_name, item, created_by, created_at');
+    // created_by / deleted 列がまだ無いDBでも動くよう、失敗したら外して再取得する。
+    let { data, error } = await run('id, delivery_date, project_name, item, created_by, created_at', true);
     if (error && isMissingColumnError(error)) {
-      ({ data, error } = await run('id, delivery_date, project_name, item, created_at'));
+      ({ data, error } = await run('id, delivery_date, project_name, item, created_at', false));
     }
     if (error) throw error;
 
