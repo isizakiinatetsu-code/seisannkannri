@@ -35,6 +35,7 @@ export interface Delivery {
   slip_image_path: string | null;
   created_by: string | null; // 追加者（部署）: 購買課 / 総務部
   is_partial: boolean | null; // 一部納入（分納の途中）
+  deleted?: boolean | null; // 削除済み（ソフトデリート）
   created_at: string;
   updated_at: string;
 }

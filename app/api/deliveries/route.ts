@@ -16,22 +16,26 @@ export async function GET(req: NextRequest) {
     const dateTo = searchParams.get('date_to');
     const month = searchParams.get('month'); // YYYY-MM
 
-    let query = supabase.from('deliveries').select('*');
+    // excludeDeleted=true で削除済み(deleted=true)を除外。deleted列が無いDBでは
+    // その条件を外して再取得する。
+    const build = (excludeDeleted: boolean) => {
+      let query = supabase.from('deliveries').select('*');
+      if (projectName) query = query.ilike('project_name', `%${projectName}%`);
+      if (item) query = query.ilike('item', `%${item}%`);
+      if (vendor) query = query.ilike('vendor', `%${vendor}%`);
+      if (unloadLocation) query = query.ilike('unload_location', `%${unloadLocation}%`);
+      if (status) query = query.eq('status', status);
+      if (dateFrom) query = query.gte('delivery_date', dateFrom);
+      if (dateTo) query = query.lte('delivery_date', dateTo);
+      if (month) query = query.like('delivery_date', `${month}%`);
+      if (excludeDeleted) query = query.eq('deleted', false);
+      return query
+        .order('delivery_date', { ascending: true })
+        .order('delivery_time', { ascending: true, nullsFirst: false });
+    };
 
-    if (projectName) query = query.ilike('project_name', `%${projectName}%`);
-    if (item) query = query.ilike('item', `%${item}%`);
-    if (vendor) query = query.ilike('vendor', `%${vendor}%`);
-    if (unloadLocation) query = query.ilike('unload_location', `%${unloadLocation}%`);
-    if (status) query = query.eq('status', status);
-    if (dateFrom) query = query.gte('delivery_date', dateFrom);
-    if (dateTo) query = query.lte('delivery_date', dateTo);
-    if (month) query = query.like('delivery_date', `${month}%`);
-
-    query = query
-      .order('delivery_date', { ascending: true })
-      .order('delivery_time', { ascending: true, nullsFirst: false });
-
-    const { data, error } = await query;
+    let { data, error } = await build(true);
+    if (error && isMissingColumnError(error)) ({ data, error } = await build(false));
     if (error) throw error;
     return NextResponse.json(data, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },

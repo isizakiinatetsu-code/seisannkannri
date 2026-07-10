@@ -87,7 +87,13 @@ export async function DELETE(
   try {
     const supabase = getSupabase();
     const { id } = await params;
-    const { data, error } = await supabase.from('deliveries').delete().eq('id', id).select().maybeSingle();
+    // ソフトデリート：物理削除するとGoogleシートに行が残っている場合に同期で
+    // 復活してしまうため、deleted=true にして隠す（同期時は件数に数えて再登録を防ぐ）。
+    let { data, error } = await supabase.from('deliveries').update({ deleted: true }).eq('id', id).select().maybeSingle();
+    // deleted 列がまだ無いDBでは従来どおり物理削除にフォールバック
+    if (error && isMissingColumnError(error)) {
+      ({ data, error } = await supabase.from('deliveries').delete().eq('id', id).select().maybeSingle());
+    }
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true });
