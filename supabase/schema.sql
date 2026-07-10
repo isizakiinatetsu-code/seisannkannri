@@ -21,6 +21,7 @@ create table if not exists deliveries (
   created_by text, -- 追加者（部署）: 購買課 / 総務部
   is_partial boolean not null default false, -- 一部納入（分納の途中）フラグ
   deleted boolean not null default false, -- ソフトデリート（削除済み。Sheet同期で復活させないため物理削除しない）
+  sheet_no text, -- スプレッドシートの「No」（行を一意に識別する管理番号）。同期の照合に使う
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -29,6 +30,8 @@ create table if not exists deliveries (
 alter table deliveries add column if not exists created_by text;
 alter table deliveries add column if not exists is_partial boolean not null default false;
 alter table deliveries add column if not exists deleted boolean not null default false;
+alter table deliveries add column if not exists sheet_no text;
+create index if not exists idx_deliveries_sheet_no on deliveries (sheet_no);
 
 create index if not exists idx_deliveries_delivery_date on deliveries (delivery_date);
 create index if not exists idx_deliveries_status on deliveries (status);

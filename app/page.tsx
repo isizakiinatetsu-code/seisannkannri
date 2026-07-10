@@ -374,7 +374,7 @@ export default function HomePage() {
       if (data.error) {
         setImportMsg(`❌ ${data.error}`);
       } else {
-        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加 (重複スキップ: ${data.skipped}件)`);
+        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加${data.updated ? ` / ${data.updated}件更新` : ''} (スキップ: ${data.skipped}件)`);
         fetchDeliveries(effectiveQuery);
       }
     } catch {

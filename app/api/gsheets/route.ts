@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
+import { isMissingColumnError } from '@/lib/dbErrors';
 
 export async function GET() {
   try {
@@ -58,6 +59,12 @@ export async function POST(req: NextRequest) {
     const idxVendor = header.indexOf('業者名');
     const idxUnload = header.indexOf('降し場所');
     const idxNotes = header.indexOf('備考');
+    // 「No」列（管理番号）。あれば、これで行を一意に照合して更新／追加する。
+    let idxNo = -1;
+    for (const h of ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号', 'ID', 'id']) {
+      const i = header.indexOf(h);
+      if (i >= 0) { idxNo = i; break; }
+    }
 
     const supabase = getSupabase();
 
@@ -96,6 +103,7 @@ export async function POST(req: NextRequest) {
     // そこで重複判定は「同じ内容の行を二度取り込まない」ためだけに使い、件数で調整する。
     // 例: シートに同内容が2行あってDBに1行なら不足1件だけ追加する（行の取りこぼしゼロ・再同期でも二重登録なし）。
     type Cand = {
+      no: string;
       dateVal: string; project: string; item: string;
       specVal: string | null; vendorVal: string; unloadVal: string;
       timeVal: string | null; notesVal: string | null;
@@ -103,6 +111,11 @@ export async function POST(req: NextRequest) {
     const norm = (v: string | null) => v ?? '';
     const keyOf = (c: { delivery_date: string; project_name: string; item: string; specification: string | null; vendor: string; unload_location: string; delivery_time: string | null; }) =>
       JSON.stringify([c.delivery_date, c.project_name, c.item, norm(c.specification), c.vendor, c.unload_location, norm(c.delivery_time)]);
+    // 予定として保存する説明フィールド一式を作る
+    const descOf = (c: Cand) => ({
+      delivery_date: c.dateVal, delivery_time: c.timeVal, project_name: c.project, item: c.item,
+      specification: c.specVal, vendor: c.vendorVal, unload_location: c.unloadVal, notes: c.notesVal,
+    });
 
     // 1) シートの取り込み対象行を集める
     const candidates: Cand[] = [];
@@ -117,57 +130,98 @@ export async function POST(req: NextRequest) {
       const specVal = idxSpec >= 0 ? String(row[idxSpec] ?? '').trim() || null : null;
       const timeVal = idxTime >= 0 ? String(row[idxTime] ?? '').trim() || null : null;
       const notesVal = idxNotes >= 0 ? String(row[idxNotes] ?? '').trim() || null : null;
-      candidates.push({ dateVal, project, item, specVal, vendorVal, unloadVal, timeVal, notesVal });
+      const no = idxNo >= 0 ? String(row[idxNo] ?? '').trim() : '';
+      candidates.push({ no, dateVal, project, item, specVal, vendorVal, unloadVal, timeVal, notesVal });
     }
 
-    // 2) DBの既存件数を同一キーで数える（直近3か月分）
-    const { data: existing, error: existingErr } = await supabase
-      .from('deliveries')
-      .select('delivery_date, project_name, item, specification, vendor, unload_location, delivery_time')
-      .gte('delivery_date', minDate);
-    if (existingErr) throw existingErr;
-    const dbCount = new Map<string, number>();
-    for (const e of existing ?? []) {
-      const k = keyOf(e as never);
-      dbCount.set(k, (dbCount.get(k) ?? 0) + 1);
-    }
+    let updated = 0;
 
-    // 3) シートを同一キーでグループ化し、DBに足りない件数だけ追加する
-    const groups = new Map<string, Cand[]>();
-    for (const c of candidates) {
-      const k = keyOf({
-        delivery_date: c.dateVal, project_name: c.project, item: c.item,
-        specification: c.specVal, vendor: c.vendorVal, unload_location: c.unloadVal, delivery_time: c.timeVal,
-      });
-      const arr = groups.get(k); if (arr) arr.push(c); else groups.set(k, [c]);
-    }
-    for (const [k, list] of groups) {
-      const have = dbCount.get(k) ?? 0;
-      const need = list.length - have;
-      for (let i = 0; i < need; i++) {
-        const c = list[i];
-        toInsert.push({
-          delivery_date: c.dateVal,
-          delivery_time: c.timeVal,
-          project_name: c.project,
-          item: c.item,
-          specification: c.specVal,
-          vendor: c.vendorVal,
-          unload_location: c.unloadVal,
-          notes: c.notesVal,
-          status: '予定',
-        });
+    // 2) 「No」を持つ行は、その No で既存行を照合して更新／追加する（＝編集しても重複しない）
+    let withNo = candidates.filter(c => c.no);
+    let withoutNo = candidates.filter(c => !c.no);
+    const toUpdate: { id: number; fields: Record<string, unknown> }[] = [];
+    if (withNo.length > 0) {
+      const nos = [...new Set(withNo.map(c => c.no))];
+      const { data: exNo, error: exNoErr } = await supabase
+        .from('deliveries')
+        .select('id, sheet_no, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes')
+        .in('sheet_no', nos);
+      if (exNoErr && !isMissingColumnError(exNoErr)) throw exNoErr;
+      if (exNoErr && isMissingColumnError(exNoErr)) {
+        // sheet_no 列がまだ無いDB → No照合はできないので、全行を従来の件数方式に回す
+        withoutNo = candidates;
+        withNo = [];
+      } else {
+        const bySheetNo = new Map<string, Record<string, unknown>>();
+        for (const r of exNo ?? []) bySheetNo.set(String((r as { sheet_no: string }).sheet_no), r);
+        const insertedNos = new Set<string>();
+        for (const c of withNo) {
+          const ex = bySheetNo.get(c.no);
+          const desc = descOf(c);
+          if (ex) {
+            // 内容が変わっていれば説明フィールドだけ更新（納入済み・伝票・追加者などは触らない）
+            const changed =
+              ex.delivery_date !== desc.delivery_date ||
+              (ex.delivery_time ?? null) !== (desc.delivery_time ?? null) ||
+              ex.project_name !== desc.project_name ||
+              ex.item !== desc.item ||
+              (ex.specification ?? null) !== (desc.specification ?? null) ||
+              ex.vendor !== desc.vendor ||
+              ex.unload_location !== desc.unload_location ||
+              (ex.notes ?? null) !== (desc.notes ?? null);
+            if (changed) toUpdate.push({ id: ex.id as number, fields: desc });
+          } else if (!insertedNos.has(c.no)) {
+            insertedNos.add(c.no);
+            toInsert.push({ ...desc, status: '予定', sheet_no: c.no });
+          }
+        }
       }
     }
 
+    // 3) 「No」が無い行は従来どおり、同一内容の件数がDBに足りない分だけ追加する
+    if (withoutNo.length > 0) {
+      const { data: existing, error: existingErr } = await supabase
+        .from('deliveries')
+        .select('delivery_date, project_name, item, specification, vendor, unload_location, delivery_time')
+        .gte('delivery_date', minDate);
+      if (existingErr) throw existingErr;
+      const dbCount = new Map<string, number>();
+      for (const e of existing ?? []) {
+        const k = keyOf(e as never);
+        dbCount.set(k, (dbCount.get(k) ?? 0) + 1);
+      }
+      const groups = new Map<string, Cand[]>();
+      for (const c of withoutNo) {
+        const k = keyOf({ ...descOf(c) });
+        const arr = groups.get(k); if (arr) arr.push(c); else groups.set(k, [c]);
+      }
+      for (const [, list] of groups) {
+        const have = dbCount.get(keyOf({ ...descOf(list[0]) })) ?? 0;
+        const need = list.length - have;
+        for (let i = 0; i < need; i++) toInsert.push({ ...descOf(list[i]), status: '予定' });
+      }
+    }
+
+    // 4) 更新を適用（編集の反映）
+    for (const u of toUpdate) {
+      const { error: upErr } = await supabase.from('deliveries').update(u.fields).eq('id', u.id);
+      if (upErr) throw upErr;
+      updated++;
+    }
+
+    // 5) 追加を適用（sheet_no 列が無ければ外して再挿入）
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase.from('deliveries').insert(toInsert);
+      let { error: insertError } = await supabase.from('deliveries').insert(toInsert);
+      if (insertError && isMissingColumnError(insertError)) {
+        const stripped = toInsert.map(r => { const c = { ...r }; delete c.sheet_no; return c; });
+        ({ error: insertError } = await supabase.from('deliveries').insert(stripped));
+      }
       if (insertError) throw insertError;
     }
     const imported = toInsert.length;
-    skipped = candidates.length - imported;
+    skipped = candidates.length - imported - updated;
 
-    return NextResponse.json({ imported, skipped });
+    return NextResponse.json({ imported, updated, skipped });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: `エラー: ${e}` }, { status: 500 });

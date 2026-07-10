@@ -36,6 +36,7 @@ export interface Delivery {
   created_by: string | null; // 追加者（部署）: 購買課 / 総務部
   is_partial: boolean | null; // 一部納入（分納の途中）
   deleted?: boolean | null; // 削除済み（ソフトデリート）
+  sheet_no?: string | null; // スプレッドシートの「No」（同期の照合キー）
   created_at: string;
   updated_at: string;
 }
