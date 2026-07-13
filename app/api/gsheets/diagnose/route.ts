@@ -7,9 +7,25 @@ export async function GET() {
     const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!spreadsheetId || !keyJson) return NextResponse.json({ error: '環境変数未設定' }, { status: 500 });
     const credentials = JSON.parse(keyJson);
-    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'] });
+    const serviceAccountEmail: string | null = credentials.client_email ?? null;
+    // 読み書きスコープで接続（書き込みできるか確認するため）
+    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
     const sheets = google.sheets({ version: 'v4', auth });
     const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A1:Z5' });
+
+    // ---- 書き込みテスト：A1 の値を A1 に書き戻す（内容は変わらない no-op）----
+    let writeOk = false;
+    let writeError: string | null = null;
+    try {
+      const a1 = res.data.values?.[0]?.[0] ?? '納入予定日';
+      await sheets.spreadsheets.values.update({
+        spreadsheetId, range: 'A1', valueInputOption: 'RAW', requestBody: { values: [[a1]] },
+      });
+      writeOk = true;
+    } catch (e) {
+      const err = e as { errors?: { message?: string }[]; message?: string; code?: number };
+      writeError = (err?.errors?.[0]?.message || err?.message || String(e)).slice(0, 300);
+    }
     const rows = res.data.values ?? [];
     const header = rows[0] ?? [];
 
@@ -23,6 +39,10 @@ export async function GET() {
       .filter((x: { col: number; letter: string; header: string; charCodes: number[] }) => x.header.includes('業者') || x.header.includes('vendor'));
 
     return NextResponse.json({
+      サービスアカウント: serviceAccountEmail,
+      書き込みできるか: writeOk,
+      書き込みエラー: writeError,
+      No列がある: header.includes('No'),
       totalColumns: header.length,
       header,
       indices: { idxDate, idxVendor, idxProject, idxItem },

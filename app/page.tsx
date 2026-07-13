@@ -8,7 +8,7 @@ import DuplicateCheck from '@/components/DuplicateCheck';
 import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
 import NotificationPanel from '@/components/NotificationPanel';
-import ContactPanel from '@/components/ContactPanel';
+import ContactPanel, { formatContact } from '@/components/ContactPanel';
 
 type Tab = 'calendar' | 'list';
 
@@ -450,9 +450,9 @@ export default function HomePage() {
           >
             <span className="text-lg">📞</span>
             <span className="flex-1 text-left">荷下ろし者</span>
-            {todayContact && (
+            {formatContact(todayContact) && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f5c000', color: '#0d2c66' }}>
-                {todayContact}
+                {formatContact(todayContact)}
               </span>
             )}
           </button>
@@ -674,7 +674,7 @@ export default function HomePage() {
           >
             <span>📞</span>
             <span className="text-xs text-gray-500">連絡先</span>
-            <span className="font-bold text-gray-800">{todayContact || '未設定'}</span>
+            <span className="font-bold text-gray-800">{formatContact(todayContact) || '未設定'}</span>
           </button>
         </div>
 
