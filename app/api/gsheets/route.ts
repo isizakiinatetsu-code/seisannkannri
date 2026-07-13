@@ -127,11 +127,13 @@ export async function POST(req: NextRequest) {
     });
 
     // ---- No列・削除列を自動で用意し、Noが無い行に自動採番して書き戻す ----
-    // （編集者権限が無い場合は書き込みだけ失敗し、以降は従来動作にフォールバック）
+    // 結果は sheetSetup に入れて応答で返す（失敗を隠さず、原因が分かるように）。
+    const sheetSetup: { ok: boolean; wrote: boolean; added: string[]; numbered: number; reason?: string } =
+      { ok: true, wrote: false, added: [], numbered: 0 };
     try {
       const cellUpdates: { range: string; values: string[][] }[] = [];
-      if (idxNo < 0) { idxNo = header.length; header.push('No'); cellUpdates.push({ range: `${colLetter(idxNo)}1`, values: [['No']] }); }
-      if (idxMark < 0) { idxMark = header.length; header.push('削除'); cellUpdates.push({ range: `${colLetter(idxMark)}1`, values: [['削除']] }); }
+      if (idxNo < 0) { idxNo = header.length; header.push('No'); cellUpdates.push({ range: `${colLetter(idxNo)}1`, values: [['No']] }); sheetSetup.added.push('No'); }
+      if (idxMark < 0) { idxMark = header.length; header.push('削除'); cellUpdates.push({ range: `${colLetter(idxMark)}1`, values: [['削除']] }); sheetSetup.added.push('削除'); }
       let maxNo = 0;
       for (let i = 1; i < rows.length; i++) {
         const v = Number(String(rows[i][idxNo] ?? '').trim());
@@ -148,15 +150,20 @@ export async function POST(req: NextRequest) {
         while (r.length <= idxNo) r.push('');
         r[idxNo] = String(n);
         cellUpdates.push({ range: `${colLetter(idxNo)}${i + 1}`, values: [[String(n)]] });
+        sheetSetup.numbered++;
       }
       if (cellUpdates.length > 0) {
         await sheets.spreadsheets.values.batchUpdate({
           spreadsheetId,
           requestBody: { valueInputOption: 'RAW', data: cellUpdates },
         });
+        sheetSetup.wrote = true;
       }
     } catch (e) {
-      console.warn('No自動採番/列作成に失敗（シートの編集者権限を確認してください）:', e);
+      const err = e as { message?: string; code?: number; errors?: { message?: string }[] };
+      sheetSetup.ok = false;
+      sheetSetup.reason = (err?.errors?.[0]?.message || err?.message || String(e)).slice(0, 200);
+      console.warn('No自動採番/列作成に失敗:', sheetSetup.reason);
     }
 
     // 1) シートの取り込み対象行を集める
@@ -280,7 +287,7 @@ export async function POST(req: NextRequest) {
     const imported = toInsert.length;
     skipped = candidates.length - imported - updated;
 
-    return NextResponse.json({ imported, updated, skipped });
+    return NextResponse.json({ imported, updated, skipped, sheetSetup });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: `エラー: ${e}` }, { status: 500 });
