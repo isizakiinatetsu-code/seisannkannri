@@ -12,7 +12,6 @@ interface Props {
   onMarkPartial?: (id: number) => void;
   onRevertDelivered: (id: number) => void;
   onEdit: (delivery: Delivery) => void;
-  onDuplicate?: (delivery: Delivery) => void;
   onSlipUploaded: (id: number, path: string) => void;
   canEdit: boolean;
 }
@@ -24,7 +23,6 @@ export default function DeliveryModal({
   onMarkPartial,
   onRevertDelivered,
   onEdit,
-  onDuplicate,
   onSlipUploaded,
   canEdit,
 }: Props) {
@@ -315,20 +313,6 @@ export default function DeliveryModal({
             >
               ✏️ 編集する
             </button>
-          )}
-          {canEdit && onDuplicate && (
-            <button
-              onClick={() => { onDuplicate(delivery); }}
-              className="w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 border-2"
-              style={{ borderColor: '#2563eb', color: '#2563eb' }}
-            >
-              📄 複製して分納登録
-            </button>
-          )}
-          {canEdit && onDuplicate && (
-            <p className="text-xs text-gray-400 text-center -mt-1">
-              分納（数回に分けて納入）の残り分を、この内容を引き継いで別日で登録できます
-            </p>
           )}
         </div>
       </div>

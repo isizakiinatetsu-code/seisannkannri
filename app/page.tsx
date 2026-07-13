@@ -41,8 +41,6 @@ export default function HomePage() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
-  // 分納：既存予定を複製して残り分を登録するときの初期値（idは持たせず新規登録扱い）
-  const [addPrefill, setAddPrefill] = useState<Partial<Delivery> | null>(null);
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   // 検索パネルの入力中(未検索)フラグ。trueの間は古い検索結果を表示せず、
   // 検索ボタンを押すまで結果が変わらないことが分かるようにする。
@@ -297,27 +295,6 @@ export default function HomePage() {
     await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
 
-  // 分納：この予定を複製して「残り分」を新規登録する（内容を引き継いで別日で登録できる）
-  function handleDuplicate(d: Delivery) {
-    setAddPrefill({
-      delivery_date: d.delivery_date,
-      delivery_time: d.delivery_time,
-      project_name: d.project_name,
-      item: d.item,
-      specification: d.specification,
-      vendor: d.vendor,
-      unload_location: d.unload_location,
-      storage_location: d.storage_location,
-      quantity: d.quantity,
-      unit: d.unit,
-      order_number: d.order_number,
-      notes: d.notes,
-      created_by: '', // 登録者は選び直してもらう
-    });
-    setSelectedDelivery(null);
-    setShowAddForm(true);
-  }
-
   async function handleAdd(data: Partial<Delivery>) {
     const res = await fetch('/api/deliveries', {
       method: 'POST',
@@ -336,7 +313,6 @@ export default function HomePage() {
       });
     }
     setShowAddForm(false);
-    setAddPrefill(null);
     // 自分が登録した分は「新着お知らせ」に出さないよう、既読時刻を進める
     markNotificationsSeen();
     await finalizeMutation(finalRes, '予定の登録に失敗しました。もう一度お試しください。');
@@ -773,17 +749,15 @@ export default function HomePage() {
           onMarkPartial={handleMarkPartial}
           onRevertDelivered={handleRevertDelivered}
           onEdit={(d) => { setEditDelivery(d); setSelectedDelivery(null); }}
-          onDuplicate={handleDuplicate}
           onSlipUploaded={handleSlipUploaded}
           canEdit={canEdit}
         />
       )}
       {canEdit && showAddForm && (
         <DeliveryForm
-          initial={addPrefill ?? undefined}
           defaultDate={addDefaultDate}
           onSave={handleAdd}
-          onCancel={() => { setShowAddForm(false); setAddPrefill(null); }}
+          onCancel={() => setShowAddForm(false)}
           vendors={vendorOptions}
           projects={projectOptions}
           unloadLocations={unloadLocationOptions}

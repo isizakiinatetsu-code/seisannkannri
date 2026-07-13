@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
-import { isMissingColumnError, stripOptionalColumns } from '@/lib/dbErrors';
+import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
 
 export async function GET(
   _req: NextRequest,
@@ -48,17 +48,13 @@ export async function PATCH(
       return NextResponse.json(existing);
     }
 
-    const runUpdate = () => {
-      let q = supabase.from('deliveries').update(fields).eq('id', id);
+    const runUpdate = async (f: Record<string, unknown>) => {
+      let q = supabase.from('deliveries').update(f).eq('id', id);
       if (expectedUpdatedAt) q = q.eq('updated_at', expectedUpdatedAt);
-      return q.select().maybeSingle();
+      return await q.select().maybeSingle();
     };
-    let { data, error } = await runUpdate();
-    // 後付けの任意列(created_by/is_partial)がまだ無いDBでも編集できるよう、外して再試行。
-    if (error && isMissingColumnError(error)) {
-      stripOptionalColumns(fields);
-      ({ data, error } = await runUpdate());
-    }
+    // 後付けの任意列がまだ無いDBでも編集できるよう、“実際に無い列だけ”を外して再試行。
+    const { data, error } = await insertWithMissingColumnFallback(fields, runUpdate);
 
     if (error) throw error;
     if (!data) {
