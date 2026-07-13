@@ -42,6 +42,17 @@ function headerIndex(header: string[], names: string[]): number {
   return -1;
 }
 
+const NO_HEADERS = ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号', 'ID', 'id'];
+// 削除の印を書く列（どれかがあれば使う）
+export const DELETE_MARK_HEADERS = ['削除', '状態', 'ステータス'];
+export const DELETE_MARK_VALUE = '削除';
+
+function colLetter(idx: number): string {
+  let s = ''; let n = idx;
+  do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
+  return s;
+}
+
 type WriteResult = { ok: boolean; reason?: string };
 
 // No（管理番号）で該当行を探し、内容を書き戻す。
@@ -55,7 +66,7 @@ export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined
     const rows = res.data.values ?? [];
     if (rows.length < 2) return { ok: false, reason: 'empty' };
     const header = rows[0] as string[];
-    const idxNo = headerIndex(header, ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号', 'ID', 'id']);
+    const idxNo = headerIndex(header, NO_HEADERS);
     if (idxNo < 0) return { ok: false, reason: 'no-No-column' };
     const idxDate = header.indexOf('納入予定日');
     const idxTime = header.indexOf('納入予定時刻');
@@ -92,6 +103,39 @@ export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined
       range: `A${rowNum}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] },
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e).slice(0, 160) };
+  }
+}
+
+// アプリで削除したとき、シートの該当行の「削除」列に印をつける（行は残す）。
+// 削除用の列（削除/状態/ステータス）が無い場合は何もしない（No紐付けでアプリ側は復活しない）。
+export async function markSheetRowDeletedByNo(sheetNo: string | null | undefined): Promise<WriteResult> {
+  if (!sheetNo) return { ok: false, reason: 'no-sheet-no' };
+  const client = getSheetsClient();
+  if (!client) return { ok: false, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:Z' });
+    const rows = res.data.values ?? [];
+    if (rows.length < 2) return { ok: false, reason: 'empty' };
+    const header = rows[0] as string[];
+    const idxNo = headerIndex(header, NO_HEADERS);
+    if (idxNo < 0) return { ok: false, reason: 'no-No-column' };
+    const idxMark = headerIndex(header, DELETE_MARK_HEADERS);
+    if (idxMark < 0) return { ok: false, reason: 'no-mark-column' };
+    let rowNum = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][idxNo] ?? '').trim() === String(sheetNo).trim()) { rowNum = i + 1; break; }
+    }
+    if (rowNum < 0) return { ok: false, reason: 'row-not-found' };
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${colLetter(idxMark)}${rowNum}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[DELETE_MARK_VALUE]] },
     });
     return { ok: true };
   } catch (e) {

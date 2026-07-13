@@ -367,8 +367,17 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
 }) {
-  const timed = deliveries.filter(d => d.delivery_time && /^\d{2}:\d{2}/.test(d.delivery_time));
-  const allDay = deliveries.filter(d => !d.delivery_time || !/^\d{2}:\d{2}/.test(d.delivery_time));
+  // 日表示は「物件ごと」に並べ、その中は品目でまとめる（型板は型板で固まる）。
+  const byProjectItem = (a: Delivery, b: Delivery) =>
+    a.project_name.localeCompare(b.project_name, 'ja') ||
+    a.item.localeCompare(b.item, 'ja') ||
+    a.id - b.id;
+  const timed = deliveries
+    .filter(d => d.delivery_time && /^\d{2}:\d{2}/.test(d.delivery_time))
+    .sort(byProjectItem);
+  const allDay = deliveries
+    .filter(d => !d.delivery_time || !/^\d{2}:\d{2}/.test(d.delivery_time))
+    .sort(byProjectItem);
 
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-2xl mx-auto">
@@ -402,7 +411,7 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
         <div>
           <div className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wide">時刻指定</div>
           <div className="space-y-2">
-            {[...timed].sort((a, b) => (a.delivery_time ?? '').localeCompare(b.delivery_time ?? '')).map(item => {
+            {timed.map(item => {
               const done = item.status === '納入済み';
               return (
               <button
