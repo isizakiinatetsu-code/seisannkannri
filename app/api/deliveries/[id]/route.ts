@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
-import { pushDeliveryToSheetByNo } from '@/lib/gsheetsWrite';
+import { pushDeliveryToSheetByNo, markSheetRowDeletedByNo } from '@/lib/gsheetsWrite';
 
 export async function GET(
   _req: NextRequest,
@@ -112,6 +112,14 @@ export async function DELETE(
     }
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // シートのNoに紐付く行なら、シート側にも「削除」の印をつける（best-effort）
+    const sheetNo = (data as Record<string, unknown>).sheet_no;
+    if (sheetNo) {
+      const w = await markSheetRowDeletedByNo(String(sheetNo));
+      if (!w.ok) console.warn('sheet delete-mark failed:', w.reason);
+    }
+
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error(e);

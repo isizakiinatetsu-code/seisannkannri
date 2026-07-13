@@ -65,6 +65,12 @@ export async function POST(req: NextRequest) {
       const i = header.indexOf(h);
       if (i >= 0) { idxNo = i; break; }
     }
+    // 「削除」印の列（あれば、その行は取り込まない）
+    let idxMark = -1;
+    for (const h of ['削除', '状態', 'ステータス']) {
+      const i = header.indexOf(h);
+      if (i >= 0) { idxMark = i; break; }
+    }
 
     const supabase = getSupabase();
 
@@ -125,6 +131,8 @@ export async function POST(req: NextRequest) {
       const item = idxItem >= 0 ? String(row[idxItem] ?? '').trim() : '';
       if (!dateVal || !project || !item) { skipped++; continue; }
       if (dateVal < minDate) { skipped++; continue; }
+      // 「削除」印がついた行は取り込まない
+      if (idxMark >= 0 && String(row[idxMark] ?? '').includes('削除')) { skipped++; continue; }
       const vendorVal = (idxVendor >= 0 ? String(row[idxVendor] ?? '').trim() : '') || '未設定';
       const unloadVal = (idxUnload >= 0 ? String(row[idxUnload] ?? '').trim() : '') || '未設定';
       const specVal = idxSpec >= 0 ? String(row[idxSpec] ?? '').trim() || null : null;
