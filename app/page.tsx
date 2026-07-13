@@ -8,6 +8,7 @@ import DuplicateCheck from '@/components/DuplicateCheck';
 import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
 import NotificationPanel from '@/components/NotificationPanel';
+import ContactPanel from '@/components/ContactPanel';
 
 type Tab = 'calendar' | 'list';
 
@@ -40,6 +41,8 @@ export default function HomePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [todayContact, setTodayContact] = useState<string | null>(null);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
   // 検索パネルの入力中(未検索)フラグ。trueの間は古い検索結果を表示せず、
@@ -154,6 +157,16 @@ export default function HomePage() {
   }, [effectiveQuery, fetchDeliveries]);
 
   useEffect(() => { fetchToday(); }, [fetchToday]);
+
+  // 本日の荷下ろし連絡先を取得
+  const fetchTodayContact = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/daily-contact?date=${ymd(new Date())}`, { cache: 'no-store' });
+      const d = await res.json();
+      setTodayContact(d?.contact ?? null);
+    } catch { /* 失敗は本体に影響させない */ }
+  }, []);
+  useEffect(() => { fetchTodayContact(); }, [fetchTodayContact]);
 
   // ---- アプリ内お知らせ（新着：他の人が追加した予定）----
   const lastSeenRef = useRef<string>('');
@@ -429,6 +442,20 @@ export default function HomePage() {
               {tab === t.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />}
             </button>
           ))}
+          {/* 荷下ろし連絡先（その日の連絡担当）。検索の下に配置。 */}
+          <button
+            onClick={() => setShowContact(true)}
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            style={{ color: 'rgba(255,255,255,0.6)' }}
+          >
+            <span className="text-lg">📞</span>
+            <span className="flex-1 text-left">荷下ろし者</span>
+            {todayContact && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f5c000', color: '#0d2c66' }}>
+                {todayContact}
+              </span>
+            )}
+          </button>
         </nav>
         <div className="p-3 space-y-2 border-t border-white/10">
           <button
@@ -639,6 +666,16 @@ export default function HomePage() {
               <span className="px-2 py-0.5 rounded-full text-white text-xs font-medium" style={{ background: '#16a34a' }}>納入済み {todaySummary.done}</span>
             </span>
           )}
+          {/* 本日の荷下ろし連絡先（タップで変更） */}
+          <button
+            onClick={() => setShowContact(true)}
+            className="ml-auto flex items-center gap-1 text-sm px-2 py-0.5 rounded-lg hover:bg-gray-100"
+            title="荷下ろし連絡先"
+          >
+            <span>📞</span>
+            <span className="text-xs text-gray-500">連絡先</span>
+            <span className="font-bold text-gray-800">{todayContact || '未設定'}</span>
+          </button>
         </div>
 
         {/* ---- コンテンツ本体 ---- */}
@@ -791,6 +828,14 @@ export default function HomePage() {
         <NotificationPanel
           onClose={() => setShowNotifications(false)}
           onSelect={openDeliveryById}
+        />
+      )}
+      {showContact && (
+        <ContactPanel
+          date={ymd(new Date())}
+          canEdit={canEdit}
+          onClose={() => setShowContact(false)}
+          onSaved={(c) => setTodayContact(c)}
         />
       )}
     </div>
