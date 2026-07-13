@@ -47,7 +47,7 @@ const NO_HEADERS = ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号'
 export const DELETE_MARK_HEADERS = ['削除', '状態', 'ステータス'];
 export const DELETE_MARK_VALUE = '削除';
 
-function colLetter(idx: number): string {
+export function colLetter(idx: number): string {
   let s = ''; let n = idx;
   do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
   return s;
