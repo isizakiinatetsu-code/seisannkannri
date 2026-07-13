@@ -92,6 +92,19 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto p-4 space-y-3 flex-1">
+          {/* 追加者を最上部に・目立たせる（誰が登録したかを最初に選んでもらう） */}
+          <div className="rounded-xl border-2 p-3" style={{ borderColor: '#93c5fd', background: '#eff6ff' }}>
+            <label className="block text-sm font-bold mb-1" style={{ color: '#1e40af' }}>
+              👤 ★ 追加者（あなたの部署を選択）
+            </label>
+            <p className="text-xs text-gray-600 mb-2">誰が登録したかを記録します。まず選んでください。</p>
+            <select value={form.created_by} onChange={set('created_by')} required={!initial?.id} className="input" style={{ background: '#fff', fontWeight: 700 }}>
+              <option value="">▼ 選択してください</option>
+              <option value="購買課">購買課</option>
+              <option value="総務部">総務部</option>
+            </select>
+          </div>
+
           <FormRow label="★ 納入予定日">
             <input type="date" value={form.delivery_date} onChange={set('delivery_date')} required className="input" />
           </FormRow>
@@ -100,14 +113,6 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
             <select value={form.delivery_time} onChange={set('delivery_time')} className="input">
               <option value="">未定</option>
               {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </FormRow>
-
-          <FormRow label={`${initial?.id ? '　' : '★'} 追加者（部署）`}>
-            <select value={form.created_by} onChange={set('created_by')} required={!initial?.id} className="input">
-              <option value="">選択してください...</option>
-              <option value="購買課">購買課</option>
-              <option value="総務部">総務部</option>
             </select>
           </FormRow>
 

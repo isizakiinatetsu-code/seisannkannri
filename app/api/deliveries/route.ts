@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase, DeliveryInput } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
-import { isMissingColumnError, stripOptionalColumns } from '@/lib/dbErrors';
+import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
 
 export async function GET(req: NextRequest) {
   try {
@@ -102,12 +102,11 @@ export async function POST(req: NextRequest) {
       is_partial: body.is_partial ?? false,
     };
 
-    let { data, error } = await supabase.from('deliveries').insert(insertPayload).select().single();
-    // 後付けの任意列(created_by/is_partial)がまだ無いDBでも登録できるよう、外して再試行。
-    if (error && isMissingColumnError(error)) {
-      stripOptionalColumns(insertPayload);
-      ({ data, error } = await supabase.from('deliveries').insert(insertPayload).select().single());
-    }
+    // 後付けの任意列がまだ無いDBでも登録できるよう、“実際に無い列だけ”を外して再試行。
+    // （created_by は列があれば必ず保存されるように）
+    const { data, error } = await insertWithMissingColumnFallback(insertPayload, async (p) =>
+      await supabase.from('deliveries').insert(p).select().single()
+    );
 
     if (error) throw error;
     return NextResponse.json(data, { status: 201 });

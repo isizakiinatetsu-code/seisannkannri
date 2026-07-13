@@ -135,68 +135,83 @@ export async function POST(req: NextRequest) {
     }
 
     let updated = 0;
-
-    // 2) 「No」を持つ行は、その No で既存行を照合して更新／追加する（＝編集しても重複しない）
     let withNo = candidates.filter(c => c.no);
     let withoutNo = candidates.filter(c => !c.no);
     const toUpdate: { id: number; fields: Record<string, unknown> }[] = [];
-    if (withNo.length > 0) {
-      const nos = [...new Set(withNo.map(c => c.no))];
-      const { data: exNo, error: exNoErr } = await supabase
-        .from('deliveries')
-        .select('id, sheet_no, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes')
-        .in('sheet_no', nos);
-      if (exNoErr && !isMissingColumnError(exNoErr)) throw exNoErr;
-      if (exNoErr && isMissingColumnError(exNoErr)) {
-        // sheet_no 列がまだ無いDB → No照合はできないので、全行を従来の件数方式に回す
-        withoutNo = candidates;
-        withNo = [];
-      } else {
-        const bySheetNo = new Map<string, Record<string, unknown>>();
-        for (const r of exNo ?? []) bySheetNo.set(String((r as { sheet_no: string }).sheet_no), r);
-        const insertedNos = new Set<string>();
-        for (const c of withNo) {
-          const ex = bySheetNo.get(c.no);
-          const desc = descOf(c);
-          if (ex) {
-            // 内容が変わっていれば説明フィールドだけ更新（納入済み・伝票・追加者などは触らない）
-            const changed =
-              ex.delivery_date !== desc.delivery_date ||
-              (ex.delivery_time ?? null) !== (desc.delivery_time ?? null) ||
-              ex.project_name !== desc.project_name ||
-              ex.item !== desc.item ||
-              (ex.specification ?? null) !== (desc.specification ?? null) ||
-              ex.vendor !== desc.vendor ||
-              ex.unload_location !== desc.unload_location ||
-              (ex.notes ?? null) !== (desc.notes ?? null);
-            if (changed) toUpdate.push({ id: ex.id as number, fields: desc });
-          } else if (!insertedNos.has(c.no)) {
-            insertedNos.add(c.no);
-            toInsert.push({ ...desc, status: '予定', sheet_no: c.no });
-          }
-        }
+
+    // 既存行を1回だけ取得（No照合・採用・件数の全てに使う）。
+    // sheet_no / deleted 列が無い環境ではそれらを外して取得し、No照合は行わない。
+    type ExRow = { id: number; sheet_no?: string | null; deleted?: boolean | null;
+      delivery_date: string; delivery_time: string | null; project_name: string; item: string;
+      specification: string | null; vendor: string; unload_location: string; notes: string | null; };
+    const fullSel = 'id, sheet_no, deleted, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes';
+    const minSel = 'id, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes';
+    type SelResult = { data: unknown; error: { code?: string; message?: string } | null };
+    let existing: ExRow[] = [];
+    {
+      let r = await supabase.from('deliveries').select(fullSel).gte('delivery_date', minDate) as SelResult;
+      if (r.error && isMissingColumnError(r.error)) {
+        // sheet_no / deleted 列が無い → No照合は不可。全行を件数方式へ。
+        withoutNo = candidates; withNo = [];
+        r = await supabase.from('deliveries').select(minSel).gte('delivery_date', minDate) as SelResult;
+      }
+      if (r.error) throw r.error;
+      existing = (r.data ?? []) as ExRow[];
+    }
+
+    const bySheetNo = new Map<string, ExRow>();
+    const byContentFree = new Map<string, ExRow[]>(); // 内容キー→sheet_no未設定の行（採用候補）
+    const dbCount = new Map<string, number>();
+    for (const e of existing) {
+      const k = keyOf(e);
+      dbCount.set(k, (dbCount.get(k) ?? 0) + 1);
+      if (e.sheet_no) bySheetNo.set(String(e.sheet_no), e);
+      else { const a = byContentFree.get(k) ?? []; a.push(e); byContentFree.set(k, a); }
+    }
+    // 採用は「生きている行」を優先（消し済みは後回し）
+    for (const arr of byContentFree.values()) arr.sort((a, b) => (a.deleted ? 1 : 0) - (b.deleted ? 1 : 0));
+
+    const changedVs = (ex: ExRow, desc: ReturnType<typeof descOf>) =>
+      ex.delivery_date !== desc.delivery_date ||
+      (ex.delivery_time ?? null) !== (desc.delivery_time ?? null) ||
+      ex.project_name !== desc.project_name || ex.item !== desc.item ||
+      (ex.specification ?? null) !== (desc.specification ?? null) ||
+      ex.vendor !== desc.vendor || ex.unload_location !== desc.unload_location ||
+      (ex.notes ?? null) !== (desc.notes ?? null);
+
+    // 2) 「No」を持つ行：Noで照合。無ければ“同じ内容の既存行”にNoを付けて採用（重複を作らない）。
+    const insertedNos = new Set<string>();
+    const adoptedIds = new Set<number>();
+    for (const c of withNo) {
+      const desc = descOf(c);
+      const ex = bySheetNo.get(c.no);
+      if (ex) {
+        // 既にNo紐付け済み → 内容が変わっていれば説明だけ更新（納入済み・伝票・追加者は保持）
+        if (changedVs(ex, desc)) toUpdate.push({ id: ex.id, fields: desc });
+        continue;
+      }
+      // 同じ内容で sheet_no 未設定の行（＝アプリで手動追加した等）があれば、それにNoを付けて採用
+      const pool = (byContentFree.get(keyOf({ ...desc })) ?? []).filter(r => !adoptedIds.has(r.id));
+      if (pool.length > 0) {
+        const adopt = pool[0];
+        adoptedIds.add(adopt.id);
+        // Noを付与（消し済みなら deleted は触らず＝消したものは消したまま。復活させない）
+        toUpdate.push({ id: adopt.id, fields: { ...desc, sheet_no: c.no } });
+      } else if (!insertedNos.has(c.no)) {
+        insertedNos.add(c.no);
+        toInsert.push({ ...desc, status: '予定', sheet_no: c.no });
       }
     }
 
-    // 3) 「No」が無い行は従来どおり、同一内容の件数がDBに足りない分だけ追加する
+    // 3) 「No」が無い行：同一内容の件数がDBに足りない分だけ追加（削除済みも件数に数える＝復活防止）
     if (withoutNo.length > 0) {
-      const { data: existing, error: existingErr } = await supabase
-        .from('deliveries')
-        .select('delivery_date, project_name, item, specification, vendor, unload_location, delivery_time')
-        .gte('delivery_date', minDate);
-      if (existingErr) throw existingErr;
-      const dbCount = new Map<string, number>();
-      for (const e of existing ?? []) {
-        const k = keyOf(e as never);
-        dbCount.set(k, (dbCount.get(k) ?? 0) + 1);
-      }
       const groups = new Map<string, Cand[]>();
       for (const c of withoutNo) {
         const k = keyOf({ ...descOf(c) });
         const arr = groups.get(k); if (arr) arr.push(c); else groups.set(k, [c]);
       }
-      for (const [, list] of groups) {
-        const have = dbCount.get(keyOf({ ...descOf(list[0]) })) ?? 0;
+      for (const [k, list] of groups) {
+        const have = dbCount.get(k) ?? 0;
         const need = list.length - have;
         for (let i = 0; i < need; i++) toInsert.push({ ...descOf(list[i]), status: '予定' });
       }
