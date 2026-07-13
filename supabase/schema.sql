@@ -33,6 +33,13 @@ alter table deliveries add column if not exists deleted boolean not null default
 alter table deliveries add column if not exists sheet_no text;
 create index if not exists idx_deliveries_sheet_no on deliveries (sheet_no);
 
+-- 荷下ろし（連絡）担当者：その日ごとの連絡先を1人保存する
+create table if not exists daily_contacts (
+  contact_date date primary key,
+  contact text,
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_deliveries_delivery_date on deliveries (delivery_date);
 create index if not exists idx_deliveries_status on deliveries (status);
 

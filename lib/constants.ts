@@ -61,3 +61,11 @@ export const STATUS_COLORS = {
   '予定': '#d97706',
   '納入済み': '#9ca3af',
 } as const;
+
+// 荷下ろし（連絡）担当者の名簿。その日の連絡先を選ぶのに使う。
+// 「その他」グループとは別に、手動入力も可能（UI側で対応）。
+export const UNLOAD_CONTACT_GROUPS: { group: string; names: string[] }[] = [
+  { group: '出荷班', names: ['俵', '小野'] },
+  { group: '生産管理', names: ['石崎', '杉本'] },
+  { group: 'その他', names: ['山口', '三野', 'ハオ', '服部'] },
+];
