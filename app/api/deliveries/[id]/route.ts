@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
+import { pushDeliveryToSheetByNo } from '@/lib/gsheetsWrite';
 
 export async function GET(
   _req: NextRequest,
@@ -67,6 +68,25 @@ export async function PATCH(
         { status: 409 }
       );
     }
+
+    // 内容(日程・物件など)が変わり、かつシートのNoに紐付いている行なら、
+    // スプレッドシートにも書き戻す（同期しても古い内容で重複しないように）。best-effort。
+    const CONTENT_KEYS = ['delivery_date', 'delivery_time', 'project_name', 'item', 'specification', 'vendor', 'unload_location', 'notes'];
+    const row = data as Record<string, unknown>;
+    if (CONTENT_KEYS.some(k => k in fields) && row.sheet_no) {
+      const w = await pushDeliveryToSheetByNo(String(row.sheet_no), {
+        delivery_date: String(row.delivery_date),
+        delivery_time: (row.delivery_time as string) ?? null,
+        project_name: String(row.project_name),
+        item: String(row.item),
+        specification: (row.specification as string) ?? null,
+        vendor: String(row.vendor),
+        unload_location: String(row.unload_location),
+        notes: (row.notes as string) ?? null,
+      });
+      if (!w.ok) console.warn('sheet write-back failed:', w.reason);
+    }
+
     return NextResponse.json(data);
   } catch (e) {
     console.error(e);
