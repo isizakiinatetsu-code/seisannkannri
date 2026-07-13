@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
+import { colLetter } from '@/lib/gsheetsWrite';
 
 export async function GET() {
   try {
@@ -32,7 +33,9 @@ export async function POST(req: NextRequest) {
     const credentials = JSON.parse(keyJson);
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      // 読み書き（No列の自動作成・自動採番のため）。編集者権限が無い場合は
+      // 書き込みだけ失敗し、読み取り＝従来動作にフォールバックする。
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
@@ -122,6 +125,39 @@ export async function POST(req: NextRequest) {
       delivery_date: c.dateVal, delivery_time: c.timeVal, project_name: c.project, item: c.item,
       specification: c.specVal, vendor: c.vendorVal, unload_location: c.unloadVal, notes: c.notesVal,
     });
+
+    // ---- No列・削除列を自動で用意し、Noが無い行に自動採番して書き戻す ----
+    // （編集者権限が無い場合は書き込みだけ失敗し、以降は従来動作にフォールバック）
+    try {
+      const cellUpdates: { range: string; values: string[][] }[] = [];
+      if (idxNo < 0) { idxNo = header.length; header.push('No'); cellUpdates.push({ range: `${colLetter(idxNo)}1`, values: [['No']] }); }
+      if (idxMark < 0) { idxMark = header.length; header.push('削除'); cellUpdates.push({ range: `${colLetter(idxMark)}1`, values: [['削除']] }); }
+      let maxNo = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const v = Number(String(rows[i][idxNo] ?? '').trim());
+        if (Number.isFinite(v)) maxNo = Math.max(maxNo, v);
+      }
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const dv = normalizeDate(idxDate >= 0 ? r[idxDate] : '');
+        const pj = idxProject >= 0 ? String(r[idxProject] ?? '').trim() : '';
+        const it = idxItem >= 0 ? String(r[idxItem] ?? '').trim() : '';
+        if (!dv || !pj || !it) continue;            // データ行でなければ採番しない
+        if (String(r[idxNo] ?? '').trim()) continue; // 既にNoがあれば維持
+        const n = ++maxNo;
+        while (r.length <= idxNo) r.push('');
+        r[idxNo] = String(n);
+        cellUpdates.push({ range: `${colLetter(idxNo)}${i + 1}`, values: [[String(n)]] });
+      }
+      if (cellUpdates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: { valueInputOption: 'RAW', data: cellUpdates },
+        });
+      }
+    } catch (e) {
+      console.warn('No自動採番/列作成に失敗（シートの編集者権限を確認してください）:', e);
+    }
 
     // 1) シートの取り込み対象行を集める
     const candidates: Cand[] = [];
