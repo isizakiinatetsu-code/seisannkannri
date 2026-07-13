@@ -350,14 +350,21 @@ export default function HomePage() {
       if (data.error) {
         setImportMsg(`❌ ${data.error}`);
       } else {
-        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加${data.updated ? ` / ${data.updated}件更新` : ''} (スキップ: ${data.skipped}件)`);
+        const s = data.sheetSetup;
+        let extra = '';
+        if (s && s.ok === false) {
+          extra = `\n⚠️ シートへの書き込み失敗：${s.reason ?? ''}（サービスアカウントに編集者権限があるか確認してください）`;
+        } else if (s && (s.added?.length || s.numbered)) {
+          extra = `\n🧾 シート整備：${s.added?.length ? s.added.join('・') + '列を追加、' : ''}${s.numbered ? s.numbered + '行に番号を採番' : ''}`;
+        }
+        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加${data.updated ? ` / ${data.updated}件更新` : ''} (スキップ: ${data.skipped}件)${extra}`);
         fetchDeliveries(effectiveQuery);
       }
     } catch {
       setImportMsg('❌ 同期に失敗しました');
     } finally {
       setGsSyncing(false);
-      setTimeout(() => setImportMsg(''), 6000);
+      setTimeout(() => setImportMsg(''), 12000);
     }
   }
 
@@ -593,7 +600,7 @@ export default function HomePage() {
 
         {/* インポートメッセージ */}
         {importMsg && (
-          <div className={`px-4 py-2 text-sm font-medium text-center flex-shrink-0 ${importMsg.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          <div className={`px-4 py-2 text-sm font-medium text-center flex-shrink-0 whitespace-pre-line ${importMsg.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
             {importMsg}
           </div>
         )}
