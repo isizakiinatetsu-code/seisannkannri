@@ -37,6 +37,7 @@ export interface Delivery {
   is_partial: boolean | null; // 一部納入（分納の途中）
   deleted?: boolean | null; // 削除済み（ソフトデリート）
   sheet_no?: string | null; // スプレッドシートの「No」（同期の照合キー）
+  unload_contact?: string | null; // 荷下ろし者（この予定の連絡担当）
   created_at: string;
   updated_at: string;
 }

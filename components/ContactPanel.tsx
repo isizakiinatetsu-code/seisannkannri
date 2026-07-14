@@ -91,7 +91,7 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
 
         <div className="p-4 space-y-3">
           <p className="text-sm text-gray-600">
-            <b>{dispDate}</b> に材料が入ってきたときの連絡先です。<b>3つとも</b>選んでください。
+            <b>{dispDate}</b> に材料が入ってきたときの連絡先です。必要な分だけ選んでください。
           </p>
 
           {loading ? (

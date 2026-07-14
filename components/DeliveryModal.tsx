@@ -200,6 +200,11 @@ export default function DeliveryModal({
               ? <span className="text-gray-700">🧑‍💼 {delivery.created_by}</span>
               : <span className="text-gray-400">未登録（「編集する」から設定できます）</span>}
           </Row>
+          <Row label="荷下ろし者">
+            {delivery.unload_contact
+              ? <span className="text-gray-700">📞 {delivery.unload_contact}</span>
+              : <span className="text-gray-400">未登録（「編集する」から設定できます）</span>}
+          </Row>
 
           {/* Slip images */}
           <div>

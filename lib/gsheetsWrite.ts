@@ -110,6 +110,68 @@ export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined
   }
 }
 
+// アプリで新規追加した予定を、スプレッドシートにも新しい行として追記する。
+// No列（無ければ作成）に新しい番号を振って返す（以後、そのNoで書き戻し・削除印が使える）。
+export async function appendDeliveryToSheet(f: SheetRowFields): Promise<WriteResult & { sheetNo?: string }> {
+  const client = getSheetsClient();
+  if (!client) return { ok: false, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:Z' });
+    const rows = res.data.values ?? [];
+    if (rows.length < 1) return { ok: false, reason: 'empty' };
+    const header = (rows[0] as string[]).slice();
+
+    const headerUpdates: { range: string; values: string[][] }[] = [];
+    let idxNo = headerIndex(header, NO_HEADERS);
+    if (idxNo < 0) { idxNo = header.length; header.push('No'); headerUpdates.push({ range: `${colLetter(idxNo)}1`, values: [['No']] }); }
+    let idxMark = headerIndex(header, DELETE_MARK_HEADERS);
+    if (idxMark < 0) { idxMark = header.length; header.push('削除'); headerUpdates.push({ range: `${colLetter(idxMark)}1`, values: [['削除']] }); }
+    if (headerUpdates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data: headerUpdates } });
+    }
+
+    let maxNo = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const v = Number(String(rows[i][idxNo] ?? '').trim());
+      if (Number.isFinite(v)) maxNo = Math.max(maxNo, v);
+    }
+    const newNo = String(maxNo + 1);
+
+    const idxDate = header.indexOf('納入予定日');
+    const idxTime = header.indexOf('納入予定時刻');
+    const idxProject = header.indexOf('物件名');
+    const idxItem = header.indexOf('品目');
+    const idxSpec = header.indexOf('内容・規格');
+    const idxVendor = header.indexOf('業者名');
+    const idxUnload = header.indexOf('降し場所');
+    const idxNotes = header.indexOf('備考');
+
+    const row: string[] = new Array(header.length).fill('');
+    const setCell = (i: number, v: string | null) => { if (i >= 0) row[i] = v ?? ''; };
+    setCell(idxDate, f.delivery_date);
+    setCell(idxTime, f.delivery_time);
+    setCell(idxProject, f.project_name);
+    setCell(idxItem, f.item);
+    setCell(idxSpec, f.specification);
+    setCell(idxVendor, f.vendor);
+    setCell(idxUnload, f.unload_location);
+    setCell(idxNotes, f.notes);
+    setCell(idxNo, newNo);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'A1',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    });
+    return { ok: true, sheetNo: newNo };
+  } catch (e) {
+    return { ok: false, reason: String(e).slice(0, 160) };
+  }
+}
+
 // アプリで削除したとき、シートの該当行の「削除」列に印をつける（行は残す）。
 // 削除用の列（削除/状態/ステータス）が無い場合は何もしない（No紐付けでアプリ側は復活しない）。
 export async function markSheetRowDeletedByNo(sheetNo: string | null | undefined): Promise<WriteResult> {
