@@ -19,6 +19,21 @@ export async function GET() {
   const deliveriesCheck = await supabase.from('deliveries').select('id').limit(1);
   const dailyContactsCheck = await supabase.from('daily_contacts').select('contact_date').limit(1);
 
+  // 追加者(created_by)・荷下ろし者(unloaded_by)・sheet_no 等の後付け列が、
+  // アプリが実際に接続しているプロジェクトに存在するかを1列ずつ確認する。
+  // 列が無いと保存時に自動でその列だけ外して登録するため「追加者が表示されない」等の
+  // 原因になる（ALTER を別プロジェクトで実行してしまっていると起こる）。
+  const columnCheck = async (col: string) => {
+    const r = await supabase.from('deliveries').select(col).limit(1);
+    return { ある: !r.error, エラー: r.error ? r.error.code : null };
+  };
+  const [createdBy, unloadedBy, sheetNo, deleted] = await Promise.all([
+    columnCheck('created_by'),
+    columnCheck('unloaded_by'),
+    columnCheck('sheet_no'),
+    columnCheck('deleted'),
+  ]);
+
   return NextResponse.json({
     接続先プロジェクト: serviceHost,
     表示用URLのプロジェクト: publicHost,
@@ -26,6 +41,12 @@ export async function GET() {
     deliveries: {
       見えるか: !deliveriesCheck.error,
       エラー: deliveriesCheck.error ? { code: deliveriesCheck.error.code, message: deliveriesCheck.error.message } : null,
+    },
+    deliveries列: {
+      created_by: createdBy,
+      unloaded_by: unloadedBy,
+      sheet_no: sheetNo,
+      deleted: deleted,
     },
     daily_contacts: {
       見えるか: !dailyContactsCheck.error,
