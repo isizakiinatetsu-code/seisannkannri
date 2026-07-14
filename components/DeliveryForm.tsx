@@ -55,17 +55,13 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // 追加者は「新規追加」のときのみ必須（既存予定の編集では、未設定でもそのまま保存できる）
-    const isNew = !initial?.id;
-    if (!form.delivery_date || !form.project_name || !form.item || !form.vendor || !form.unload_location || (isNew && !form.created_by)) {
-      alert('★必須項目をすべて入力してください');
-      return;
-    }
+    // 必須入力チェックは廃止（未入力でもそのまま登録できる）。
+    // ただし納入予定日だけは日付型のため、空なら今日を補う（DBの日付型が空文字を受け付けないため）。
     const notesValue = form.is_postal
       ? `[配送] ${form.notes}`.trimEnd()
       : form.notes || null;
     onSave({
-      delivery_date: form.delivery_date,
+      delivery_date: form.delivery_date || todayLocalYmd(),
       delivery_time: form.delivery_time || null,
       project_name: form.project_name,
       item: form.item,
@@ -97,18 +93,18 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
           {/* 追加者を最上部に・目立たせる（誰が登録したかを最初に選んでもらう） */}
           <div className="rounded-xl border-2 p-3" style={{ borderColor: '#93c5fd', background: '#eff6ff' }}>
             <label className="block text-sm font-bold mb-1" style={{ color: '#1e40af' }}>
-              👤 ★ 追加者（あなたの部署を選択）
+              👤 追加者（あなたの部署を選択）
             </label>
-            <p className="text-xs text-gray-600 mb-2">誰が登録したかを記録します。まず選んでください。</p>
-            <select value={form.created_by} onChange={set('created_by')} required={!initial?.id} className="input" style={{ background: '#fff', fontWeight: 700 }}>
+            <p className="text-xs text-gray-600 mb-2">誰が登録したかを記録します（任意）。</p>
+            <select value={form.created_by} onChange={set('created_by')} className="input" style={{ background: '#fff', fontWeight: 700 }}>
               <option value="">▼ 選択してください</option>
               <option value="購買課">購買課</option>
               <option value="総務部">総務部</option>
             </select>
           </div>
 
-          <FormRow label="★ 納入予定日">
-            <input type="date" value={form.delivery_date} onChange={set('delivery_date')} required className="input" />
+          <FormRow label="　 納入予定日">
+            <input type="date" value={form.delivery_date} onChange={set('delivery_date')} className="input" />
           </FormRow>
 
           <FormRow label="　 納入予定時刻">
@@ -118,15 +114,15 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
             </select>
           </FormRow>
 
-          <FormRow label="★ 物件名">
-            <input list="project-list" type="text" value={form.project_name} onChange={set('project_name')} placeholder="物件名を入力または選択" required className="input" />
+          <FormRow label="　 物件名">
+            <input list="project-list" type="text" value={form.project_name} onChange={set('project_name')} placeholder="物件名を入力または選択" className="input" />
             <datalist id="project-list">
               {projects.map(p => <option key={p} value={p} />)}
             </datalist>
           </FormRow>
 
-          <FormRow label="★ 品目">
-            <select value={form.item} onChange={set('item')} required className="input">
+          <FormRow label="　 品目">
+            <select value={form.item} onChange={set('item')} className="input">
               <option value="">品目を選択...</option>
               {ITEM_CATEGORIES.map(c => (
                 <option key={c} value={c}>{c}</option>
@@ -134,12 +130,12 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
             </select>
           </FormRow>
 
-          <FormRow label="★ 内容・規格">
+          <FormRow label="　 内容・規格">
             <input type="text" value={form.specification} onChange={set('specification')} placeholder="H-500x200 等" className="input" />
           </FormRow>
 
-          <FormRow label="★ 業者名">
-            <select value={form.vendor} onChange={set('vendor')} required className="input">
+          <FormRow label="　 業者名">
+            <select value={form.vendor} onChange={set('vendor')} className="input">
               <option value="">業者名を選択...</option>
               {vendors.map(v => <option key={v} value={v}>{v}</option>)}
               <option value="その他">その他</option>
@@ -154,8 +150,8 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
             </label>
           </div>
 
-          <FormRow label="★ 降し場所">
-            <select value={form.unload_location} onChange={set('unload_location')} required className="input">
+          <FormRow label="　 降し場所">
+            <select value={form.unload_location} onChange={set('unload_location')} className="input">
               <option value="">場所を選択...</option>
               {unloadLocations.map(l => (
                 <option key={l} value={l}>{l}</option>

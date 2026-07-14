@@ -66,17 +66,24 @@ export async function POST(req: NextRequest) {
     // force指定が無い限り409を返して呼び出し側で確認させる（総務と購買が同じものを
     // それぞれ入力してしまう事故を防ぐ）。
     if (!body.force) {
-      let dupQuery = supabase
-        .from('deliveries')
-        .select('id, status')
-        .eq('delivery_date', body.delivery_date)
-        .eq('project_name', projectName)
-        .eq('item', itemName)
-        .eq('vendor', vendorName);
-      dupQuery = specEmpty
-        ? dupQuery.is('specification', null)
-        : dupQuery.eq('specification', spec);
-      const { data: dup, error: dupError } = await dupQuery.limit(1).maybeSingle();
+      // 重複判定は「生きている予定」だけを対象にする。削除済み(deleted=true)は数えない。
+      // これをしないと、一度削除した予定と同じ内容を再登録しようとしたときに
+      // 「既に登録されています」と誤警告が出てしまう（削除済なのに重複扱い）。
+      const buildDup = (excludeDeleted: boolean) => {
+        let q = supabase
+          .from('deliveries')
+          .select('id, status')
+          .eq('delivery_date', body.delivery_date)
+          .eq('project_name', projectName)
+          .eq('item', itemName)
+          .eq('vendor', vendorName);
+        q = specEmpty ? q.is('specification', null) : q.eq('specification', spec);
+        if (excludeDeleted) q = q.not('deleted', 'is', true);
+        return q.limit(1).maybeSingle();
+      };
+      let { data: dup, error: dupError } = await buildDup(true);
+      // deleted 列が無い古いDBでは条件を外して再判定する
+      if (dupError && isMissingColumnError(dupError)) ({ data: dup, error: dupError } = await buildDup(false));
       if (dupError) throw dupError;
       if (dup) {
         return NextResponse.json({ duplicate: true, existingStatus: dup.status }, { status: 409 });
