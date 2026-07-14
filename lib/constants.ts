@@ -69,3 +69,16 @@ export const UNLOAD_CONTACT_GROUPS: { group: string; names: string[] }[] = [
   { group: '生産管理', names: ['石崎', '杉本'] },
   { group: 'その他', names: ['山口', '三野', 'ハオ', '服部'] },
 ];
+
+// 各予定の「荷下ろし者」欄の選択肢（UNLOAD_CONTACT_GROUPSの名簿をまとめたもの）
+export const UNLOADER_NAMES: string[] = UNLOAD_CONTACT_GROUPS.flatMap(g => g.names);
+
+// 降し場所の選択肢（固定リスト）
+export const UNLOAD_LOCATIONS = [
+  '事務所',
+  '第一南', '第一北',
+  '第二南', '第二北',
+  '第三(表)', '第四(表)',
+  '第一ヤード', '第二ヤード', '第三ヤード', '第四ヤード', '第五ヤード', '第六ヤード',
+  '未定',
+] as const;

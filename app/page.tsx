@@ -9,6 +9,7 @@ import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
 import NotificationPanel from '@/components/NotificationPanel';
 import ContactPanel, { formatContact } from '@/components/ContactPanel';
+import { UNLOAD_LOCATIONS } from '@/lib/constants';
 
 type Tab = 'calendar' | 'list';
 
@@ -392,11 +393,7 @@ export default function HomePage() {
     [...new Set(deliveries.map(d => d.vendor).filter(Boolean))].sort() as string[],
     [deliveries]
   );
-  const unloadLocationOptions = useMemo(() =>
-    // 「事務所」はデータに無くても常に候補へ含める
-    [...new Set(['事務所', ...deliveries.map(d => d.unload_location).filter(Boolean)])].sort() as string[],
-    [deliveries]
-  );
+  const unloadLocationOptions = UNLOAD_LOCATIONS as unknown as string[];
   const projectOptions = useMemo(() => {
     const seen = new Set<string>();
     return deliveries

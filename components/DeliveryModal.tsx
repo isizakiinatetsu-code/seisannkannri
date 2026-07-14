@@ -148,6 +148,11 @@ export default function DeliveryModal({
           <Row label="降し場所">
             <span className="text-gray-700">{delivery.unload_location}</span>
           </Row>
+          {delivery.unloaded_by && (
+            <Row label="荷下ろし者">
+              <span className="text-gray-700">{delivery.unloaded_by}</span>
+            </Row>
+          )}
           {delivery.storage_location && (
             <Row label="保管場所">
               <span className="text-gray-700">{delivery.storage_location}</span>

@@ -110,6 +110,61 @@ export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined
   }
 }
 
+// アプリで新規に予定を追加したとき、シートの末尾に新しい行として追加する。
+// Noは既存の最大値+1を自動採番して返す（呼び出し側で deliveries.sheet_no に保存する）。
+export async function appendDeliveryToSheet(f: SheetRowFields): Promise<WriteResult & { sheetNo?: string }> {
+  const client = getSheetsClient();
+  if (!client) return { ok: false, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:Z' });
+    const rows = res.data.values ?? [];
+    if (rows.length < 1) return { ok: false, reason: 'empty' };
+    const header = rows[0] as string[];
+    const idxNo = headerIndex(header, NO_HEADERS);
+    if (idxNo < 0) return { ok: false, reason: 'no-No-column' };
+    const idxDate = header.indexOf('納入予定日');
+    const idxTime = header.indexOf('納入予定時刻');
+    const idxProject = header.indexOf('物件名');
+    const idxItem = header.indexOf('品目');
+    const idxSpec = header.indexOf('内容・規格');
+    const idxVendor = header.indexOf('業者名');
+    const idxUnload = header.indexOf('降し場所');
+    const idxNotes = header.indexOf('備考');
+
+    let maxNo = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const v = Number(String(rows[i][idxNo] ?? '').trim());
+      if (Number.isFinite(v)) maxNo = Math.max(maxNo, v);
+    }
+    const nextNo = String(maxNo + 1);
+
+    const width = Math.max(header.length, idxNo + 1);
+    const row: string[] = new Array(width).fill('');
+    const setCell = (i: number, v: string | null) => { if (i >= 0) row[i] = v ?? ''; };
+    setCell(idxNo, nextNo);
+    setCell(idxDate, f.delivery_date);
+    setCell(idxTime, f.delivery_time);
+    setCell(idxProject, f.project_name);
+    setCell(idxItem, f.item);
+    setCell(idxSpec, f.specification);
+    setCell(idxVendor, f.vendor);
+    setCell(idxUnload, f.unload_location);
+    setCell(idxNotes, f.notes);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'A:Z',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    });
+    return { ok: true, sheetNo: nextNo };
+  } catch (e) {
+    return { ok: false, reason: String(e).slice(0, 160) };
+  }
+}
+
 // アプリで削除したとき、シートの該当行の「削除」列に印をつける（行は残す）。
 // 削除用の列（削除/状態/ステータス）が無い場合は何もしない（No紐付けでアプリ側は復活しない）。
 export async function markSheetRowDeletedByNo(sheetNo: string | null | undefined): Promise<WriteResult> {

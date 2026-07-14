@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Delivery } from '@/lib/supabase';
-import { ITEM_CATEGORIES } from '@/lib/constants';
+import { ITEM_CATEGORIES, UNLOADER_NAMES } from '@/lib/constants';
 
 const TIME_OPTIONS = [
   '午前中', '午後', '9:00', '10:00', '11:00', '12:00',
@@ -44,6 +44,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
     unit: initial?.unit ?? '',
     order_number: initial?.order_number ?? '',
     notes: (initial?.notes?.startsWith('[配送] ') || initial?.notes?.startsWith('[郵送] ')) ? initial.notes.slice(5) : (initial?.notes ?? ''),
+    unloaded_by: initial?.unloaded_by ?? '',
   });
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -77,6 +78,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
       order_number: form.order_number || null,
       notes: notesValue,
       created_by: form.created_by,
+      unloaded_by: form.unloaded_by || null,
     });
   }
 
@@ -159,6 +161,13 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
                 <option key={l} value={l}>{l}</option>
               ))}
               <option value="その他">その他</option>
+            </select>
+          </FormRow>
+
+          <FormRow label="　 荷下ろし者">
+            <select value={form.unloaded_by} onChange={set('unloaded_by')} className="input">
+              <option value="">（未設定）</option>
+              {UNLOADER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </FormRow>
 

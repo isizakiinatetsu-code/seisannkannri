@@ -31,6 +31,7 @@ alter table deliveries add column if not exists created_by text;
 alter table deliveries add column if not exists is_partial boolean not null default false;
 alter table deliveries add column if not exists deleted boolean not null default false;
 alter table deliveries add column if not exists sheet_no text;
+alter table deliveries add column if not exists unloaded_by text; -- 荷下ろし者（担当者名）
 create index if not exists idx_deliveries_sheet_no on deliveries (sheet_no);
 
 -- 荷下ろし（連絡）担当者：その日ごとの連絡先を1人保存する

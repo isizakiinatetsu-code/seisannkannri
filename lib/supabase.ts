@@ -34,6 +34,7 @@ export interface Delivery {
   delivered_at: string | null;
   slip_image_path: string | null;
   created_by: string | null; // 追加者（部署）: 購買課 / 総務部
+  unloaded_by: string | null; // 荷下ろし者
   is_partial: boolean | null; // 一部納入（分納の途中）
   deleted?: boolean | null; // 削除済み（ソフトデリート）
   sheet_no?: string | null; // スプレッドシートの「No」（同期の照合キー）

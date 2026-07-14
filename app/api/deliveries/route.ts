@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase, DeliveryInput } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
+import { appendDeliveryToSheet } from '@/lib/gsheetsWrite';
 
 export async function GET(req: NextRequest) {
   try {
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
       delivered_at: body.delivered_at ?? null,
       slip_image_path: body.slip_image_path ?? null,
       created_by: trim(body.created_by) ?? null,
+      unloaded_by: trim(body.unloaded_by) ?? null,
       is_partial: body.is_partial ?? false,
     };
 
@@ -109,6 +111,33 @@ export async function POST(req: NextRequest) {
     );
 
     if (error) throw error;
+
+    // アプリで新規追加した予定をスプレッドシートにも新しい行として反映する（best-effort）。
+    // 成功したらそのNoを sheet_no として保存し、以後の日程変更・削除も自動で同期されるようにする。
+    const row = data as Record<string, unknown>;
+    const w = await appendDeliveryToSheet({
+      delivery_date: String(row.delivery_date),
+      delivery_time: (row.delivery_time as string) ?? null,
+      project_name: String(row.project_name),
+      item: String(row.item),
+      specification: (row.specification as string) ?? null,
+      vendor: String(row.vendor),
+      unload_location: String(row.unload_location),
+      notes: (row.notes as string) ?? null,
+    });
+    if (w.ok && w.sheetNo) {
+      const { data: updated, error: updErr } = await supabase
+        .from('deliveries')
+        .update({ sheet_no: w.sheetNo })
+        .eq('id', row.id)
+        .select()
+        .maybeSingle();
+      if (!updErr && updated) return NextResponse.json(updated, { status: 201 });
+      if (updErr) console.warn('sheet_no 保存に失敗:', updErr);
+    } else if (!w.ok) {
+      console.warn('sheet append failed:', w.reason);
+    }
+
     return NextResponse.json(data, { status: 201 });
   } catch (e) {
     console.error(e);

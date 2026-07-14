@@ -1,6 +1,6 @@
 // あとから追加した「無いかもしれない」列。DBにこれらの列がまだ無い環境でも
 // 登録・編集が動くよう、列欠落エラー時にはその列だけを外して再試行する。
-export const OPTIONAL_COLUMNS = ['created_by', 'is_partial', 'deleted', 'sheet_no'];
+export const OPTIONAL_COLUMNS = ['created_by', 'is_partial', 'deleted', 'sheet_no', 'unloaded_by'];
 
 // 列が存在しないエラーかどうかをSQLコードで判定する（メッセージ部分一致は誤検知の元）。
 // 42703 = Postgres undefined_column / PGRST204 = PostgREST のスキーマ未検出
