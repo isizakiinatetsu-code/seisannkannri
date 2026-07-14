@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 
-// テーブルが未作成のDBでも落ちないよう判定する
+// テーブルが未作成（またはAPI層のスキーマキャッシュが古くて見えない）場合の判定。
+// 42P01 = Postgres undefined_table / PGRST205 = PostgRESTのスキーマキャッシュにテーブルが無い
 function isMissingTable(error: { code?: string } | null): boolean {
-  return !!error && (error.code === '42P01' || error.code === 'PGRST205' || error.code === 'PGRST205');
+  return !!error && (error.code === '42P01' || error.code === 'PGRST205');
 }
 
 // その日の荷下ろし連絡先を取得
@@ -44,7 +45,9 @@ export async function PUT(req: NextRequest) {
       .upsert({ contact_date: date, contact, updated_at: new Date().toISOString() }, { onConflict: 'contact_date' });
     if (error) {
       if (isMissingTable(error)) {
-        return NextResponse.json({ error: 'daily_contacts テーブルが未作成です（SQLの実行が必要）' }, { status: 400 });
+        return NextResponse.json({
+          error: `daily_contacts テーブルがAPIから見えません（${error.code}）。作成済みの場合は Supabase の SQL Editor で「NOTIFY pgrst, 'reload schema';」を実行してください`,
+        }, { status: 400 });
       }
       throw error;
     }
