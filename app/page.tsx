@@ -368,8 +368,12 @@ export default function HomePage() {
         let extra = '';
         if (s && s.ok === false) {
           extra = `\n⚠️ シートへの書き込み失敗：${s.reason ?? ''}（サービスアカウントに編集者権限があるか確認してください）`;
-        } else if (s && (s.added?.length || s.numbered)) {
-          extra = `\n🧾 シート整備：${s.added?.length ? s.added.join('・') + '列を追加、' : ''}${s.numbered ? s.numbered + '行に番号を採番' : ''}`;
+        } else if (s && (s.migrated || s.numbered || (s.tabs?.length))) {
+          const parts: string[] = [];
+          if (s.tabs?.length) parts.push(`年タブ：${s.tabs.join('・')}`);
+          if (s.migrated) parts.push(`${s.migrated}行を年タブへ振り分け`);
+          if (s.numbered) parts.push(`${s.numbered}行に番号を採番`);
+          extra = `\n🧾 シート整備：${parts.join('、')}`;
         }
         setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加${data.updated ? ` / ${data.updated}件更新` : ''} (スキップ: ${data.skipped}件)${extra}`);
         fetchDeliveries(effectiveQuery);

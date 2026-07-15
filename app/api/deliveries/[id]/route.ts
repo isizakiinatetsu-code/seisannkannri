@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
-import { pushDeliveryToSheetByNo, markSheetRowDeletedByNo } from '@/lib/gsheetsWrite';
+import { pushDeliveryToSheetByNo, markSheetRowDeletedByNo, setSheetRowDeliveredByNo } from '@/lib/gsheetsWrite';
 
 export async function GET(
   _req: NextRequest,
@@ -85,6 +85,12 @@ export async function PATCH(
         notes: (row.notes as string) ?? null,
       });
       if (!w.ok) console.warn('sheet write-back failed:', w.reason);
+    }
+
+    // ステータスが変わったら、スプレッドシートの該当行を着色する（納入済み=緑 / 予定=白）。best-effort。
+    if ('status' in fields && row.sheet_no) {
+      const c = await setSheetRowDeliveredByNo(String(row.sheet_no), row.status === '納入済み');
+      if (!c.ok) console.warn('sheet color failed:', c.reason);
     }
 
     return NextResponse.json(data);
