@@ -3,6 +3,7 @@ import { getSupabase, DeliveryInput } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
 import { appendDeliveryToSheet } from '@/lib/gsheetsWrite';
+import { IMPL_START_DATE } from '@/lib/constants';
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +27,10 @@ export async function GET(req: NextRequest) {
       if (vendor) query = query.ilike('vendor', `%${vendor}%`);
       if (unloadLocation) query = query.ilike('unload_location', `%${unloadLocation}%`);
       if (status) query = query.eq('status', status);
-      if (dateFrom) query = query.gte('delivery_date', dateFrom);
+      // 運用開始日(2026-07-01)より前は表示しない。個別に date_from が指定されても、
+      // 開始日より前には遡らない（大きい方＝新しい方を下限にする）。
+      const floor = dateFrom && dateFrom > IMPL_START_DATE ? dateFrom : IMPL_START_DATE;
+      query = query.gte('delivery_date', floor);
       if (dateTo) query = query.lte('delivery_date', dateTo);
       if (month) query = query.like('delivery_date', `${month}%`);
       if (excludeDeleted) query = query.eq('deleted', false);

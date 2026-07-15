@@ -31,7 +31,16 @@ export default function NotificationPanel({ onClose, onSelect }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/deliveries/recent', { cache: 'no-store' })
+    // 当日含め4日間分（今日・明日・明後日・その次）の納入予定だけを表示する。
+    const ymd = (d: Date) => {
+      const p = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    };
+    const today = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + 3);
+    const qs = `date_from=${ymd(today)}&date_to=${ymd(end)}`;
+    fetch(`/api/deliveries/recent?${qs}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setItems(d); })
       .catch(() => {})
@@ -43,7 +52,7 @@ export default function NotificationPanel({ onClose, onSelect }: Props) {
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg max-h-[85vh] flex flex-col md:shadow-2xl">
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white rounded-t-2xl">
-          <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">🔔 お知らせ（最近追加された予定）</h2>
+          <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">🔔 お知らせ（直近4日間の納入予定）</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-xl font-bold">×</button>
         </div>
 
@@ -51,7 +60,7 @@ export default function NotificationPanel({ onClose, onSelect }: Props) {
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
           ) : items.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">最近追加された予定はありません</div>
+            <div className="p-8 text-center text-gray-400 text-sm">直近4日間の納入予定はありません</div>
           ) : (
             <ul className="divide-y">
               {items.map(it => (

@@ -391,16 +391,16 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
               <button
                 key={item.id}
                 onClick={() => onSelectDelivery(item)}
-                className={`w-full text-left p-3 rounded-xl flex items-center gap-3 ${done ? 'bg-gray-100 border border-gray-200' : 'text-white'}`}
+                className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center gap-3 ${done ? 'bg-gray-100 border border-gray-200' : 'text-white'}`}
                 style={done ? undefined : { background: getCategoryColor(item.item) }}
               >
                 {done && <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: '#16a34a' }}>✓</span>}
-                <div className="flex-1 min-w-0">
-                  <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
-                  {item.specification && <div className={`text-xs truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.specification}</div>}
-                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor} · {item.unload_location}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
+                <div className="flex-1 min-w-0 leading-tight">
+                  <div className={`font-bold text-lg truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
+                  {item.specification && <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-95'}`}>{item.specification}</div>}
+                  <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.item} · {item.vendor} · {item.unload_location}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
+                <span className={`text-sm px-2.5 py-1 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
               </button>
               );
             })}
@@ -417,16 +417,16 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
               <button
                 key={item.id}
                 onClick={() => onSelectDelivery(item)}
-                className={`w-full text-left p-3 rounded-xl flex items-center gap-3 ${done ? 'bg-gray-100 border border-gray-200' : 'text-white'}`}
+                className={`w-full text-left px-4 py-2.5 rounded-xl flex items-center gap-3 ${done ? 'bg-gray-100 border border-gray-200' : 'text-white'}`}
                 style={done ? undefined : { background: getCategoryColor(item.item) }}
               >
-                <span className={`font-mono font-bold text-sm w-12 flex-shrink-0 ${done ? 'text-gray-400' : ''}`}>{item.delivery_time}</span>
-                <div className="flex-1 min-w-0">
-                  <div className={`font-bold truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
-                  {item.specification && <div className={`text-xs truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.specification}</div>}
-                  <div className={`text-xs ${done ? 'text-gray-400' : 'opacity-80'}`}>{item.item} · {item.vendor}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
+                <span className={`font-mono font-bold text-base w-12 flex-shrink-0 ${done ? 'text-gray-400' : ''}`}>{item.delivery_time}</span>
+                <div className="flex-1 min-w-0 leading-tight">
+                  <div className={`font-bold text-lg truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
+                  {item.specification && <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-95'}`}>{item.specification}</div>}
+                  <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.item} · {item.vendor}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
+                <span className={`text-sm px-2.5 py-1 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
               </button>
               );
             })}
