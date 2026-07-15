@@ -384,7 +384,7 @@ export interface SheetCandidate {
   timeVal: string | null; notesVal: string | null;
 }
 export interface SheetSetup {
-  ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; collected?: number; reason?: string;
+  ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; collected?: number; moved?: number; reason?: string;
 }
 
 // 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く。
@@ -469,6 +469,8 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
     // 2) 年タブを読み、Noが無い行に採番し、取り込み候補を集める
     const candidates: SheetCandidate[] = [];
     const yearTabs = all.filter(s => isYearTitle(s.title)).sort((a, b) => a.title.localeCompare(b.title));
+    // 日付の年とタブ名が食い違う行（例: 2001タブに2026の予定）を、正しい年タブへ移す。
+    const misplaced: { correctYear: string; row: string[]; fromTab: string; rowNum: number }[] = [];
     for (const tab of yearTabs) {
       setup.tabs.push(tab.title);
       // 日付列の表示書式を「7月15日(水)」に統一（idempotent・best-effort）
@@ -491,16 +493,28 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         }
         if (dv < minDate) continue;                       // 運用開始日より前は取り込まない
         if (String(r[H.DEL] ?? '').includes('削除')) continue; // 削除印は取り込まない
-        candidates.push({
-          no,
-          dateVal: dv,
-          project: pj,
+
+        const fields: SheetRowFields = {
+          delivery_date: dv,
+          delivery_time: String(r[H.TIME] ?? '').trim() || null,
+          project_name: pj,
           item: it,
-          specVal: String(r[H.SPEC] ?? '').trim() || null,
-          vendorVal: String(r[H.VENDOR] ?? '').trim() || '未設定',
-          unloadVal: String(r[H.UNLOAD] ?? '').trim() || '未設定',
-          timeVal: String(r[H.TIME] ?? '').trim() || null,
-          notesVal: String(r[H.NOTES] ?? '').trim() || null,
+          specification: String(r[H.SPEC] ?? '').trim() || null,
+          vendor: String(r[H.VENDOR] ?? '').trim() || '未設定',
+          unload_location: String(r[H.UNLOAD] ?? '').trim() || '未設定',
+          notes: String(r[H.NOTES] ?? '').trim() || null,
+        };
+
+        // 年が食い違えば、正しい年タブへ移動対象として記録（取り込み自体は下で行う）
+        const correctYear = yearOf(dv);
+        if (correctYear && correctYear !== tab.title) {
+          misplaced.push({ correctYear, row: buildCanonicalRow(no, fields, String(r[H.DEL] ?? '')), fromTab: tab.title, rowNum: i + 1 });
+        }
+
+        candidates.push({
+          no, dateVal: dv, project: pj, item: it,
+          specVal: fields.specification, vendorVal: fields.vendor, unloadVal: fields.unload_location,
+          timeVal: fields.delivery_time, notesVal: fields.notes,
         });
       }
       if (numberUpdates.length > 0) {
@@ -510,6 +524,32 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         });
         setup.wrote = true;
       }
+    }
+
+    // 年が食い違う行を正しい年タブへ移動（先に追加→元を空に）
+    if (misplaced.length > 0) {
+      const byYear = new Map<string, string[][]>();
+      for (const m of misplaced) {
+        const tab = await ensureYearTab(sheets, spreadsheetId, all, m.correctYear);
+        const arr = byYear.get(tab.title) ?? [];
+        arr.push(m.row);
+        byYear.set(tab.title, arr);
+      }
+      for (const [title, values] of byYear) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: `${title}!A:Z`,
+          valueInputOption: 'USER_ENTERED',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values },
+        });
+      }
+      await sheets.spreadsheets.values.batchClear({
+        spreadsheetId,
+        requestBody: { ranges: misplaced.map(m => `${m.fromTab}!A${m.rowNum}:Z${m.rowNum}`) },
+      });
+      setup.moved = misplaced.length;
+      setup.wrote = true;
     }
 
     setup.collected = candidates.length;

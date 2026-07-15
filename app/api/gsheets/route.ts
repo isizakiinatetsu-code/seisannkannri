@@ -99,7 +99,10 @@ export async function POST(req: NextRequest) {
       const desc = descOf(c);
       const ex = bySheetNo.get(c.no);
       if (ex) {
-        if (changedVs(ex, desc)) toUpdate.push({ id: ex.id, fields: desc });
+        // シートに（削除印なしで）存在する行なので、DB側が削除済みでも復活させて表示する。
+        const fields: Record<string, unknown> = changedVs(ex, desc) ? { ...desc } : {};
+        if (ex.deleted) fields.deleted = false;
+        if (Object.keys(fields).length > 0) toUpdate.push({ id: ex.id, fields });
         continue;
       }
       const pool = (byContentFree.get(keyOf({ ...desc })) ?? []).filter(r => !adoptedIds.has(r.id));
