@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
-import { prepareAndCollectSheet, SheetCandidate } from '@/lib/gsheetsWrite';
+import { prepareAndCollectSheet, SheetCandidate, applyColorsByNo } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
 
 export async function GET() {
@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
     const toUpdate: { id: number; fields: Record<string, unknown> }[] = [];
 
     // 既存行を1回だけ取得（No照合・採用・件数の全てに使う）。
-    type ExRow = { id: number; sheet_no?: string | null; deleted?: boolean | null;
+    type ExRow = { id: number; sheet_no?: string | null; deleted?: boolean | null; status?: string;
       delivery_date: string; delivery_time: string | null; project_name: string; item: string;
       specification: string | null; vendor: string; unload_location: string; notes: string | null; };
-    const fullSel = 'id, sheet_no, deleted, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes';
+    const fullSel = 'id, sheet_no, deleted, status, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes';
     const minSel = 'id, delivery_date, delivery_time, project_name, item, specification, vendor, unload_location, notes';
     type SelResult = { data: unknown; error: { code?: string; message?: string } | null };
     let existing: ExRow[] = [];
@@ -150,7 +150,20 @@ export async function POST(req: NextRequest) {
     const imported = toInsert.length;
     const skipped = candidates.length - imported - updated;
 
-    return NextResponse.json({ imported, updated, skipped, sheetSetup });
+    // 現在「納入済み」の予定をシート上でまとめて着色する（過去分も含めて一括反映）。
+    // 生きている(削除でない)行のうち sheet_no があるものを対象に、納入済み=緑/予定=白。
+    let colored = 0;
+    try {
+      const colorMap: Record<string, boolean> = {};
+      for (const e of existing) {
+        if (e.deleted) continue;
+        if (e.sheet_no) colorMap[String(e.sheet_no)] = e.status === '納入済み';
+      }
+      const cr = await applyColorsByNo(colorMap);
+      colored = cr.colored;
+    } catch { /* 着色は best-effort */ }
+
+    return NextResponse.json({ imported, updated, skipped, colored, sheetSetup });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: `エラー: ${e}` }, { status: 500 });

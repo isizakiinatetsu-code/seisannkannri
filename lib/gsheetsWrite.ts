@@ -376,6 +376,41 @@ export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefine
   }
 }
 
+// Noごとの「納入済みか」を受け取り、全年タブの該当行をまとめて着色する（同期時に一括適用）。
+// true=薄い緑 / false=白。過去に納入済みにした分もこれで色が付く。
+export async function applyColorsByNo(colorMap: Record<string, boolean>): Promise<{ ok: boolean; colored: number; reason?: string }> {
+  if (Object.keys(colorMap).length === 0) return { ok: true, colored: 0 };
+  const client = getClient();
+  if (!client) return { ok: false, colored: 0, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const all = await listSheets(sheets, spreadsheetId);
+    const requests: unknown[] = [];
+    for (const tab of all.filter(s => isYearTitle(s.title))) {
+      const rows = await readTabRows(sheets, spreadsheetId, tab.title);
+      for (let i = 1; i < rows.length; i++) {
+        const no = String(rows[i]?.[H.NO] ?? '').trim();
+        if (!no || !(no in colorMap)) continue;
+        requests.push({
+          repeatCell: {
+            range: { sheetId: tab.sheetId, startRowIndex: i, endRowIndex: i + 1, startColumnIndex: 0, endColumnIndex: CANONICAL_WIDTH },
+            cell: { userEnteredFormat: { backgroundColor: colorMap[no] ? COLOR_DONE : COLOR_NONE } },
+            fields: 'userEnteredFormat.backgroundColor',
+          },
+        });
+      }
+    }
+    if (requests.length === 0) return { ok: true, colored: 0 };
+    // 大量になり得るので分割して送る
+    for (let i = 0; i < requests.length; i += 200) {
+      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: requests.slice(i, i + 200) } });
+    }
+    return { ok: true, colored: requests.length };
+  } catch (e) {
+    return { ok: false, colored: 0, reason: String(e).slice(0, 160) };
+  }
+}
+
 // ---- 同期用：年タブを整備し、旧シートを移行し、取り込み候補を集めて返す ----
 export interface SheetCandidate {
   no: string;
