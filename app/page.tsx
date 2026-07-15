@@ -377,7 +377,8 @@ export default function HomePage() {
           if (s.numbered) parts.push(`${s.numbered}行に番号を採番`);
           extra = `\n🧾 シート整備：${parts.join('、')}`;
         }
-        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加${data.updated ? ` / ${data.updated}件更新` : ''} (スキップ: ${data.skipped}件)${extra}`);
+        const coloredMsg = data.colored ? ` / ${data.colored}件着色` : '';
+        setImportMsg(`✅ Sheets同期完了: ${data.imported}件追加${data.updated ? ` / ${data.updated}件更新` : ''}${coloredMsg} (スキップ: ${data.skipped}件)${extra}`);
         fetchDeliveries(effectiveQuery);
       }
     } catch {
