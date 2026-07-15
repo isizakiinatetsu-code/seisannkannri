@@ -1,11 +1,24 @@
 import { google } from 'googleapis';
 
-// スプレッドシートへ書き戻す（アプリでの変更をシートにも反映するため）。
-// 読み取り専用ではなく編集スコープを使う。サービスアカウントがシートの
-// 「編集者」になっている必要がある（共有設定で付与）。
+// スプレッドシートを「年ごとのタブ（2025 / 2026 ...）」に分けて読み書きする。
+// - 各年タブは固定の列レイアウト（CANONICAL_HEADERS）で統一する。
+// - 旧「シート1」等（年名でないタブ）のデータは、初回同期で年タブへ移動して空にする。
+// - 予定の新規追加・日程変更・削除・納入済み着色は、その予定の納入年のタブに対して行う。
 //
-// すべて best-effort：失敗しても DB 操作は成功済みなので、呼び出し側は
-// 返り値の ok を見てログ/通知するだけにして、本処理は止めない。
+// すべて best-effort：失敗しても DB 操作は成功済みなので、呼び出し側は返り値の ok を
+// 見てログ/通知するだけにして、本処理は止めない。
+
+// 年タブの固定レイアウト（この順で列を作る）
+const H = { NO: 0, DATE: 1, TIME: 2, PROJECT: 3, ITEM: 4, SPEC: 5, VENDOR: 6, UNLOAD: 7, NOTES: 8, DEL: 9 };
+export const CANONICAL_HEADERS = ['No', '納入予定日', '納入予定時刻', '物件名', '品目', '内容・規格', '業者名', '降し場所', '備考', '削除'];
+const CANONICAL_WIDTH = CANONICAL_HEADERS.length;
+
+export const DELETE_MARK_HEADERS = ['削除', '状態', 'ステータス'];
+export const DELETE_MARK_VALUE = '削除';
+
+// 納入済みの行の背景色（薄い緑）／解除時（白）
+const COLOR_DONE = { red: 0.72, green: 0.88, blue: 0.72 };
+const COLOR_NONE = { red: 1, green: 1, blue: 1 };
 
 export interface SheetRowFields {
   delivery_date: string;
@@ -18,7 +31,13 @@ export interface SheetRowFields {
   notes: string | null;
 }
 
-function getSheetsClient() {
+type WriteResult = { ok: boolean; reason?: string };
+type SheetInfo = { title: string; sheetId: number };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Sheets = any;
+
+function getClient(): { sheets: Sheets; spreadsheetId: string } | null {
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
   const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!spreadsheetId || !keyJson) return null;
@@ -37,124 +56,136 @@ export function getServiceAccountEmail(): string | null {
   try { return JSON.parse(keyJson).client_email ?? null; } catch { return null; }
 }
 
-function headerIndex(header: string[], names: string[]): number {
-  for (const n of names) { const i = header.indexOf(n); if (i >= 0) return i; }
-  return -1;
-}
-
-const NO_HEADERS = ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号', 'ID', 'id'];
-// 削除の印を書く列（どれかがあれば使う）
-export const DELETE_MARK_HEADERS = ['削除', '状態', 'ステータス'];
-export const DELETE_MARK_VALUE = '削除';
-
 export function colLetter(idx: number): string {
   let s = ''; let n = idx;
   do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
   return s;
 }
 
-type WriteResult = { ok: boolean; reason?: string };
-
-// No（管理番号）で該当行を探し、内容を書き戻す。
-export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined, f: SheetRowFields): Promise<WriteResult> {
-  if (!sheetNo) return { ok: false, reason: 'no-sheet-no' };
-  const client = getSheetsClient();
-  if (!client) return { ok: false, reason: 'not-configured' };
-  try {
-    const { sheets, spreadsheetId } = client;
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:Z' });
-    const rows = res.data.values ?? [];
-    if (rows.length < 2) return { ok: false, reason: 'empty' };
-    const header = rows[0] as string[];
-    const idxNo = headerIndex(header, NO_HEADERS);
-    if (idxNo < 0) return { ok: false, reason: 'no-No-column' };
-    const idxDate = header.indexOf('納入予定日');
-    const idxTime = header.indexOf('納入予定時刻');
-    const idxProject = header.indexOf('物件名');
-    const idxItem = header.indexOf('品目');
-    const idxSpec = header.indexOf('内容・規格');
-    const idxVendor = header.indexOf('業者名');
-    const idxUnload = header.indexOf('降し場所');
-    const idxNotes = header.indexOf('備考');
-
-    let rowNum = -1; // 1始まりのシート行番号
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][idxNo] ?? '').trim() === String(sheetNo).trim()) { rowNum = i + 1; break; }
-    }
-    if (rowNum < 0) return { ok: false, reason: 'row-not-found' };
-
-    const row = (rows[rowNum - 1] as string[]).slice();
-    const setCell = (i: number, v: string | null) => {
-      if (i < 0) return;
-      while (row.length <= i) row.push('');
-      row[i] = v ?? '';
-    };
-    setCell(idxDate, f.delivery_date);
-    setCell(idxTime, f.delivery_time);
-    setCell(idxProject, f.project_name);
-    setCell(idxItem, f.item);
-    setCell(idxSpec, f.specification);
-    setCell(idxVendor, f.vendor);
-    setCell(idxUnload, f.unload_location);
-    setCell(idxNotes, f.notes);
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `A${rowNum}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [row] },
-    });
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, reason: String(e).slice(0, 160) };
-  }
+function headerIndex(header: string[], names: string[]): number {
+  for (const n of names) { const i = header.indexOf(n); if (i >= 0) return i; }
+  return -1;
 }
 
-// アプリで新規に予定を追加したとき、シートの末尾に新しい行として追加する。
-// Noは既存の最大値+1を自動採番して返す（呼び出し側で deliveries.sheet_no に保存する）。
-export async function appendDeliveryToSheet(f: SheetRowFields): Promise<WriteResult & { sheetNo?: string }> {
-  const client = getSheetsClient();
-  if (!client) return { ok: false, reason: 'not-configured' };
-  try {
-    const { sheets, spreadsheetId } = client;
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:Z' });
-    const rows = res.data.values ?? [];
-    if (rows.length < 1) return { ok: false, reason: 'empty' };
-    const header = rows[0] as string[];
-    const idxNo = headerIndex(header, NO_HEADERS);
-    if (idxNo < 0) return { ok: false, reason: 'no-No-column' };
-    const idxDate = header.indexOf('納入予定日');
-    const idxTime = header.indexOf('納入予定時刻');
-    const idxProject = header.indexOf('物件名');
-    const idxItem = header.indexOf('品目');
-    const idxSpec = header.indexOf('内容・規格');
-    const idxVendor = header.indexOf('業者名');
-    const idxUnload = header.indexOf('降し場所');
-    const idxNotes = header.indexOf('備考');
+function isYearTitle(t: string): boolean { return /^\d{4}$/.test(t.trim()); }
 
-    let maxNo = 0;
+// 納入日(YYYY-MM-DD 等)から年(YYYY文字列)を取り出す
+export function yearOf(dateStr: string | null | undefined): string {
+  const m = /^(\d{4})/.exec(String(dateStr ?? '').trim());
+  return m ? m[1] : '';
+}
+
+// 日付を "YYYY-MM-DD" に正規化（Googleシリアル値/文字列どちらも解釈）
+function normalizeDate(raw: unknown): string {
+  if (typeof raw === 'number') {
+    const ms = Date.UTC(1899, 11, 30) + raw * 86400000;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  }
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+async function listSheets(sheets: Sheets, spreadsheetId: string): Promise<SheetInfo[]> {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(sheetId,title)' });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (meta.data.sheets ?? []).map((s: any) => ({ title: String(s.properties?.title ?? ''), sheetId: Number(s.properties?.sheetId ?? 0) }));
+}
+
+async function readTabRows(sheets: Sheets, spreadsheetId: string, title: string): Promise<string[][]> {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${title}!A:Z`,
+    valueRenderOption: 'UNFORMATTED_VALUE',
+  });
+  return (res.data.values ?? []) as string[][];
+}
+
+// 年タブが無ければ作成し、固定ヘッダーを書き込む
+async function ensureYearTab(sheets: Sheets, spreadsheetId: string, all: SheetInfo[], year: string): Promise<SheetInfo> {
+  const found = all.find(s => s.title === year);
+  if (found) return found;
+  const resp = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title: year } } }] },
+  });
+  const props = resp.data.replies?.[0]?.addSheet?.properties;
+  const info: SheetInfo = { title: String(props?.title ?? year), sheetId: Number(props?.sheetId ?? 0) };
+  all.push(info);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${year}!A1`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [CANONICAL_HEADERS] },
+  });
+  return info;
+}
+
+// 年タブ用の1行（固定レイアウト）を組み立てる
+function buildCanonicalRow(no: string, f: SheetRowFields, del = ''): string[] {
+  const row = new Array(CANONICAL_WIDTH).fill('');
+  row[H.NO] = no;
+  row[H.DATE] = normalizeDate(f.delivery_date);
+  row[H.TIME] = f.delivery_time ?? '';
+  row[H.PROJECT] = f.project_name ?? '';
+  row[H.ITEM] = f.item ?? '';
+  row[H.SPEC] = f.specification ?? '';
+  row[H.VENDOR] = f.vendor ?? '';
+  row[H.UNLOAD] = f.unload_location ?? '';
+  row[H.NOTES] = f.notes ?? '';
+  row[H.DEL] = del;
+  return row;
+}
+
+// すべての年タブを走査し、Noの最大値を求める
+async function globalMaxNo(sheets: Sheets, spreadsheetId: string, all: SheetInfo[]): Promise<number> {
+  let maxNo = 0;
+  for (const s of all.filter(x => isYearTitle(x.title))) {
+    const rows = await readTabRows(sheets, spreadsheetId, s.title);
     for (let i = 1; i < rows.length; i++) {
-      const v = Number(String(rows[i][idxNo] ?? '').trim());
+      const v = Number(String(rows[i]?.[H.NO] ?? '').trim());
       if (Number.isFinite(v)) maxNo = Math.max(maxNo, v);
     }
-    const nextNo = String(maxNo + 1);
+  }
+  return maxNo;
+}
 
-    const width = Math.max(header.length, idxNo + 1);
-    const row: string[] = new Array(width).fill('');
-    const setCell = (i: number, v: string | null) => { if (i >= 0) row[i] = v ?? ''; };
-    setCell(idxNo, nextNo);
-    setCell(idxDate, f.delivery_date);
-    setCell(idxTime, f.delivery_time);
-    setCell(idxProject, f.project_name);
-    setCell(idxItem, f.item);
-    setCell(idxSpec, f.specification);
-    setCell(idxVendor, f.vendor);
-    setCell(idxUnload, f.unload_location);
-    setCell(idxNotes, f.notes);
+// Noで年タブ全体から該当行を探す
+async function findRowByNo(sheets: Sheets, spreadsheetId: string, all: SheetInfo[], sheetNo: string):
+  Promise<{ tab: SheetInfo; rowNum: number; row: string[] } | null> {
+  for (const s of all.filter(x => isYearTitle(x.title))) {
+    const rows = await readTabRows(sheets, spreadsheetId, s.title);
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i]?.[H.NO] ?? '').trim() === String(sheetNo).trim()) {
+        return { tab: s, rowNum: i + 1, row: rows[i] as string[] };
+      }
+    }
+  }
+  return null;
+}
 
+// 新規予定を、その納入年のタブの末尾に追加する。Noは全タブ通しで自動採番して返す。
+export async function appendDeliveryToSheet(f: SheetRowFields): Promise<WriteResult & { sheetNo?: string }> {
+  const client = getClient();
+  if (!client) return { ok: false, reason: 'not-configured' };
+  const year = yearOf(f.delivery_date);
+  if (!year) return { ok: false, reason: 'no-year' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const all = await listSheets(sheets, spreadsheetId);
+    const tab = await ensureYearTab(sheets, spreadsheetId, all, year);
+    const nextNo = String((await globalMaxNo(sheets, spreadsheetId, all)) + 1);
+    const row = buildCanonicalRow(nextNo, f);
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'A:Z',
+      range: `${tab.title}!A:Z`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [row] },
@@ -165,30 +196,64 @@ export async function appendDeliveryToSheet(f: SheetRowFields): Promise<WriteRes
   }
 }
 
-// アプリで削除したとき、シートの該当行の「削除」列に印をつける（行は残す）。
-// 削除用の列（削除/状態/ステータス）が無い場合は何もしない（No紐付けでアプリ側は復活しない）。
+// Noで該当行を探し、内容を書き戻す。納入年が変わっていれば正しい年タブへ移動する。
+export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined, f: SheetRowFields): Promise<WriteResult> {
+  if (!sheetNo) return { ok: false, reason: 'no-sheet-no' };
+  const client = getClient();
+  if (!client) return { ok: false, reason: 'not-configured' };
+  const targetYear = yearOf(f.delivery_date);
+  if (!targetYear) return { ok: false, reason: 'no-year' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const all = await listSheets(sheets, spreadsheetId);
+    const found = await findRowByNo(sheets, spreadsheetId, all, String(sheetNo));
+    if (!found) return { ok: false, reason: 'row-not-found' };
+    const del = String(found.row[H.DEL] ?? '');
+    const newRow = buildCanonicalRow(String(sheetNo), f, del);
+
+    if (found.tab.title === targetYear) {
+      // 同じ年タブ内 → その場で更新
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${found.tab.title}!A${found.rowNum}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [newRow] },
+      });
+      return { ok: true };
+    }
+
+    // 年が変わった → 正しい年タブへ同じNoで追加し、旧タブの行を空にする
+    const tab = await ensureYearTab(sheets, spreadsheetId, all, targetYear);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${tab.title}!A:Z`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [newRow] },
+    });
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `${found.tab.title}!A${found.rowNum}:Z${found.rowNum}`,
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e).slice(0, 160) };
+  }
+}
+
+// Noで該当行を探し、「削除」列に印をつける（行は残す）。
 export async function markSheetRowDeletedByNo(sheetNo: string | null | undefined): Promise<WriteResult> {
   if (!sheetNo) return { ok: false, reason: 'no-sheet-no' };
-  const client = getSheetsClient();
+  const client = getClient();
   if (!client) return { ok: false, reason: 'not-configured' };
   try {
     const { sheets, spreadsheetId } = client;
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A:Z' });
-    const rows = res.data.values ?? [];
-    if (rows.length < 2) return { ok: false, reason: 'empty' };
-    const header = rows[0] as string[];
-    const idxNo = headerIndex(header, NO_HEADERS);
-    if (idxNo < 0) return { ok: false, reason: 'no-No-column' };
-    const idxMark = headerIndex(header, DELETE_MARK_HEADERS);
-    if (idxMark < 0) return { ok: false, reason: 'no-mark-column' };
-    let rowNum = -1;
-    for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][idxNo] ?? '').trim() === String(sheetNo).trim()) { rowNum = i + 1; break; }
-    }
-    if (rowNum < 0) return { ok: false, reason: 'row-not-found' };
+    const all = await listSheets(sheets, spreadsheetId);
+    const found = await findRowByNo(sheets, spreadsheetId, all, String(sheetNo));
+    if (!found) return { ok: false, reason: 'row-not-found' };
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${colLetter(idxMark)}${rowNum}`,
+      range: `${found.tab.title}!${colLetter(H.DEL)}${found.rowNum}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[DELETE_MARK_VALUE]] },
     });
@@ -197,3 +262,177 @@ export async function markSheetRowDeletedByNo(sheetNo: string | null | undefined
     return { ok: false, reason: String(e).slice(0, 160) };
   }
 }
+
+// Noで該当行を探し、納入済みなら薄い緑で着色、解除なら白に戻す。
+export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefined, delivered: boolean): Promise<WriteResult> {
+  if (!sheetNo) return { ok: false, reason: 'no-sheet-no' };
+  const client = getClient();
+  if (!client) return { ok: false, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const all = await listSheets(sheets, spreadsheetId);
+    const found = await findRowByNo(sheets, spreadsheetId, all, String(sheetNo));
+    if (!found) return { ok: false, reason: 'row-not-found' };
+    const color = delivered ? COLOR_DONE : COLOR_NONE;
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [{
+          repeatCell: {
+            range: {
+              sheetId: found.tab.sheetId,
+              startRowIndex: found.rowNum - 1,
+              endRowIndex: found.rowNum,
+              startColumnIndex: 0,
+              endColumnIndex: CANONICAL_WIDTH,
+            },
+            cell: { userEnteredFormat: { backgroundColor: color } },
+            fields: 'userEnteredFormat.backgroundColor',
+          },
+        }],
+      },
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e).slice(0, 160) };
+  }
+}
+
+// ---- 同期用：年タブを整備し、旧シートを移行し、取り込み候補を集めて返す ----
+export interface SheetCandidate {
+  no: string;
+  dateVal: string; project: string; item: string;
+  specVal: string | null; vendorVal: string; unloadVal: string;
+  timeVal: string | null; notesVal: string | null;
+}
+export interface SheetSetup {
+  ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; reason?: string;
+}
+
+// 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く
+function readLegacyRow(header: string[], r: string[]): { year: string; f: SheetRowFields } | null {
+  const iDate = header.indexOf('納入予定日');
+  const iTime = header.indexOf('納入予定時刻');
+  const iProject = header.indexOf('物件名');
+  const iItem = header.indexOf('品目');
+  const iSpec = header.indexOf('内容・規格');
+  const iVendor = header.indexOf('業者名');
+  const iUnload = header.indexOf('降し場所');
+  const iNotes = header.indexOf('備考');
+  const dv = normalizeDate(iDate >= 0 ? r[iDate] : '');
+  const pj = iProject >= 0 ? String(r[iProject] ?? '').trim() : '';
+  const it = iItem >= 0 ? String(r[iItem] ?? '').trim() : '';
+  if (!dv || !pj || !it) return null;
+  const year = yearOf(dv);
+  if (!year) return null;
+  return {
+    year,
+    f: {
+      delivery_date: dv,
+      delivery_time: iTime >= 0 ? (String(r[iTime] ?? '').trim() || null) : null,
+      project_name: pj,
+      item: it,
+      specification: iSpec >= 0 ? (String(r[iSpec] ?? '').trim() || null) : null,
+      vendor: (iVendor >= 0 ? String(r[iVendor] ?? '').trim() : '') || '未設定',
+      unload_location: (iUnload >= 0 ? String(r[iUnload] ?? '').trim() : '') || '未設定',
+      notes: iNotes >= 0 ? (String(r[iNotes] ?? '').trim() || null) : null,
+    },
+  };
+}
+
+export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boolean; candidates: SheetCandidate[]; setup: SheetSetup; reason?: string }> {
+  const setup: SheetSetup = { ok: true, wrote: false, tabs: [], migrated: 0, numbered: 0 };
+  const client = getClient();
+  if (!client) return { ok: false, candidates: [], setup, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const all = await listSheets(sheets, spreadsheetId);
+
+    // 1) 旧シート（年名でない・「納入予定日」ヘッダーを持つタブ）のデータを年タブへ移行
+    let nextNo = (await globalMaxNo(sheets, spreadsheetId, all)) + 1;
+    for (const legacy of all.filter(s => !isYearTitle(s.title))) {
+      const rows = await readTabRows(sheets, spreadsheetId, legacy.title);
+      if (rows.length < 2) continue;
+      const header = rows[0] as string[];
+      if (header.indexOf('納入予定日') < 0) continue; // 予定表でないタブは触らない
+      const appendsByYear = new Map<string, string[][]>();
+      let dataRowCount = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const parsed = readLegacyRow(header, rows[i] as string[]);
+        if (!parsed) continue;
+        dataRowCount++;
+        const tab = await ensureYearTab(sheets, spreadsheetId, all, parsed.year);
+        const arr = appendsByYear.get(tab.title) ?? [];
+        arr.push(buildCanonicalRow(String(nextNo++), parsed.f));
+        appendsByYear.set(tab.title, arr);
+      }
+      if (dataRowCount === 0) continue;
+      // 先に年タブへ追加してから、旧シートのデータ行を空にする（消失を防ぐ順序）
+      for (const [title, values] of appendsByYear) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: `${title}!A:Z`,
+          valueInputOption: 'USER_ENTERED',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values },
+        });
+        setup.migrated += values.length;
+      }
+      await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${legacy.title}!A2:Z` });
+      setup.wrote = true;
+    }
+
+    // 2) 年タブを読み、Noが無い行に採番し、取り込み候補を集める
+    const candidates: SheetCandidate[] = [];
+    const yearTabs = all.filter(s => isYearTitle(s.title)).sort((a, b) => a.title.localeCompare(b.title));
+    for (const tab of yearTabs) {
+      setup.tabs.push(tab.title);
+      const rows = await readTabRows(sheets, spreadsheetId, tab.title);
+      if (rows.length < 1) continue;
+      const numberUpdates: { range: string; values: string[][] }[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i] as string[];
+        const dv = normalizeDate(r[H.DATE]);
+        const pj = String(r[H.PROJECT] ?? '').trim();
+        const it = String(r[H.ITEM] ?? '').trim();
+        if (!dv || !pj || !it) continue;
+        let no = String(r[H.NO] ?? '').trim();
+        if (!no) {
+          no = String(nextNo++);
+          numberUpdates.push({ range: `${tab.title}!${colLetter(H.NO)}${i + 1}`, values: [[no]] });
+          setup.numbered++;
+        }
+        if (dv < minDate) continue;                       // 運用開始日より前は取り込まない
+        if (String(r[H.DEL] ?? '').includes('削除')) continue; // 削除印は取り込まない
+        candidates.push({
+          no,
+          dateVal: dv,
+          project: pj,
+          item: it,
+          specVal: String(r[H.SPEC] ?? '').trim() || null,
+          vendorVal: String(r[H.VENDOR] ?? '').trim() || '未設定',
+          unloadVal: String(r[H.UNLOAD] ?? '').trim() || '未設定',
+          timeVal: String(r[H.TIME] ?? '').trim() || null,
+          notesVal: String(r[H.NOTES] ?? '').trim() || null,
+        });
+      }
+      if (numberUpdates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: { valueInputOption: 'RAW', data: numberUpdates },
+        });
+        setup.wrote = true;
+      }
+    }
+
+    return { ok: true, candidates, setup };
+  } catch (e) {
+    const err = e as { message?: string; errors?: { message?: string }[] };
+    setup.ok = false;
+    setup.reason = (err?.errors?.[0]?.message || err?.message || String(e)).slice(0, 200);
+    return { ok: false, candidates: [], setup, reason: setup.reason };
+  }
+}
+
+// 参照互換のため（旧コードが使っていた定数）
+export { headerIndex };
