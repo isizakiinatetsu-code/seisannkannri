@@ -15,6 +15,7 @@ const CANONICAL_WIDTH = CANONICAL_HEADERS.length;
 
 export const DELETE_MARK_HEADERS = ['削除', '状態', 'ステータス'];
 export const DELETE_MARK_VALUE = '削除';
+const NO_HEADERS = ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号', 'ID', 'id'];
 
 // 納入済みの行の背景色（薄い緑）／解除時（白）
 const COLOR_DONE = { red: 0.72, green: 0.88, blue: 0.72 };
@@ -108,6 +109,12 @@ async function readTabRows(sheets: Sheets, spreadsheetId: string, title: string)
   return (res.data.values ?? []) as string[][];
 }
 
+// あるタブの「No列」の位置を返す。年タブは固定レイアウト(0列目)、旧シートはヘッダー名で探す。
+function noIdxFor(title: string, header: string[]): number {
+  if (isYearTitle(title)) return H.NO;
+  return headerIndex(header, NO_HEADERS);
+}
+
 // 年タブが無ければ作成し、固定ヘッダーを書き込む
 async function ensureYearTab(sheets: Sheets, spreadsheetId: string, all: SheetInfo[], year: string): Promise<SheetInfo> {
   const found = all.find(s => s.title === year);
@@ -144,27 +151,37 @@ function buildCanonicalRow(no: string, f: SheetRowFields, del = ''): string[] {
   return row;
 }
 
-// すべての年タブを走査し、Noの最大値を求める
+// すべてのタブ（年タブ＋旧シート）を走査し、Noの最大値を求める。
+// 旧シートのNoも数えることで、新規採番が旧シートのNoと衝突しないようにする。
 async function globalMaxNo(sheets: Sheets, spreadsheetId: string, all: SheetInfo[]): Promise<number> {
   let maxNo = 0;
-  for (const s of all.filter(x => isYearTitle(x.title))) {
+  for (const s of all) {
     const rows = await readTabRows(sheets, spreadsheetId, s.title);
+    if (rows.length < 1) continue;
+    const noIdx = noIdxFor(s.title, rows[0] as string[]);
+    if (noIdx < 0) continue;
     for (let i = 1; i < rows.length; i++) {
-      const v = Number(String(rows[i]?.[H.NO] ?? '').trim());
+      const v = Number(String(rows[i]?.[noIdx] ?? '').trim());
       if (Number.isFinite(v)) maxNo = Math.max(maxNo, v);
     }
   }
   return maxNo;
 }
 
-// Noで年タブ全体から該当行を探す
+// Noで全タブ（年タブ＋旧シート）から該当行を探す。旧シートに残っている（まだ年タブへ
+// 移行前の）予定も見つけられるようにする＝日程変更・削除・着色が確実に反映される。
 async function findRowByNo(sheets: Sheets, spreadsheetId: string, all: SheetInfo[], sheetNo: string):
-  Promise<{ tab: SheetInfo; rowNum: number; row: string[] } | null> {
-  for (const s of all.filter(x => isYearTitle(x.title))) {
+  Promise<{ tab: SheetInfo; rowNum: number; row: string[]; header: string[]; isYear: boolean } | null> {
+  const want = String(sheetNo).trim();
+  for (const s of all) {
     const rows = await readTabRows(sheets, spreadsheetId, s.title);
+    if (rows.length < 1) continue;
+    const header = rows[0] as string[];
+    const noIdx = noIdxFor(s.title, header);
+    if (noIdx < 0) continue;
     for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i]?.[H.NO] ?? '').trim() === String(sheetNo).trim()) {
-        return { tab: s, rowNum: i + 1, row: rows[i] as string[] };
+      if (String(rows[i]?.[noIdx] ?? '').trim() === want) {
+        return { tab: s, rowNum: i + 1, row: rows[i] as string[], header, isYear: isYearTitle(s.title) };
       }
     }
   }
@@ -208,6 +225,35 @@ export async function pushDeliveryToSheetByNo(sheetNo: string | null | undefined
     const all = await listSheets(sheets, spreadsheetId);
     const found = await findRowByNo(sheets, spreadsheetId, all, String(sheetNo));
     if (!found) return { ok: false, reason: 'row-not-found' };
+
+    // 旧シート(年名でないタブ)に残っている行は、その場でヘッダー位置に沿って更新する。
+    // （年タブへの移動は次回同期の移行処理が、変更後の納入日に応じて正しく行う）
+    if (!found.isYear) {
+      const h = found.header;
+      const set = (names: string[], v: string | null) => {
+        const idx = headerIndex(h, names);
+        if (idx < 0) return null;
+        return { range: `${found.tab.title}!${colLetter(idx)}${found.rowNum}`, values: [[v ?? '']] };
+      };
+      const updates = [
+        set(['納入予定日'], normalizeDate(f.delivery_date)),
+        set(['納入予定時刻'], f.delivery_time),
+        set(['物件名'], f.project_name),
+        set(['品目'], f.item),
+        set(['内容・規格'], f.specification),
+        set(['業者名'], f.vendor),
+        set(['降し場所'], f.unload_location),
+        set(['備考'], f.notes),
+      ].filter(Boolean) as { range: string; values: string[][] }[];
+      if (updates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+        });
+      }
+      return { ok: true };
+    }
+
     const del = String(found.row[H.DEL] ?? '');
     const newRow = buildCanonicalRow(String(sheetNo), f, del);
 
@@ -251,9 +297,12 @@ export async function markSheetRowDeletedByNo(sheetNo: string | null | undefined
     const all = await listSheets(sheets, spreadsheetId);
     const found = await findRowByNo(sheets, spreadsheetId, all, String(sheetNo));
     if (!found) return { ok: false, reason: 'row-not-found' };
+    // 年タブは固定のDEL列、旧シートは「削除/状態/ステータス」列を使う（無ければ何もしない）
+    const delIdx = found.isYear ? H.DEL : headerIndex(found.header, DELETE_MARK_HEADERS);
+    if (delIdx < 0) return { ok: false, reason: 'no-mark-column' };
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${found.tab.title}!${colLetter(H.DEL)}${found.rowNum}`,
+      range: `${found.tab.title}!${colLetter(delIdx)}${found.rowNum}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[DELETE_MARK_VALUE]] },
     });
@@ -274,6 +323,7 @@ export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefine
     const found = await findRowByNo(sheets, spreadsheetId, all, String(sheetNo));
     if (!found) return { ok: false, reason: 'row-not-found' };
     const color = delivered ? COLOR_DONE : COLOR_NONE;
+    const width = Math.max(found.header.length, CANONICAL_WIDTH);
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -284,7 +334,7 @@ export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefine
               startRowIndex: found.rowNum - 1,
               endRowIndex: found.rowNum,
               startColumnIndex: 0,
-              endColumnIndex: CANONICAL_WIDTH,
+              endColumnIndex: width,
             },
             cell: { userEnteredFormat: { backgroundColor: color } },
             fields: 'userEnteredFormat.backgroundColor',
@@ -309,8 +359,10 @@ export interface SheetSetup {
   ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; reason?: string;
 }
 
-// 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く
-function readLegacyRow(header: string[], r: string[]): { year: string; f: SheetRowFields } | null {
+// 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く。
+// 既存のNo（管理番号）があれば保持する（アプリとの紐付け sheet_no を壊さないため）。
+function readLegacyRow(header: string[], r: string[]): { year: string; no: string; f: SheetRowFields } | null {
+  const iNo = headerIndex(header, NO_HEADERS);
   const iDate = header.indexOf('納入予定日');
   const iTime = header.indexOf('納入予定時刻');
   const iProject = header.indexOf('物件名');
@@ -327,6 +379,7 @@ function readLegacyRow(header: string[], r: string[]): { year: string; f: SheetR
   if (!year) return null;
   return {
     year,
+    no: iNo >= 0 ? String(r[iNo] ?? '').trim() : '',
     f: {
       delivery_date: dv,
       delivery_time: iTime >= 0 ? (String(r[iTime] ?? '').trim() || null) : null,
@@ -363,7 +416,9 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         dataRowCount++;
         const tab = await ensureYearTab(sheets, spreadsheetId, all, parsed.year);
         const arr = appendsByYear.get(tab.title) ?? [];
-        arr.push(buildCanonicalRow(String(nextNo++), parsed.f));
+        // 既存のNoは保持（アプリとの紐付けを壊さない）。無い行だけ新規採番する。
+        const no = parsed.no || String(nextNo++);
+        arr.push(buildCanonicalRow(no, parsed.f));
         appendsByYear.set(tab.title, arr);
       }
       if (dataRowCount === 0) continue;
