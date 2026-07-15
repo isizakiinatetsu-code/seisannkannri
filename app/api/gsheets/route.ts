@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
-import { prepareAndCollectSheet, SheetCandidate, applyColorsByNo } from '@/lib/gsheetsWrite';
+import { prepareAndCollectSheet, SheetCandidate, applyColorsByContent } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
 
 export async function GET() {
@@ -151,15 +151,18 @@ export async function POST(req: NextRequest) {
     const skipped = candidates.length - imported - updated;
 
     // 現在「納入済み」の予定をシート上でまとめて着色する（過去分も含めて一括反映）。
-    // 生きている(削除でない)行のうち sheet_no があるものを対象に、納入済み=緑/予定=白。
+    // No紐付けのズレに影響されないよう、内容（日付・物件・品目…）でシート行を判定する。
     let colored = 0;
     try {
-      const colorMap: Record<string, boolean> = {};
+      const deliveredKeys: string[] = [];
+      const presentKeys: string[] = [];
       for (const e of existing) {
         if (e.deleted) continue;
-        if (e.sheet_no) colorMap[String(e.sheet_no)] = e.status === '納入済み';
+        const k = keyOf(e);
+        if (e.status === '納入済み') deliveredKeys.push(k);
+        else presentKeys.push(k);
       }
-      const cr = await applyColorsByNo(colorMap);
+      const cr = await applyColorsByContent(deliveredKeys, presentKeys);
       colored = cr.colored;
     } catch { /* 着色は best-effort */ }
 

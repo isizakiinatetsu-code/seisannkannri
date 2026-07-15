@@ -411,6 +411,61 @@ export async function applyColorsByNo(colorMap: Record<string, boolean>): Promis
   }
 }
 
+// 内容（日付・物件・品目・規格・業者・降し場所・時刻）でシート行を判定して着色する。
+// No紐付けがズレていても、アプリの納入状態と確実に一致させられる（同期時の一括着色用）。
+// deliveredKeys=納入済み(緑) / presentKeys=生きているが未納入(白)。
+// 内容キーの作り方は同期ルートの keyOf と一致させること。
+export function contentKeyOfSheetRow(r: string[]): string {
+  const norm = (v: unknown) => String(v ?? '').trim();
+  const date = normalizeDate(r[H.DATE]);
+  const project = norm(r[H.PROJECT]);
+  const item = norm(r[H.ITEM]);
+  const spec = norm(r[H.SPEC]);
+  const vendor = norm(r[H.VENDOR]) || '未設定';
+  const unload = norm(r[H.UNLOAD]) || '未設定';
+  const time = norm(r[H.TIME]);
+  return JSON.stringify([date, project, item, spec, vendor, unload, time]);
+}
+
+export async function applyColorsByContent(deliveredKeys: string[], presentKeys: string[]): Promise<{ ok: boolean; colored: number; reason?: string }> {
+  const delSet = new Set(deliveredKeys);
+  const presentSet = new Set(presentKeys);
+  if (delSet.size === 0 && presentSet.size === 0) return { ok: true, colored: 0 };
+  const client = getClient();
+  if (!client) return { ok: false, colored: 0, reason: 'not-configured' };
+  try {
+    const { sheets, spreadsheetId } = client;
+    const all = await listSheets(sheets, spreadsheetId);
+    const requests: unknown[] = [];
+    for (const tab of all.filter(s => isYearTitle(s.title))) {
+      const rows = await readTabRows(sheets, spreadsheetId, tab.title);
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i] as string[];
+        if (!normalizeDate(r[H.DATE]) || !String(r[H.PROJECT] ?? '').trim()) continue;
+        const key = contentKeyOfSheetRow(r);
+        let color: { red: number; green: number; blue: number } | null = null;
+        if (delSet.has(key)) color = COLOR_DONE;
+        else if (presentSet.has(key)) color = COLOR_NONE;
+        if (!color) continue;
+        requests.push({
+          repeatCell: {
+            range: { sheetId: tab.sheetId, startRowIndex: i, endRowIndex: i + 1, startColumnIndex: 0, endColumnIndex: CANONICAL_WIDTH },
+            cell: { userEnteredFormat: { backgroundColor: color } },
+            fields: 'userEnteredFormat.backgroundColor',
+          },
+        });
+      }
+    }
+    if (requests.length === 0) return { ok: true, colored: 0 };
+    for (let i = 0; i < requests.length; i += 200) {
+      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: requests.slice(i, i + 200) } });
+    }
+    return { ok: true, colored: requests.length };
+  } catch (e) {
+    return { ok: false, colored: 0, reason: String(e).slice(0, 160) };
+  }
+}
+
 // ---- 同期用：年タブを整備し、旧シートを移行し、取り込み候補を集めて返す ----
 export interface SheetCandidate {
   no: string;
