@@ -476,6 +476,8 @@ export interface SheetCandidate {
 export interface SheetSetup {
   ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; collected?: number; moved?: number; reason?: string;
 }
+// 年タブの読み取り結果（着色で再利用する）
+export interface TabRows { sheetId: number; rows: string[][]; }
 
 // 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く。
 // 既存のNo（管理番号）があれば保持する（アプリとの紐付け sheet_no を壊さないため）。
@@ -512,7 +514,7 @@ function readLegacyRow(header: string[], r: string[]): { year: string; no: strin
   };
 }
 
-export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boolean; candidates: SheetCandidate[]; setup: SheetSetup; reason?: string }> {
+export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boolean; candidates: SheetCandidate[]; setup: SheetSetup; reason?: string; tabsData?: TabRows[] }> {
   const setup: SheetSetup = { ok: true, wrote: false, tabs: [], migrated: 0, numbered: 0 };
   const client = getClient();
   if (!client) return { ok: false, candidates: [], setup, reason: 'not-configured' };
@@ -558,6 +560,8 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
 
     // 2) 年タブを読み、Noが無い行に採番し、取り込み候補を集める
     const candidates: SheetCandidate[] = [];
+    // 着色などで読み直さずに再利用するため、読んだ行を保持する。
+    const tabsData: TabRows[] = [];
     const yearTabs = all.filter(s => isYearTitle(s.title)).sort((a, b) => a.title.localeCompare(b.title));
     // 日付の年とタブ名が食い違う行（例: 2001タブに2026の予定）を、正しい年タブへ移す。
     const misplaced: { correctYear: string; row: string[]; fromTab: string; rowNum: number }[] = [];
@@ -566,6 +570,7 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
       // 日付列の表示書式を「7月15日(水)」に統一（idempotent・best-effort）
       try { await applyDateColumnFormat(sheets, spreadsheetId, tab.sheetId); } catch { /* noop */ }
       const rows = await readTabRows(sheets, spreadsheetId, tab.title);
+      tabsData.push({ sheetId: tab.sheetId, rows });
       if (rows.length < 1) continue;
       const numberUpdates: { range: string; values: string[][] }[] = [];
       for (let i = 1; i < rows.length; i++) {
@@ -643,12 +648,50 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
     }
 
     setup.collected = candidates.length;
-    return { ok: true, candidates, setup };
+    return { ok: true, candidates, setup, tabsData };
   } catch (e) {
     const err = e as { message?: string; errors?: { message?: string }[] };
     setup.ok = false;
     setup.reason = (err?.errors?.[0]?.message || err?.message || String(e)).slice(0, 200);
     return { ok: false, candidates: [], setup, reason: setup.reason };
+  }
+}
+
+// 同期時に読んだ年タブの行を再利用して着色する（シートを読み直さない＝API呼び出し削減）。
+export async function colorTabsData(tabsData: TabRows[], deliveredKeys: string[], presentKeys: string[]): Promise<{ ok: boolean; colored: number; reason?: string }> {
+  const delSet = new Set(deliveredKeys);
+  const presentSet = new Set(presentKeys);
+  if (delSet.size === 0 && presentSet.size === 0) return { ok: true, colored: 0 };
+  const client = getClient();
+  if (!client) return { ok: false, colored: 0, reason: 'not-configured' };
+  const requests: unknown[] = [];
+  for (const t of tabsData) {
+    for (let i = 1; i < t.rows.length; i++) {
+      const r = t.rows[i] as string[];
+      if (!r || !normalizeDate(r[H.DATE]) || !String(r[H.PROJECT] ?? '').trim()) continue;
+      const key = contentKeyOfSheetRow(r);
+      let color: { red: number; green: number; blue: number } | null = null;
+      if (delSet.has(key)) color = COLOR_DONE;
+      else if (presentSet.has(key)) color = COLOR_NONE;
+      if (!color) continue;
+      requests.push({
+        repeatCell: {
+          range: { sheetId: t.sheetId, startRowIndex: i, endRowIndex: i + 1, startColumnIndex: 0, endColumnIndex: CANONICAL_WIDTH },
+          cell: { userEnteredFormat: { backgroundColor: color } },
+          fields: 'userEnteredFormat.backgroundColor',
+        },
+      });
+    }
+  }
+  if (requests.length === 0) return { ok: true, colored: 0 };
+  try {
+    const { sheets, spreadsheetId } = client;
+    for (let i = 0; i < requests.length; i += 200) {
+      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: requests.slice(i, i + 200) } });
+    }
+    return { ok: true, colored: requests.length };
+  } catch (e) {
+    return { ok: false, colored: 0, reason: String(e).slice(0, 160) };
   }
 }
 
