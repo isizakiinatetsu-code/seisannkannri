@@ -86,6 +86,17 @@ function normalizeDate(raw: unknown): string {
   }
   const s = String(raw ?? '').trim();
   if (!s) return '';
+  // 「7/27」「7月27日」など“年が無い”表記は、JSが 2001年 と誤解釈してしまう。
+  // その場合は当年（運用開始が2026年なので通常は今年）を補って解釈する。
+  if (!/\d{4}/.test(s)) {
+    const md = s.match(/(\d{1,2})\s*[/.\-月]\s*(\d{1,2})/);
+    if (md) {
+      const y = new Date().getFullYear();
+      const mo = String(Number(md[1])).padStart(2, '0');
+      const da = String(Number(md[2])).padStart(2, '0');
+      return `${y}-${mo}-${da}`;
+    }
+  }
   const d = new Date(s);
   if (isNaN(d.getTime())) return s;
   const y = d.getFullYear();
