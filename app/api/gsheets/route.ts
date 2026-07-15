@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
 import { colLetter } from '@/lib/gsheetsWrite';
+import { IMPL_START_DATE } from '@/lib/constants';
 
 export async function GET() {
   try {
@@ -98,10 +99,8 @@ export async function POST(req: NextRequest) {
       return `${y}-${mo}-${da}`;
     }
 
-    // 直近3か月の範囲でのみインポート
-    const now = new Date();
-    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-    const minDate = threeMonthsAgo.toISOString().slice(0, 10);
+    // 運用開始日(2026-07-01)以降のみインポート（それより前の過去データは取り込まない）
+    const minDate = IMPL_START_DATE;
 
     let skipped = 0;
     const toInsert: Record<string, unknown>[] = [];

@@ -2,17 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { isMissingColumnError } from '@/lib/dbErrors';
 
-// 追加された予定を新しい順で返す。
-// - since 指定あり: その時刻より後に追加された分だけ（新着バナーの件数用）
-// - since 指定なし: 直近の追加を最大100件（お知らせ一覧用）
+// 追加された予定を返す。
+// - since 指定あり: その時刻より後に追加された分だけ（新着バナーの件数用・作成日時の新しい順）
+// - since 指定なし: お知らせ一覧用。date_from〜date_to（当日含め4日間分）の納入予定を
+//   納入日の早い順で返す。
 export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabase();
-    const since = new URL(req.url).searchParams.get('since');
+    const params = new URL(req.url).searchParams;
+    const since = params.get('since');
+    const dateFrom = params.get('date_from');
+    const dateTo = params.get('date_to');
 
     const run = (cols: string, excludeDeleted: boolean) => {
-      let q = supabase.from('deliveries').select(cols).order('created_at', { ascending: false }).limit(100);
-      if (since) q = q.gt('created_at', since);
+      let q = supabase.from('deliveries').select(cols);
+      if (since) {
+        // 新着バナー用：追加時刻の新しい順
+        q = q.gt('created_at', since).order('created_at', { ascending: false }).limit(100);
+      } else {
+        // お知らせ一覧用：指定期間（当日含め4日間）の予定を納入日の早い順で
+        if (dateFrom) q = q.gte('delivery_date', dateFrom);
+        if (dateTo) q = q.lte('delivery_date', dateTo);
+        q = q.order('delivery_date', { ascending: true }).order('delivery_time', { ascending: true, nullsFirst: false }).limit(200);
+      }
       if (excludeDeleted) q = q.eq('deleted', false);
       return q;
     };
