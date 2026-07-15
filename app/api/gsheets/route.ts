@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
-import { colLetter } from '@/lib/gsheetsWrite';
+import { prepareAndCollectSheet, SheetCandidate } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
 
 export async function GET() {
@@ -14,8 +14,9 @@ export async function GET() {
     const credentials = JSON.parse(keyJson);
     const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'] });
     const sheets = google.sheets({ version: 'v4', auth });
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'A1:Z2' });
-    return NextResponse.json({ headers: res.data.values?.[0] ?? [], row2: res.data.values?.[1] ?? [] });
+    const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
+    const tabs = (meta.data.sheets ?? []).map(s => s.properties?.title ?? '');
+    return NextResponse.json({ tabs });
   } catch (e) {
     return NextResponse.json({ error: `${e}` }, { status: 500 });
   }
@@ -25,172 +26,36 @@ export async function POST(req: NextRequest) {
   const denied = await requireEditRole(req);
   if (denied) return denied;
   try {
-    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
-    const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-    if (!spreadsheetId || !keyJson) {
-      return NextResponse.json({ error: '環境変数が設定されていません' }, { status: 500 });
-    }
-
-    const credentials = JSON.parse(keyJson);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      // 読み書き（No列の自動作成・自動採番のため）。編集者権限が無い場合は
-      // 書き込みだけ失敗し、読み取り＝従来動作にフォールバックする。
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'A:Z',
-      // 日付セルを表示形式(例: 5/1(木))ではなくシリアル値/生値で取得し、
-      // 表示形式に依存せず日付を正しく解釈できるようにする。
-      valueRenderOption: 'UNFORMATTED_VALUE',
-    });
-
-    const rows = res.data.values ?? [];
-    if (rows.length < 2) {
-      return NextResponse.json({ error: 'スプレッドシートにデータがありません' }, { status: 400 });
-    }
-
-    const header = rows[0];
-    console.log('Spreadsheet headers:', JSON.stringify(header));
-    const idxDate = header.indexOf('納入予定日');
-    const idxTime = header.indexOf('納入予定時刻');
-    const idxProject = header.indexOf('物件名');
-    const idxItem = header.indexOf('品目');
-    const idxSpec = header.indexOf('内容・規格');
-    const idxVendor = header.indexOf('業者名');
-    const idxUnload = header.indexOf('降し場所');
-    const idxNotes = header.indexOf('備考');
-    // 「No」列（管理番号）。あれば、これで行を一意に照合して更新／追加する。
-    let idxNo = -1;
-    for (const h of ['No', 'No.', 'ＮＯ', 'Ｎｏ', 'ＮＯ．', '管理番号', 'ID', 'id']) {
-      const i = header.indexOf(h);
-      if (i >= 0) { idxNo = i; break; }
-    }
-    // 「削除」印の列（あれば、その行は取り込まない）
-    let idxMark = -1;
-    for (const h of ['削除', '状態', 'ステータス']) {
-      const i = header.indexOf(h);
-      if (i >= 0) { idxMark = i; break; }
-    }
-
     const supabase = getSupabase();
-
-    // 日付を "2026-05-01" 形式に正規化。
-    // UNFORMATTED_VALUE では日付セルはGoogleシリアル値(数値)で届くため、それも解釈する。
-    function normalizeDate(raw: unknown): string {
-      if (typeof raw === 'number') {
-        // Googleシリアル値: 1899-12-30 を 0 とした経過日数
-        const ms = Date.UTC(1899, 11, 30) + raw * 86400000;
-        const d = new Date(ms);
-        if (isNaN(d.getTime())) return '';
-        return d.toISOString().slice(0, 10);
-      }
-      const s = String(raw ?? '').trim();
-      if (!s) return '';
-      const d = new Date(s);
-      if (isNaN(d.getTime())) return s;
-      // toISOString はUTC変換のため、JST等では日付が1日ずれる。ローカル成分から組み立てる。
-      const y = d.getFullYear();
-      const mo = String(d.getMonth() + 1).padStart(2, '0');
-      const da = String(d.getDate()).padStart(2, '0');
-      return `${y}-${mo}-${da}`;
-    }
 
     // 運用開始日(2026-07-01)以降のみインポート（それより前の過去データは取り込まない）
     const minDate = IMPL_START_DATE;
 
-    let skipped = 0;
-    const toInsert: Record<string, unknown>[] = [];
+    // スプレッドシートを年タブ(2025/2026...)に整備・移行し、取り込み候補を集める。
+    const prep = await prepareAndCollectSheet(minDate);
+    const sheetSetup = prep.setup;
+    if (!prep.ok) {
+      return NextResponse.json({ error: `シート整備に失敗しました：${prep.reason ?? ''}（サービスアカウントに編集者権限があるか確認してください）`, sheetSetup }, { status: 500 });
+    }
+    const candidates = prep.candidates;
 
-    console.log('Column indices:', { idxDate, idxTime, idxProject, idxItem, idxSpec, idxVendor, idxUnload, idxNotes });
-
-    // スプレッドシートの各行は「1行＝1納入」。フィールドが一致しても別の行なら別の納入。
-    // そこで重複判定は「同じ内容の行を二度取り込まない」ためだけに使い、件数で調整する。
-    // 例: シートに同内容が2行あってDBに1行なら不足1件だけ追加する（行の取りこぼしゼロ・再同期でも二重登録なし）。
-    type Cand = {
-      no: string;
-      dateVal: string; project: string; item: string;
-      specVal: string | null; vendorVal: string; unloadVal: string;
-      timeVal: string | null; notesVal: string | null;
-    };
+    // 各行は「1行＝1納入」。同内容でも別行なら別の納入。重複判定は「同じ内容の行を
+    // 二度取り込まない」ためだけに使い、件数で調整する。
     const norm = (v: string | null) => v ?? '';
     const keyOf = (c: { delivery_date: string; project_name: string; item: string; specification: string | null; vendor: string; unload_location: string; delivery_time: string | null; }) =>
       JSON.stringify([c.delivery_date, c.project_name, c.item, norm(c.specification), c.vendor, c.unload_location, norm(c.delivery_time)]);
-    // 予定として保存する説明フィールド一式を作る
-    const descOf = (c: Cand) => ({
+    const descOf = (c: SheetCandidate) => ({
       delivery_date: c.dateVal, delivery_time: c.timeVal, project_name: c.project, item: c.item,
       specification: c.specVal, vendor: c.vendorVal, unload_location: c.unloadVal, notes: c.notesVal,
     });
 
-    // ---- No列・削除列を自動で用意し、Noが無い行に自動採番して書き戻す ----
-    // 結果は sheetSetup に入れて応答で返す（失敗を隠さず、原因が分かるように）。
-    const sheetSetup: { ok: boolean; wrote: boolean; added: string[]; numbered: number; reason?: string } =
-      { ok: true, wrote: false, added: [], numbered: 0 };
-    try {
-      const cellUpdates: { range: string; values: string[][] }[] = [];
-      if (idxNo < 0) { idxNo = header.length; header.push('No'); cellUpdates.push({ range: `${colLetter(idxNo)}1`, values: [['No']] }); sheetSetup.added.push('No'); }
-      if (idxMark < 0) { idxMark = header.length; header.push('削除'); cellUpdates.push({ range: `${colLetter(idxMark)}1`, values: [['削除']] }); sheetSetup.added.push('削除'); }
-      let maxNo = 0;
-      for (let i = 1; i < rows.length; i++) {
-        const v = Number(String(rows[i][idxNo] ?? '').trim());
-        if (Number.isFinite(v)) maxNo = Math.max(maxNo, v);
-      }
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        const dv = normalizeDate(idxDate >= 0 ? r[idxDate] : '');
-        const pj = idxProject >= 0 ? String(r[idxProject] ?? '').trim() : '';
-        const it = idxItem >= 0 ? String(r[idxItem] ?? '').trim() : '';
-        if (!dv || !pj || !it) continue;            // データ行でなければ採番しない
-        if (String(r[idxNo] ?? '').trim()) continue; // 既にNoがあれば維持
-        const n = ++maxNo;
-        while (r.length <= idxNo) r.push('');
-        r[idxNo] = String(n);
-        cellUpdates.push({ range: `${colLetter(idxNo)}${i + 1}`, values: [[String(n)]] });
-        sheetSetup.numbered++;
-      }
-      if (cellUpdates.length > 0) {
-        await sheets.spreadsheets.values.batchUpdate({
-          spreadsheetId,
-          requestBody: { valueInputOption: 'RAW', data: cellUpdates },
-        });
-        sheetSetup.wrote = true;
-      }
-    } catch (e) {
-      const err = e as { message?: string; code?: number; errors?: { message?: string }[] };
-      sheetSetup.ok = false;
-      sheetSetup.reason = (err?.errors?.[0]?.message || err?.message || String(e)).slice(0, 200);
-      console.warn('No自動採番/列作成に失敗:', sheetSetup.reason);
-    }
-
-    // 1) シートの取り込み対象行を集める
-    const candidates: Cand[] = [];
-    for (const row of rows.slice(1)) {
-      const dateVal = normalizeDate(idxDate >= 0 ? row[idxDate] : '');
-      const project = idxProject >= 0 ? String(row[idxProject] ?? '').trim() : '';
-      const item = idxItem >= 0 ? String(row[idxItem] ?? '').trim() : '';
-      if (!dateVal || !project || !item) { skipped++; continue; }
-      if (dateVal < minDate) { skipped++; continue; }
-      // 「削除」印がついた行は取り込まない
-      if (idxMark >= 0 && String(row[idxMark] ?? '').includes('削除')) { skipped++; continue; }
-      const vendorVal = (idxVendor >= 0 ? String(row[idxVendor] ?? '').trim() : '') || '未設定';
-      const unloadVal = (idxUnload >= 0 ? String(row[idxUnload] ?? '').trim() : '') || '未設定';
-      const specVal = idxSpec >= 0 ? String(row[idxSpec] ?? '').trim() || null : null;
-      const timeVal = idxTime >= 0 ? String(row[idxTime] ?? '').trim() || null : null;
-      const notesVal = idxNotes >= 0 ? String(row[idxNotes] ?? '').trim() || null : null;
-      const no = idxNo >= 0 ? String(row[idxNo] ?? '').trim() : '';
-      candidates.push({ no, dateVal, project, item, specVal, vendorVal, unloadVal, timeVal, notesVal });
-    }
-
+    const toInsert: Record<string, unknown>[] = [];
     let updated = 0;
     let withNo = candidates.filter(c => c.no);
     let withoutNo = candidates.filter(c => !c.no);
     const toUpdate: { id: number; fields: Record<string, unknown> }[] = [];
 
     // 既存行を1回だけ取得（No照合・採用・件数の全てに使う）。
-    // sheet_no / deleted 列が無い環境ではそれらを外して取得し、No照合は行わない。
     type ExRow = { id: number; sheet_no?: string | null; deleted?: boolean | null;
       delivery_date: string; delivery_time: string | null; project_name: string; item: string;
       specification: string | null; vendor: string; unload_location: string; notes: string | null; };
@@ -201,7 +66,6 @@ export async function POST(req: NextRequest) {
     {
       let r = await supabase.from('deliveries').select(fullSel).gte('delivery_date', minDate) as SelResult;
       if (r.error && isMissingColumnError(r.error)) {
-        // sheet_no / deleted 列が無い → No照合は不可。全行を件数方式へ。
         withoutNo = candidates; withNo = [];
         r = await supabase.from('deliveries').select(minSel).gte('delivery_date', minDate) as SelResult;
       }
@@ -210,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     const bySheetNo = new Map<string, ExRow>();
-    const byContentFree = new Map<string, ExRow[]>(); // 内容キー→sheet_no未設定の行（採用候補）
+    const byContentFree = new Map<string, ExRow[]>();
     const dbCount = new Map<string, number>();
     for (const e of existing) {
       const k = keyOf(e);
@@ -218,7 +82,6 @@ export async function POST(req: NextRequest) {
       if (e.sheet_no) bySheetNo.set(String(e.sheet_no), e);
       else { const a = byContentFree.get(k) ?? []; a.push(e); byContentFree.set(k, a); }
     }
-    // 採用は「生きている行」を優先（消し済みは後回し）
     for (const arr of byContentFree.values()) arr.sort((a, b) => (a.deleted ? 1 : 0) - (b.deleted ? 1 : 0));
 
     const changedVs = (ex: ExRow, desc: ReturnType<typeof descOf>) =>
@@ -229,23 +92,20 @@ export async function POST(req: NextRequest) {
       ex.vendor !== desc.vendor || ex.unload_location !== desc.unload_location ||
       (ex.notes ?? null) !== (desc.notes ?? null);
 
-    // 2) 「No」を持つ行：Noで照合。無ければ“同じ内容の既存行”にNoを付けて採用（重複を作らない）。
+    // 2) 「No」を持つ行：Noで照合。無ければ“同じ内容の既存行”にNoを付けて採用。
     const insertedNos = new Set<string>();
     const adoptedIds = new Set<number>();
     for (const c of withNo) {
       const desc = descOf(c);
       const ex = bySheetNo.get(c.no);
       if (ex) {
-        // 既にNo紐付け済み → 内容が変わっていれば説明だけ更新（納入済み・伝票・追加者は保持）
         if (changedVs(ex, desc)) toUpdate.push({ id: ex.id, fields: desc });
         continue;
       }
-      // 同じ内容で sheet_no 未設定の行（＝アプリで手動追加した等）があれば、それにNoを付けて採用
       const pool = (byContentFree.get(keyOf({ ...desc })) ?? []).filter(r => !adoptedIds.has(r.id));
       if (pool.length > 0) {
         const adopt = pool[0];
         adoptedIds.add(adopt.id);
-        // Noを付与（消し済みなら deleted は触らず＝消したものは消したまま。復活させない）
         toUpdate.push({ id: adopt.id, fields: { ...desc, sheet_no: c.no } });
       } else if (!insertedNos.has(c.no)) {
         insertedNos.add(c.no);
@@ -253,9 +113,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3) 「No」が無い行：同一内容の件数がDBに足りない分だけ追加（削除済みも件数に数える＝復活防止）
+    // 3) 「No」が無い行：同一内容の件数がDBに足りない分だけ追加。
     if (withoutNo.length > 0) {
-      const groups = new Map<string, Cand[]>();
+      const groups = new Map<string, SheetCandidate[]>();
       for (const c of withoutNo) {
         const k = keyOf({ ...descOf(c) });
         const arr = groups.get(k); if (arr) arr.push(c); else groups.set(k, [c]);
@@ -284,7 +144,7 @@ export async function POST(req: NextRequest) {
       if (insertError) throw insertError;
     }
     const imported = toInsert.length;
-    skipped = candidates.length - imported - updated;
+    const skipped = candidates.length - imported - updated;
 
     return NextResponse.json({ imported, updated, skipped, sheetSetup });
   } catch (e) {
