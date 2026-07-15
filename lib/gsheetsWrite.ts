@@ -126,6 +126,22 @@ function noIdxFor(title: string, header: string[]): number {
   return headerIndex(header, NO_HEADERS);
 }
 
+// 納入予定日の列を「7月15日(水)」書式で表示するようにする（idempotent）。
+async function applyDateColumnFormat(sheets: Sheets, spreadsheetId: string, sheetId: number): Promise<void> {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, startColumnIndex: H.DATE, endColumnIndex: H.DATE + 1 },
+          cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'm"月"d"日("ddd")"' } } },
+          fields: 'userEnteredFormat.numberFormat',
+        },
+      }],
+    },
+  });
+}
+
 // 年タブが無ければ作成し、固定ヘッダーを書き込む
 async function ensureYearTab(sheets: Sheets, spreadsheetId: string, all: SheetInfo[], year: string): Promise<SheetInfo> {
   const found = all.find(s => s.title === year);
@@ -143,6 +159,7 @@ async function ensureYearTab(sheets: Sheets, spreadsheetId: string, all: SheetIn
     valueInputOption: 'RAW',
     requestBody: { values: [CANONICAL_HEADERS] },
   });
+  try { await applyDateColumnFormat(sheets, spreadsheetId, info.sheetId); } catch { /* 書式は付かなくても致命的ではない */ }
   return info;
 }
 
@@ -367,7 +384,7 @@ export interface SheetCandidate {
   timeVal: string | null; notesVal: string | null;
 }
 export interface SheetSetup {
-  ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; reason?: string;
+  ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; collected?: number; reason?: string;
 }
 
 // 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く。
@@ -385,7 +402,8 @@ function readLegacyRow(header: string[], r: string[]): { year: string; no: strin
   const dv = normalizeDate(iDate >= 0 ? r[iDate] : '');
   const pj = iProject >= 0 ? String(r[iProject] ?? '').trim() : '';
   const it = iItem >= 0 ? String(r[iItem] ?? '').trim() : '';
-  if (!dv || !pj || !it) return null;
+  // 日付と物件名があれば取り込む（品目が未入力でも拾う＝取りこぼし防止）
+  if (!dv || !pj) return null;
   const year = yearOf(dv);
   if (!year) return null;
   return {
@@ -453,6 +471,8 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
     const yearTabs = all.filter(s => isYearTitle(s.title)).sort((a, b) => a.title.localeCompare(b.title));
     for (const tab of yearTabs) {
       setup.tabs.push(tab.title);
+      // 日付列の表示書式を「7月15日(水)」に統一（idempotent・best-effort）
+      try { await applyDateColumnFormat(sheets, spreadsheetId, tab.sheetId); } catch { /* noop */ }
       const rows = await readTabRows(sheets, spreadsheetId, tab.title);
       if (rows.length < 1) continue;
       const numberUpdates: { range: string; values: string[][] }[] = [];
@@ -461,7 +481,8 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         const dv = normalizeDate(r[H.DATE]);
         const pj = String(r[H.PROJECT] ?? '').trim();
         const it = String(r[H.ITEM] ?? '').trim();
-        if (!dv || !pj || !it) continue;
+        // 日付と物件名があれば取り込む（品目未入力でも拾う）
+        if (!dv || !pj) continue;
         let no = String(r[H.NO] ?? '').trim();
         if (!no) {
           no = String(nextNo++);
@@ -491,6 +512,7 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
       }
     }
 
+    setup.collected = candidates.length;
     return { ok: true, candidates, setup };
   } catch (e) {
     const err = e as { message?: string; errors?: { message?: string }[] };
