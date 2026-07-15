@@ -106,7 +106,8 @@ export async function POST(req: NextRequest) {
       if (pool.length > 0) {
         const adopt = pool[0];
         adoptedIds.add(adopt.id);
-        toUpdate.push({ id: adopt.id, fields: { ...desc, sheet_no: c.no } });
+        // シートに（削除印なしで）存在する行なので、DB側が削除済みでも復活させて表示する。
+        toUpdate.push({ id: adopt.id, fields: { ...desc, sheet_no: c.no, deleted: false } });
       } else if (!insertedNos.has(c.no)) {
         insertedNos.add(c.no);
         toInsert.push({ ...desc, status: '予定', sheet_no: c.no });
