@@ -18,12 +18,11 @@ async function inspectSheet() {
     for (const s of meta.data.sheets ?? []) {
       const title = s.properties?.title ?? '';
       const head = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A1:Z1` });
-      const first = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Z2` });
       const colA = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A:A` });
+      // 業務データ（物件名・業者名等）は公開ページに出さない。構造情報のみ返す。
       tabs.push({
         タブ名: title,
         ヘッダー: head.data.values?.[0] ?? [],
-        先頭データ行: first.data.values?.[0] ?? [],
         データ行数: Math.max(0, (colA.data.values?.length ?? 0) - 1),
       });
     }

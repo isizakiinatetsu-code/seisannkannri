@@ -3,8 +3,11 @@ import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
-import { prepareAndCollectSheet, SheetCandidate, applyColorsByContent } from '@/lib/gsheetsWrite';
+import { prepareAndCollectSheet, SheetCandidate, colorTabsData } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
+
+// 大きなシートでは Google API 呼び出しが多く時間がかかるため、実行時間上限を延ばす。
+export const maxDuration = 60;
 
 export async function GET() {
   try {
@@ -34,6 +37,7 @@ export async function POST(req: NextRequest) {
     // スプレッドシートを年タブ(2025/2026...)に整備・移行し、取り込み候補を集める。
     const prep = await prepareAndCollectSheet(minDate);
     const sheetSetup = prep.setup;
+    const tabsData = prep.tabsData ?? [];
     if (!prep.ok) {
       return NextResponse.json({ error: `シート整備に失敗しました：${prep.reason ?? ''}（サービスアカウントに編集者権限があるか確認してください）`, sheetSetup }, { status: 500 });
     }
@@ -162,7 +166,7 @@ export async function POST(req: NextRequest) {
         if (e.status === '納入済み') deliveredKeys.push(k);
         else presentKeys.push(k);
       }
-      const cr = await applyColorsByContent(deliveredKeys, presentKeys);
+      const cr = await colorTabsData(tabsData, deliveredKeys, presentKeys);
       colored = cr.colored;
     } catch { /* 着色は best-effort */ }
 
