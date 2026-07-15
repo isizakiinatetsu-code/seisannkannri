@@ -1,5 +1,37 @@
 import { NextResponse } from 'next/server';
+import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
+
+// スプレッドシートの各タブのヘッダー・行数を確認する（同期で読み取れない原因切り分け）。
+async function inspectSheet() {
+  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!spreadsheetId || !keyJson) return { 接続: false, 理由: '環境変数未設定' };
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(keyJson),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
+    const tabs: unknown[] = [];
+    for (const s of meta.data.sheets ?? []) {
+      const title = s.properties?.title ?? '';
+      const head = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A1:Z1` });
+      const first = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A2:Z2` });
+      const colA = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${title}!A:A` });
+      tabs.push({
+        タブ名: title,
+        ヘッダー: head.data.values?.[0] ?? [],
+        先頭データ行: first.data.values?.[0] ?? [],
+        データ行数: Math.max(0, (colA.data.values?.length ?? 0) - 1),
+      });
+    }
+    return { 接続: true, タブ数: tabs.length, タブ: tabs };
+  } catch (e) {
+    return { 接続: false, エラー: String(e).slice(0, 200) };
+  }
+}
 
 // daily_contacts が保存できない問題の切り分け用。
 // アプリが実際にどのSupabaseプロジェクトへ接続しているか、そのプロジェクトから
@@ -34,10 +66,13 @@ export async function GET() {
     columnCheck('deleted'),
   ]);
 
+  const sheetInfo = await inspectSheet();
+
   return NextResponse.json({
     接続先プロジェクト: serviceHost,
     表示用URLのプロジェクト: publicHost,
     URLが一致しているか: serviceHost === publicHost,
+    シート: sheetInfo,
     deliveries: {
       見えるか: !deliveriesCheck.error,
       エラー: deliveriesCheck.error ? { code: deliveriesCheck.error.code, message: deliveriesCheck.error.message } : null,
