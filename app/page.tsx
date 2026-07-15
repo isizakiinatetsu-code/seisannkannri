@@ -372,6 +372,7 @@ export default function HomePage() {
           const parts: string[] = [];
           if (s.tabs?.length) parts.push(`年タブ：${s.tabs.join('・')}`);
           if (typeof s.collected === 'number') parts.push(`シートから${s.collected}件読取`);
+          if (s.moved) parts.push(`${s.moved}行を正しい年タブへ移動`);
           if (s.migrated) parts.push(`${s.migrated}行を年タブへ振り分け`);
           if (s.numbered) parts.push(`${s.numbered}行に番号を採番`);
           extra = `\n🧾 シート整備：${parts.join('、')}`;
