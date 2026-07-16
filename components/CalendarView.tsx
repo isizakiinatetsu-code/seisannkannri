@@ -362,25 +362,73 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   );
 }
 
-function DayView({ current: _current, deliveries, onSelectDelivery }: {
+type DaySortMode = 'recommend' | 'project' | 'item' | 'vendor' | 'unloader' | 'unload' | 'time' | 'status';
+const DAY_SORT_OPTIONS: { value: DaySortMode; label: string }[] = [
+  { value: 'recommend', label: 'おすすめ（物件→品目）' },
+  { value: 'project', label: '物件名順' },
+  { value: 'item', label: '品目順' },
+  { value: 'vendor', label: '業者名順' },
+  { value: 'unloader', label: '荷下ろし者順' },
+  { value: 'unload', label: '降し場所順' },
+  { value: 'time', label: '時刻順' },
+  { value: 'status', label: '未納入→納入済み' },
+];
+
+function DayView({ current, deliveries, onSelectDelivery }: {
   current: Date;
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
 }) {
-  // 日表示は「物件ごと」に並べ、その中は品目でまとめる（型板は型板で固まる）。
-  const byProjectItem = (a: Delivery, b: Delivery) =>
-    a.project_name.localeCompare(b.project_name, 'ja') ||
-    a.item.localeCompare(b.item, 'ja') ||
-    a.id - b.id;
-  const timed = deliveries
-    .filter(d => d.delivery_time && /^\d{2}:\d{2}/.test(d.delivery_time))
-    .sort(byProjectItem);
-  const allDay = deliveries
-    .filter(d => !d.delivery_time || !/^\d{2}:\d{2}/.test(d.delivery_time))
-    .sort(byProjectItem);
+  const [sortMode, setSortMode] = useState<DaySortMode>('recommend');
+  const [savingImg, setSavingImg] = useState(false);
+
+  const cmp = (a: Delivery, b: Delivery): number => {
+    const s = (v: string | null | undefined) => (v ?? '');
+    const byProjectItem = a.project_name.localeCompare(b.project_name, 'ja') || a.item.localeCompare(b.item, 'ja');
+    switch (sortMode) {
+      case 'project': return byProjectItem || a.id - b.id;
+      case 'item': return a.item.localeCompare(b.item, 'ja') || byProjectItem || a.id - b.id;
+      case 'vendor': return s(a.vendor).localeCompare(s(b.vendor), 'ja') || byProjectItem || a.id - b.id;
+      case 'unloader': return s(a.unloaded_by).localeCompare(s(b.unloaded_by), 'ja') || byProjectItem || a.id - b.id;
+      case 'unload': return s(a.unload_location).localeCompare(s(b.unload_location), 'ja') || byProjectItem || a.id - b.id;
+      case 'time': return s(a.delivery_time).localeCompare(s(b.delivery_time)) || byProjectItem || a.id - b.id;
+      case 'status': return (a.status === '納入済み' ? 1 : 0) - (b.status === '納入済み' ? 1 : 0) || byProjectItem || a.id - b.id;
+      default: return byProjectItem || a.id - b.id;
+    }
+  };
+
+  const timed = deliveries.filter(d => d.delivery_time && /^\d{2}:\d{2}/.test(d.delivery_time)).sort(cmp);
+  const allDay = deliveries.filter(d => !d.delivery_time || !/^\d{2}:\d{2}/.test(d.delivery_time)).sort(cmp);
+
+  async function handleSaveImage() {
+    setSavingImg(true);
+    try { await saveDayAsImage(current, allDay, timed); }
+    catch (e) { console.error(e); alert('画像の作成に失敗しました'); }
+    finally { setSavingImg(false); }
+  }
 
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-2xl mx-auto">
+      {deliveries.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-gray-500">並び替え</label>
+          <select
+            value={sortMode}
+            onChange={e => setSortMode(e.target.value as DaySortMode)}
+            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 outline-none bg-white"
+          >
+            {DAY_SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <button
+            onClick={handleSaveImage}
+            disabled={savingImg}
+            className="ml-auto text-sm px-3 py-1.5 rounded-lg text-white font-bold disabled:opacity-50"
+            style={{ background: '#0d2c66' }}
+          >
+            {savingImg ? '作成中...' : '📷 画像で保存'}
+          </button>
+        </div>
+      )}
       {allDay.length > 0 && (
         <div>
           <div className="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wide">終日・時刻未定</div>
@@ -495,4 +543,96 @@ function CategoryLegend() {
       </div>
     </div>
   );
+}
+
+// 日表示の予定を1枚の画像(PNG)に描き出して保存する。
+// 予定が多くて画面に収まらなくても、全件を1枚の画像にできる（社内掲示用）。
+async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery[]) {
+  const scale = 2;
+  const W = 900, pad = 20, rowGap = 10, secH = 30, headH = 66;
+  const rowHeightOf = (it: Delivery) => (it.unloaded_by ? 92 : 74);
+  const sections: { label: string; items: Delivery[] }[] = [];
+  if (allDay.length) sections.push({ label: '終日・時刻未定', items: allDay });
+  if (timed.length) sections.push({ label: '時刻指定', items: timed });
+  const total = allDay.length + timed.length;
+
+  let H = headH + pad;
+  for (const sec of sections) { H += secH; for (const it of sec.items) H += rowHeightOf(it) + rowGap; }
+  H += pad;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale; canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('no-2d-context');
+  ctx.scale(scale, scale);
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+
+  const rr = (x: number, y: number, w: number, h: number, r: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  };
+  const clip = (text: string, maxW: number) => {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  };
+
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+  const dateLabel = `${current.getFullYear()}年${current.getMonth() + 1}月${current.getDate()}日（${days[current.getDay()]}）`;
+  const done = allDay.concat(timed).filter(d => d.status === '納入済み').length;
+  ctx.fillStyle = '#0d2c66'; ctx.font = 'bold 26px sans-serif';
+  ctx.fillText(dateLabel, pad, pad + 24);
+  ctx.fillStyle = '#6b7280'; ctx.font = '15px sans-serif';
+  ctx.fillText(`納入予定 ${total}件（納入済み ${done}件）`, pad, pad + 48);
+
+  let y = headH + pad;
+  const rowW = W - pad * 2;
+  for (const sec of sections) {
+    ctx.fillStyle = '#6b7280'; ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(sec.label, pad, y + 18); y += secH;
+    for (const it of sec.items) {
+      const isDone = it.status === '納入済み';
+      const h = rowHeightOf(it) - 0;
+      const bg = isDone ? '#f3f4f6' : getCategoryColor(it.item);
+      rr(pad, y, rowW, h, 12); ctx.fillStyle = bg; ctx.fill();
+      const tcol = isDone ? '#6b7280' : '#ffffff';
+      const time = it.delivery_time && /^\d{2}:\d{2}/.test(it.delivery_time) ? it.delivery_time + '  ' : '';
+      ctx.fillStyle = tcol;
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText(clip(`${time}${it.project_name}`, rowW - 130), pad + 16, y + 28);
+      ctx.font = '15px sans-serif';
+      const line2 = [it.specification, [it.item, it.vendor, it.unload_location].filter(Boolean).join('・')].filter(Boolean).join('　');
+      ctx.fillText(clip(line2, rowW - 130), pad + 16, y + 50);
+      if (it.unloaded_by) {
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText(clip(`🧑‍🔧 荷下ろし者：${it.unloaded_by}`, rowW - 130), pad + 16, y + 72);
+      }
+      // ステータスのラベル（右上）
+      const st = isDone ? '✓ 納入済み' : (it.is_partial ? '⚠️ 一部納入' : '予定');
+      ctx.font = 'bold 14px sans-serif';
+      const stW = ctx.measureText(st).width + 20;
+      rr(pad + rowW - stW - 12, y + 12, stW, 24, 12);
+      ctx.fillStyle = isDone ? '#16a34a' : (it.is_partial ? '#dc2626' : 'rgba(255,255,255,0.25)');
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(st, pad + rowW - stW - 2, y + 28);
+      y += h + rowGap;
+    }
+  }
+
+  const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('toBlob-failed');
+  const ymd = `${current.getFullYear()}${String(current.getMonth() + 1).padStart(2, '0')}${String(current.getDate()).padStart(2, '0')}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `納入予定_${ymd}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
