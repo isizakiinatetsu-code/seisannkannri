@@ -64,6 +64,7 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
   const [manual, setManual] = useState<Record<string, string>>({}); // その他の手動入力
   const [split, setSplit] = useState<Record<string, boolean>>({});   // グループごと 午前/午後で分けるか
   const [loaded, setLoaded] = useState<Record<string, ContactVal>>({});
+  const [memo, setMemo] = useState(''); // その日の備考（連絡メモ）
 
   useEffect(() => {
     fetch(`/api/daily-contact?date=${date}`, { cache: 'no-store' })
@@ -97,6 +98,7 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
           }
         }
         setSel(nextSel); setManual(nextManual); setSplit(nextSplit);
+        setMemo(typeof o['備考'] === 'string' ? (o['備考'] as string) : '');
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -129,6 +131,7 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
         if (all) out[g.group] = all;
       }
     }
+    if (memo.trim()) out['備考'] = memo.trim();
     setSaving(true);
     try {
       const res = await fetch('/api/daily-contact', {
@@ -227,6 +230,16 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
                   </div>
                 );
               })}
+              <div className="rounded-lg border border-gray-200 p-3">
+                <label className="block text-sm font-bold text-gray-700 mb-1">備考</label>
+                <textarea
+                  value={memo}
+                  onChange={e => setMemo(e.target.value)}
+                  rows={2}
+                  placeholder="連絡事項・注意点など（任意）"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-base outline-none resize-y"
+                />
+              </div>
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -247,6 +260,12 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
                   </span>
                 </div>
               ))}
+              {memo && (
+                <div className="py-1.5">
+                  <span className="text-sm text-gray-600">備考</span>
+                  <div className="text-sm font-bold text-gray-800 whitespace-pre-wrap mt-0.5">{memo}</div>
+                </div>
+              )}
               <p className="text-xs text-gray-400 mt-3 text-center">※変更は購買課・総務（編集用ログイン）のみ可能です。</p>
             </div>
           )}
