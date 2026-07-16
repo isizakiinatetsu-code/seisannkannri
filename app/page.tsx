@@ -14,6 +14,7 @@ import { UNLOAD_LOCATIONS } from '@/lib/constants';
 type Tab = 'calendar' | 'list';
 
 interface SearchFilters {
+  q: string;
   project_name: string;
   item: string;
   vendor: string;
@@ -24,6 +25,7 @@ interface SearchFilters {
 }
 
 const emptyFilters: SearchFilters = {
+  q: '',
   project_name: '',
   item: '',
   vendor: '',
@@ -92,6 +94,7 @@ export default function HomePage() {
 
   const buildQuery = useCallback((f: SearchFilters) => {
     const params = new URLSearchParams();
+    if (f.q) params.set('q', f.q);
     if (f.project_name) params.set('project_name', f.project_name);
     if (f.item) params.set('item', f.item);
     if (f.vendor) params.set('vendor', f.vendor);

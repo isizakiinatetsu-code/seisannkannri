@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { ITEM_CATEGORIES as BASE_ITEM_CATEGORIES } from '@/lib/constants';
 
 interface SearchFilters {
+  q: string;
   project_name: string;
   item: string;
   vendor: string;
@@ -56,7 +57,7 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
   }
 
   function handleClear() {
-    const cleared = { project_name: '', item: '', vendor: '', unload_location: '', date_from: '', date_to: '', status: '' };
+    const cleared = { q: '', project_name: '', item: '', vendor: '', unload_location: '', date_from: '', date_to: '', status: '' };
     setDraft(cleared);
     onChange(cleared);
   }
@@ -68,6 +69,19 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1 rounded-lg hover:bg-gray-100">
           閉じる
         </button>
+      </div>
+
+      {/* フリー検索：物件名・品目・規格・業者・降し場所・備考・発注番号を横断検索 */}
+      <div className="mb-2">
+        <label className="label">フリー検索</label>
+        <input
+          type="search"
+          value={draft.q}
+          onChange={set('q')}
+          onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+          placeholder="キーワード（物件・品目・規格・業者・備考など）"
+          className="input"
+        />
       </div>
 
       {/* 2列に並べて縦の高さを抑え、スマホでも画面に収まるようにする */}
