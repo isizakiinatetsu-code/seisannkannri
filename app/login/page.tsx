@@ -50,8 +50,21 @@ function LoginForm() {
           <p className="text-sm text-gray-400 mt-1">パスワードを入力してください</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ブラウザのパスワード保存を効かせるため、隠しユーザー名＋適切な autocomplete を付ける */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            defaultValue="inatetsu"
+            readOnly
+            aria-hidden="true"
+            tabIndex={-1}
+            className="hidden"
+          />
           <input
             type="password"
+            name="password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="パスワード"
