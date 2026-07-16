@@ -64,7 +64,7 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
   const [manual, setManual] = useState<Record<string, string>>({}); // その他の手動入力
   const [split, setSplit] = useState<Record<string, boolean>>({});   // グループごと 午前/午後で分けるか
   const [loaded, setLoaded] = useState<Record<string, ContactVal>>({});
-  const [memo, setMemo] = useState(''); // その日の備考（連絡メモ）
+  const [memoByGroup, setMemoByGroup] = useState<Record<string, string>>({}); // 部署ごとの備考
 
   useEffect(() => {
     fetch(`/api/daily-contact?date=${date}`, { cache: 'no-store' })
@@ -98,7 +98,18 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
           }
         }
         setSel(nextSel); setManual(nextManual); setSplit(nextSplit);
-        setMemo(typeof o['備考'] === 'string' ? (o['備考'] as string) : '');
+        // 備考は部署ごと（旧: 単一文字列だった場合は「その他」に寄せる）
+        const rawMemo = o['備考'] as unknown;
+        const nextMemo: Record<string, string> = {};
+        if (rawMemo && typeof rawMemo === 'object') {
+          for (const g of UNLOAD_CONTACT_GROUPS) {
+            const m = (rawMemo as Record<string, unknown>)[g.group];
+            if (typeof m === 'string' && m) nextMemo[g.group] = m;
+          }
+        } else if (typeof rawMemo === 'string' && rawMemo) {
+          nextMemo[OTHER_GROUP] = rawMemo;
+        }
+        setMemoByGroup(nextMemo);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -131,7 +142,12 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
         if (all) out[g.group] = all;
       }
     }
-    if (memo.trim()) out['備考'] = memo.trim();
+    const memoObj: Record<string, string> = {};
+    for (const g of UNLOAD_CONTACT_GROUPS) {
+      const m = (memoByGroup[g.group] ?? '').trim();
+      if (m) memoObj[g.group] = m;
+    }
+    if (Object.keys(memoObj).length) (out as Record<string, unknown>)['備考'] = memoObj;
     setSaving(true);
     try {
       const res = await fetch('/api/daily-contact', {
@@ -227,19 +243,19 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
                     ) : (
                       <SlotSelect group={g.group} slot="all" names={g.names} isOther={isOther} />
                     )}
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-500 mb-1">備考</div>
+                      <textarea
+                        value={memoByGroup[g.group] ?? ''}
+                        onChange={e => setMemoByGroup(m => ({ ...m, [g.group]: e.target.value }))}
+                        rows={2}
+                        placeholder="連絡事項・注意点など（任意）"
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-base outline-none resize-y"
+                      />
+                    </div>
                   </div>
                 );
               })}
-              <div className="rounded-lg border border-gray-200 p-3">
-                <label className="block text-sm font-bold text-gray-700 mb-1">備考</label>
-                <textarea
-                  value={memo}
-                  onChange={e => setMemo(e.target.value)}
-                  rows={2}
-                  placeholder="連絡事項・注意点など（任意）"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-base outline-none resize-y"
-                />
-              </div>
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -253,19 +269,18 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
             <div className="py-2">
               <div className="text-xs text-gray-500 mb-2 text-center">本日の連絡先</div>
               {UNLOAD_CONTACT_GROUPS.map(g => (
-                <div key={g.group} className="flex justify-between py-1.5 border-b border-gray-100 gap-3">
-                  <span className="text-sm text-gray-600 flex-shrink-0">{g.group}</span>
-                  <span className="text-sm font-bold text-gray-800 text-right">
-                    {describeVal(loaded[g.group])}
-                  </span>
+                <div key={g.group} className="py-1.5 border-b border-gray-100">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-sm text-gray-600 flex-shrink-0">{g.group}</span>
+                    <span className="text-sm font-bold text-gray-800 text-right">
+                      {describeVal(loaded[g.group])}
+                    </span>
+                  </div>
+                  {memoByGroup[g.group] && (
+                    <div className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">備考：{memoByGroup[g.group]}</div>
+                  )}
                 </div>
               ))}
-              {memo && (
-                <div className="py-1.5">
-                  <span className="text-sm text-gray-600">備考</span>
-                  <div className="text-sm font-bold text-gray-800 whitespace-pre-wrap mt-0.5">{memo}</div>
-                </div>
-              )}
               <p className="text-xs text-gray-400 mt-3 text-center">※変更は購買課・総務（編集用ログイン）のみ可能です。</p>
             </div>
           )}
