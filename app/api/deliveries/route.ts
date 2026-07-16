@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabase();
     const { searchParams } = new URL(req.url);
+    const q = searchParams.get('q'); // フリー検索（複数列を横断）
     const projectName = searchParams.get('project_name');
     const item = searchParams.get('item');
     const vendor = searchParams.get('vendor');
@@ -20,8 +21,14 @@ export async function GET(req: NextRequest) {
 
     // excludeDeleted=true で削除済み(deleted=true)を除外。deleted列が無いDBでは
     // その条件を外して再取得する。
+    // フリー検索：主要な文字列列を横断してキーワードを含むものを探す。
+    // or() の区切り文字(, ())やワイルドカードになる文字は空白に置換して安全にする。
+    const qSafe = q ? q.replace(/[,()*%]/g, ' ').trim() : '';
+    const FREE_COLS = ['project_name', 'item', 'specification', 'vendor', 'unload_location', 'notes', 'order_number', 'storage_location'];
+
     const build = (excludeDeleted: boolean) => {
       let query = supabase.from('deliveries').select('*');
+      if (qSafe) query = query.or(FREE_COLS.map(c => `${c}.ilike.*${qSafe}*`).join(','));
       if (projectName) query = query.ilike('project_name', `%${projectName}%`);
       if (item) query = query.ilike('item', `%${item}%`);
       if (vendor) query = query.ilike('vendor', `%${vendor}%`);
