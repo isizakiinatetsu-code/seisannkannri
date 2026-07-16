@@ -399,6 +399,7 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
                   <div className={`font-bold text-lg truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
                   {item.specification && <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-95'}`}>{item.specification}</div>}
                   <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.item} · {item.vendor} · {item.unload_location}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
+                  {item.unloaded_by && <div className={`text-sm truncate font-semibold ${done ? 'text-gray-400' : 'opacity-95'}`}>🧑‍🔧 荷下ろし者：{item.unloaded_by}</div>}
                 </div>
                 <span className={`text-sm px-2.5 py-1 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
               </button>
@@ -425,6 +426,7 @@ function DayView({ current: _current, deliveries, onSelectDelivery }: {
                   <div className={`font-bold text-lg truncate ${done ? 'text-gray-500 line-through' : ''}`}>{item.project_name}</div>
                   {item.specification && <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-95'}`}>{item.specification}</div>}
                   <div className={`text-sm truncate ${done ? 'text-gray-400' : 'opacity-90'}`}>{item.item} · {item.vendor}{item.created_by ? ` · 🧑‍💼${item.created_by}` : ''}</div>
+                  {item.unloaded_by && <div className={`text-sm truncate font-semibold ${done ? 'text-gray-400' : 'opacity-95'}`}>🧑‍🔧 荷下ろし者：{item.unloaded_by}</div>}
                 </div>
                 <span className={`text-sm px-2.5 py-1 rounded-full flex-shrink-0 font-bold ${done || (!done && item.is_partial) ? 'text-white' : 'bg-white/20 font-medium'}`} style={done ? { background: '#16a34a' } : (item.is_partial ? { background: '#dc2626' } : undefined)}>{done ? '✓ 納入済み' : (item.is_partial ? '⚠️ 一部納入' : item.status)}</span>
               </button>
