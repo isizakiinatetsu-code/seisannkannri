@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError } from '@/lib/dbErrors';
-import { prepareAndCollectSheet, SheetCandidate, colorTabsData } from '@/lib/gsheetsWrite';
+import { prepareAndCollectSheet, SheetCandidate, colorTabsData, markSheetRowDeletedByNo } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
 
 // 大きなシートでは Google API 呼び出しが多く時間がかかるため、実行時間上限を延ばす。
@@ -99,14 +99,18 @@ export async function POST(req: NextRequest) {
     // 2) 「No」を持つ行：Noで照合。無ければ“同じ内容の既存行”にNoを付けて採用。
     const insertedNos = new Set<string>();
     const adoptedIds = new Set<number>();
+    const toRemarkDeleted: string[] = []; // アプリ削除済みなのにシート印が無い行（印を付け直す）
     for (const c of withNo) {
       const desc = descOf(c);
       const ex = bySheetNo.get(c.no);
       if (ex) {
-        // シートに（削除印なしで）存在する行なので、DB側が削除済みでも復活させて表示する。
-        const fields: Record<string, unknown> = changedVs(ex, desc) ? { ...desc } : {};
-        if (ex.deleted) fields.deleted = false;
-        if (Object.keys(fields).length > 0) toUpdate.push({ id: ex.id, fields });
+        if (ex.deleted) {
+          // アプリで削除済み。シートに削除印が無いのは印付けが失敗して残っただけなので、
+          // 復活させず、シート側へ削除印を付け直す（アプリの削除を尊重する）。
+          toRemarkDeleted.push(c.no);
+          continue;
+        }
+        if (changedVs(ex, desc)) toUpdate.push({ id: ex.id, fields: desc });
         continue;
       }
       const pool = (byContentFree.get(keyOf({ ...desc })) ?? []).filter(r => !adoptedIds.has(r.id));
@@ -154,19 +158,23 @@ export async function POST(req: NextRequest) {
     const imported = toInsert.length;
     const skipped = candidates.length - imported - updated;
 
-    // 現在「納入済み」の予定をシート上でまとめて着色する（過去分も含めて一括反映）。
-    // No紐付けのズレに影響されないよう、内容（日付・物件・品目…）でシート行を判定する。
+    // アプリ削除済みなのにシートに削除印が無い行へ、印を付け直す（削除の取りこぼし防止）。
+    for (const no of toRemarkDeleted) {
+      try { await markSheetRowDeletedByNo(no); } catch { /* best-effort */ }
+    }
+
+    // 現在「納入済み」の予定をシート上で緑に着色する（過去分も含めて一括反映）。
+    // No紐付けのズレに影響されないよう、内容（日付・物件・品目…）で判定する。
+    // 未納入行は塗らない（シート上で手動で付けた色を消さないため）。納入解除時の白戻しは
+    // アプリ操作時に個別反映する。
     let colored = 0;
     try {
       const deliveredKeys: string[] = [];
-      const presentKeys: string[] = [];
       for (const e of existing) {
         if (e.deleted) continue;
-        const k = keyOf(e);
-        if (e.status === '納入済み') deliveredKeys.push(k);
-        else presentKeys.push(k);
+        if (e.status === '納入済み') deliveredKeys.push(keyOf(e));
       }
-      const cr = await colorTabsData(tabsData, deliveredKeys, presentKeys);
+      const cr = await colorTabsData(tabsData, deliveredKeys, []);
       colored = cr.colored;
     } catch { /* 着色は best-effort */ }
 

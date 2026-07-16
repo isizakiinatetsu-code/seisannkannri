@@ -376,44 +376,8 @@ export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefine
   }
 }
 
-// Noごとの「納入済みか」を受け取り、全年タブの該当行をまとめて着色する（同期時に一括適用）。
-// true=薄い緑 / false=白。過去に納入済みにした分もこれで色が付く。
-export async function applyColorsByNo(colorMap: Record<string, boolean>): Promise<{ ok: boolean; colored: number; reason?: string }> {
-  if (Object.keys(colorMap).length === 0) return { ok: true, colored: 0 };
-  const client = getClient();
-  if (!client) return { ok: false, colored: 0, reason: 'not-configured' };
-  try {
-    const { sheets, spreadsheetId } = client;
-    const all = await listSheets(sheets, spreadsheetId);
-    const requests: unknown[] = [];
-    for (const tab of all.filter(s => isYearTitle(s.title))) {
-      const rows = await readTabRows(sheets, spreadsheetId, tab.title);
-      for (let i = 1; i < rows.length; i++) {
-        const no = String(rows[i]?.[H.NO] ?? '').trim();
-        if (!no || !(no in colorMap)) continue;
-        requests.push({
-          repeatCell: {
-            range: { sheetId: tab.sheetId, startRowIndex: i, endRowIndex: i + 1, startColumnIndex: 0, endColumnIndex: CANONICAL_WIDTH },
-            cell: { userEnteredFormat: { backgroundColor: colorMap[no] ? COLOR_DONE : COLOR_NONE } },
-            fields: 'userEnteredFormat.backgroundColor',
-          },
-        });
-      }
-    }
-    if (requests.length === 0) return { ok: true, colored: 0 };
-    // 大量になり得るので分割して送る
-    for (let i = 0; i < requests.length; i += 200) {
-      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: requests.slice(i, i + 200) } });
-    }
-    return { ok: true, colored: requests.length };
-  } catch (e) {
-    return { ok: false, colored: 0, reason: String(e).slice(0, 160) };
-  }
-}
-
-// 内容（日付・物件・品目・規格・業者・降し場所・時刻）でシート行を判定して着色する。
+// 内容（日付・物件・品目・規格・業者・降し場所・時刻）でシート行を判定するためのキー。
 // No紐付けがズレていても、アプリの納入状態と確実に一致させられる（同期時の一括着色用）。
-// deliveredKeys=納入済み(緑) / presentKeys=生きているが未納入(白)。
 // 内容キーの作り方は同期ルートの keyOf と一致させること。
 export function contentKeyOfSheetRow(r: string[]): string {
   const norm = (v: unknown) => String(v ?? '').trim();
@@ -425,45 +389,6 @@ export function contentKeyOfSheetRow(r: string[]): string {
   const unload = norm(r[H.UNLOAD]) || '未設定';
   const time = norm(r[H.TIME]);
   return JSON.stringify([date, project, item, spec, vendor, unload, time]);
-}
-
-export async function applyColorsByContent(deliveredKeys: string[], presentKeys: string[]): Promise<{ ok: boolean; colored: number; reason?: string }> {
-  const delSet = new Set(deliveredKeys);
-  const presentSet = new Set(presentKeys);
-  if (delSet.size === 0 && presentSet.size === 0) return { ok: true, colored: 0 };
-  const client = getClient();
-  if (!client) return { ok: false, colored: 0, reason: 'not-configured' };
-  try {
-    const { sheets, spreadsheetId } = client;
-    const all = await listSheets(sheets, spreadsheetId);
-    const requests: unknown[] = [];
-    for (const tab of all.filter(s => isYearTitle(s.title))) {
-      const rows = await readTabRows(sheets, spreadsheetId, tab.title);
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i] as string[];
-        if (!normalizeDate(r[H.DATE]) || !String(r[H.PROJECT] ?? '').trim()) continue;
-        const key = contentKeyOfSheetRow(r);
-        let color: { red: number; green: number; blue: number } | null = null;
-        if (delSet.has(key)) color = COLOR_DONE;
-        else if (presentSet.has(key)) color = COLOR_NONE;
-        if (!color) continue;
-        requests.push({
-          repeatCell: {
-            range: { sheetId: tab.sheetId, startRowIndex: i, endRowIndex: i + 1, startColumnIndex: 0, endColumnIndex: CANONICAL_WIDTH },
-            cell: { userEnteredFormat: { backgroundColor: color } },
-            fields: 'userEnteredFormat.backgroundColor',
-          },
-        });
-      }
-    }
-    if (requests.length === 0) return { ok: true, colored: 0 };
-    for (let i = 0; i < requests.length; i += 200) {
-      await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: requests.slice(i, i + 200) } });
-    }
-    return { ok: true, colored: requests.length };
-  } catch (e) {
-    return { ok: false, colored: 0, reason: String(e).slice(0, 160) };
-  }
 }
 
 // ---- 同期用：年タブを整備し、旧シートを移行し、取り込み候補を集めて返す ----
@@ -639,10 +564,26 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
           requestBody: { values },
         });
       }
-      await sheets.spreadsheets.values.batchClear({
-        spreadsheetId,
-        requestBody: { ranges: misplaced.map(m => `${m.fromTab}!A${m.rowNum}:Z${m.rowNum}`) },
-      });
+      // 元タブの行は「値クリア（空行残し）」ではなく行ごと削除する。
+      // 行番号がズレないよう各タブ内で下から（降順で）消し、着色用の tabsData も同期して更新する。
+      const bySheetId = new Map<number, number[]>();
+      for (const m of misplaced) {
+        const sid = all.find(s => s.title === m.fromTab)?.sheetId;
+        if (sid == null) continue;
+        const arr = bySheetId.get(sid) ?? []; arr.push(m.rowNum); bySheetId.set(sid, arr);
+      }
+      const delRequests: unknown[] = [];
+      for (const [sid, rowNums] of bySheetId) {
+        rowNums.sort((a, b) => b - a); // 降順
+        const td = tabsData.find(t => t.sheetId === sid);
+        for (const rn of rowNums) {
+          delRequests.push({ deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: rn - 1, endIndex: rn } } });
+          if (td && rn - 1 < td.rows.length) td.rows.splice(rn - 1, 1);
+        }
+      }
+      if (delRequests.length > 0) {
+        await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: delRequests } });
+      }
       setup.moved = misplaced.length;
       setup.wrote = true;
     }
