@@ -11,9 +11,10 @@ interface Props {
   onDateClick?: (date: string) => void;
   // 表示中の月が変わったら親へ通知（親はこの前後3か月だけ取得する）
   onVisibleMonthChange?: (d: Date) => void;
+  canEdit?: boolean;
 }
 
-export default function CalendarView({ deliveries, onSelectDelivery, onDateClick, onVisibleMonthChange }: Props) {
+export default function CalendarView({ deliveries, onSelectDelivery, onDateClick, onVisibleMonthChange, canEdit = false }: Props) {
   const [mode, setMode] = useState<CalViewMode>('月');
   const [current, setCurrent] = useState(new Date());
   const today = new Date();
@@ -87,7 +88,7 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
       <>
         {mode === '月' && <MonthView current={date} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} onDateClick={(d) => { setCurrent(new Date(d)); setMode('日'); onDateClick?.(d); }} fmt={fmt} />}
         {mode === '週' && <WeekView current={date} deliveriesForDate={deliveriesForDate} today={today} onSelectDelivery={onSelectDelivery} fmt={fmt} getWeekStart={getWeekStart} />}
-        {mode === '日' && <DayView current={date} deliveries={deliveriesForDate(fmt(date))} onSelectDelivery={onSelectDelivery} />}
+        {mode === '日' && <DayView current={date} deliveries={deliveriesForDate(fmt(date))} onSelectDelivery={onSelectDelivery} canEdit={canEdit} />}
       </>
     );
   }
@@ -373,10 +374,11 @@ const DAY_SORT_OPTIONS: { value: DaySortMode; label: string }[] = [
   { value: 'status', label: '未納入→納入済み' },
 ];
 
-function DayView({ current, deliveries, onSelectDelivery }: {
+function DayView({ current, deliveries, onSelectDelivery, canEdit = false }: {
   current: Date;
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
+  canEdit?: boolean;
 }) {
   const [sortMode, setSortMode] = useState<DaySortMode>('project');
   const [savingImg, setSavingImg] = useState(false);
@@ -418,14 +420,16 @@ function DayView({ current, deliveries, onSelectDelivery }: {
           >
             {DAY_SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <button
-            onClick={handleSaveImage}
-            disabled={savingImg}
-            className="ml-auto text-sm px-3 py-1.5 rounded-lg text-white font-bold disabled:opacity-50"
-            style={{ background: '#0d2c66' }}
-          >
-            {savingImg ? '作成中...' : '📷 画像で保存'}
-          </button>
+          {canEdit && (
+            <button
+              onClick={handleSaveImage}
+              disabled={savingImg}
+              className="ml-auto text-sm px-3 py-1.5 rounded-lg text-white font-bold disabled:opacity-50"
+              style={{ background: '#0d2c66' }}
+            >
+              {savingImg ? '作成中...' : '📷 画像で保存'}
+            </button>
+          )}
         </div>
       )}
       {allDay.length > 0 && (
