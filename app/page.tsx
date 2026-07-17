@@ -707,6 +707,7 @@ export default function HomePage() {
                     onSelectDelivery={setSelectedDelivery}
                     onDateClick={(date) => setAddDefaultDate(date)}
                     onVisibleMonthChange={setCalendarMonth}
+                    canEdit={canEdit}
                   />
                 )}
                 {/* PC/iPad: 検索結果（検索パネルは右側に常時表示） */}
