@@ -406,8 +406,9 @@ export interface TabRows { sheetId: number; rows: string[][]; }
 
 // 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く。
 // 既存のNo（管理番号）があれば保持する（アプリとの紐付け sheet_no を壊さないため）。
-function readLegacyRow(header: string[], r: string[]): { year: string; no: string; f: SheetRowFields } | null {
+function readLegacyRow(header: string[], r: string[]): { year: string; no: string; del: string; f: SheetRowFields } | null {
   const iNo = headerIndex(header, NO_HEADERS);
+  const iMark = headerIndex(header, DELETE_MARK_HEADERS);
   const iDate = header.indexOf('納入予定日');
   const iTime = header.indexOf('納入予定時刻');
   const iProject = header.indexOf('物件名');
@@ -426,6 +427,8 @@ function readLegacyRow(header: string[], r: string[]): { year: string; no: strin
   return {
     year,
     no: iNo >= 0 ? String(r[iNo] ?? '').trim() : '',
+    // 旧シートで「削除」印が付いていた行は、印を保持したまま年タブへ移す（復活防止）
+    del: iMark >= 0 && String(r[iMark] ?? '').includes('削除') ? DELETE_MARK_VALUE : '',
     f: {
       delivery_date: dv,
       delivery_time: iTime >= 0 ? (String(r[iTime] ?? '').trim() || null) : null,
@@ -464,7 +467,7 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         const arr = appendsByYear.get(tab.title) ?? [];
         // 既存のNoは保持（アプリとの紐付けを壊さない）。無い行だけ新規採番する。
         const no = parsed.no || String(nextNo++);
-        arr.push(buildCanonicalRow(no, parsed.f));
+        arr.push(buildCanonicalRow(no, parsed.f, parsed.del));
         appendsByYear.set(tab.title, arr);
       }
       if (dataRowCount === 0) continue;

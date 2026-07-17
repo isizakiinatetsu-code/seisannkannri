@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE } from '@/lib/auth';
-import { signSession } from '@/lib/session';
+import { signSession, timingSafeEqual } from '@/lib/session';
 
 const MAX_AGE = 60 * 60 * 24 * 30; // 30日
 
@@ -11,8 +11,10 @@ export async function POST(req: NextRequest) {
   const viewPassword = process.env.VIEW_PASSWORD;
 
   let role: 'edit' | 'view' | null = null;
-  if (editPassword && password === editPassword) role = 'edit';
-  else if (viewPassword && password === viewPassword) role = 'view';
+  if (typeof password === 'string') {
+    if (editPassword && timingSafeEqual(password, editPassword)) role = 'edit';
+    else if (viewPassword && timingSafeEqual(password, viewPassword)) role = 'view';
+  }
 
   if (!role) {
     return NextResponse.json({ error: 'パスワードが正しくありません' }, { status: 401 });

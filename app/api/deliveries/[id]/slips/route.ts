@@ -4,6 +4,11 @@ import { requireEditRole } from '@/lib/auth';
 import { uploadToDrive } from '@/lib/googleDrive';
 
 const BUCKET = 'slips';
+const MAX_SIZE = 15 * 1024 * 1024; // 15MB
+// 拡張子から安全なContent-Typeを決める（クライアント申告のtypeは信用しない＝公開バケットでのXSS防止）
+const CONTENT_TYPE: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf',
+};
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,8 +31,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
 
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ error: 'ファイルが大きすぎます（最大15MB）' }, { status: 400 });
+    }
     const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
-    if (!['jpg', 'jpeg', 'png', 'pdf', 'webp'].includes(ext)) {
+    if (!CONTENT_TYPE[ext]) {
       return NextResponse.json({ error: '対応形式: JPG, PNG, PDF, WEBP' }, { status: 400 });
     }
 
@@ -37,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(filename, buffer, { contentType: file.type || undefined, upsert: false });
+      .upload(filename, buffer, { contentType: CONTENT_TYPE[ext], upsert: false });
     if (uploadError) throw uploadError;
 
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filename);
@@ -61,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const projectPart = (delivery?.project_name ?? '物件未設定').replace(/[\\/:*?"<>|]/g, '_');
       const itemPart = (delivery?.item ?? '').replace(/[\\/:*?"<>|]/g, '_');
       const driveName = `${datePart}_${projectPart}_${itemPart}_伝票${id}_${Date.now()}.${ext}`;
-      await uploadToDrive(buffer, driveName, file.type || 'image/jpeg');
+      await uploadToDrive(buffer, driveName, CONTENT_TYPE[ext]);
     } catch (driveErr) {
       console.error('Drive 連携でエラー（無視して続行）', driveErr);
     }
