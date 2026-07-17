@@ -4,6 +4,10 @@ import { requireEditRole } from '@/lib/auth';
 
 const BUCKET = 'slips';
 const MAX_SIZE = 15 * 1024 * 1024; // 15MB
+// 拡張子から安全なContent-Typeを決める（公開バケットでのHTML/スクリプト混入を防ぐ）
+const CONTENT_TYPE: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf',
+};
 
 export async function POST(req: NextRequest) {
   const denied = await requireEditRole(req);
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
-    if (!['jpg', 'jpeg', 'png', 'pdf', 'webp'].includes(ext)) {
+    if (!CONTENT_TYPE[ext]) {
       return NextResponse.json({ error: '対応形式: JPG, PNG, PDF, WEBP' }, { status: 400 });
     }
 
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(filename, buffer, { contentType: file.type || undefined, upsert: false });
+      .upload(filename, buffer, { contentType: CONTENT_TYPE[ext], upsert: false });
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(filename);

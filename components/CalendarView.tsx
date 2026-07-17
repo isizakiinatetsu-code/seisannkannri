@@ -113,9 +113,9 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
           ))}
         </div>
         <span className="font-bold text-gray-800 text-sm ml-2 flex-1">{headerLabel()}</span>
-        <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 text-lg">‹</button>
+        <button aria-label="前へ" onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 text-lg">‹</button>
         <button onClick={() => setCurrent(new Date())} className="px-2 py-1 rounded-lg border border-gray-300 text-xs hover:bg-gray-50 font-medium">今日</button>
-        <button onClick={() => navigate(1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 text-lg">›</button>
+        <button aria-label="次へ" onClick={() => navigate(1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 text-lg">›</button>
       </div>
 
       {/* 凡例 */}
@@ -551,7 +551,6 @@ function CategoryLegend() {
 // 日表示の予定を1枚の画像(PNG)に描き出して保存する。
 // 予定が多くて画面に収まらなくても、全件を1枚の画像にできる（社内掲示用）。
 async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery[]) {
-  const scale = 2;
   const W = 900, pad = 20, rowGap = 10, secH = 30, headH = 66;
   const rowHeightOf = (it: Delivery) => (it.unloaded_by ? 92 : 74);
   const sections: { label: string; items: Delivery[] }[] = [];
@@ -563,6 +562,8 @@ async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery
   for (const sec of sections) { H += secH; for (const it of sec.items) H += rowHeightOf(it) + rowGap; }
   H += pad;
 
+  // ブラウザのcanvas最大高(約32767px)を超えないよう、件数が多い日は解像度倍率を下げる。
+  const scale = H * 2 > 30000 ? 1 : 2;
   const canvas = document.createElement('canvas');
   canvas.width = W * scale; canvas.height = H * scale;
   const ctx = canvas.getContext('2d');
@@ -582,9 +583,10 @@ async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery
   };
   const clip = (text: string, maxW: number) => {
     if (ctx.measureText(text).width <= maxW) return text;
-    let t = text;
-    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
-    return t + '…';
+    // サロゲートペア（絵文字等）を壊さないよう、コードポイント単位で削る
+    const chars = Array.from(text);
+    while (chars.length > 1 && ctx.measureText(chars.join('') + '…').width > maxW) chars.pop();
+    return chars.join('') + '…';
   };
 
   const days = ['日', '月', '火', '水', '木', '金', '土'];
@@ -615,10 +617,10 @@ async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery
       ctx.fillText(clip(line2, rowW - 130), pad + 16, y + 50);
       if (it.unloaded_by) {
         ctx.font = 'bold 15px sans-serif';
-        ctx.fillText(clip(`🧑‍🔧 荷下ろし者：${it.unloaded_by}`, rowW - 130), pad + 16, y + 72);
+        ctx.fillText(clip(`荷下ろし者：${it.unloaded_by}`, rowW - 130), pad + 16, y + 72);
       }
-      // ステータスのラベル（右上）
-      const st = isDone ? '✓ 納入済み' : (it.is_partial ? '⚠️ 一部納入' : '予定');
+      // ステータスのラベル（右上）。画像では絵文字が環境依存で崩れるため文字のみにする。
+      const st = isDone ? '納入済み' : (it.is_partial ? '一部納入' : '予定');
       ctx.font = 'bold 14px sans-serif';
       const stW = ctx.measureText(st).width + 20;
       rr(pad + rowW - stW - 12, y + 12, stW, 24, 12);

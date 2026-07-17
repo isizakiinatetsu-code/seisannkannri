@@ -15,12 +15,15 @@ interface Props {
   onSelect: (id: number) => void;
 }
 
-// 追加日時を「MM/DD HH:mm」（日本時間）で表示
+// 追加日時を「MM/DD HH:mm」（日本時間）で表示。端末のタイムゾーンに依存しないよう
+// 明示的に Asia/Tokyo で整形する。
 function fmt(iso: string): string {
   try {
-    const d = new Date(iso);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    const parts = new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date(iso));
+    const g = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+    return `${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`;
   } catch {
     return '';
   }
