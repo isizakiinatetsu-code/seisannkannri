@@ -362,9 +362,8 @@ function WeekView({ current, deliveriesForDate, today, onSelectDelivery, fmt, ge
   );
 }
 
-type DaySortMode = 'recommend' | 'project' | 'item' | 'vendor' | 'unloader' | 'unload' | 'time' | 'status';
+type DaySortMode = 'project' | 'item' | 'vendor' | 'unloader' | 'unload' | 'time' | 'status';
 const DAY_SORT_OPTIONS: { value: DaySortMode; label: string }[] = [
-  { value: 'recommend', label: 'おすすめ（物件→品目）' },
   { value: 'project', label: '物件名順' },
   { value: 'item', label: '品目順' },
   { value: 'vendor', label: '業者名順' },
@@ -379,7 +378,7 @@ function DayView({ current, deliveries, onSelectDelivery }: {
   deliveries: Delivery[];
   onSelectDelivery: (d: Delivery) => void;
 }) {
-  const [sortMode, setSortMode] = useState<DaySortMode>('recommend');
+  const [sortMode, setSortMode] = useState<DaySortMode>('project');
   const [savingImg, setSavingImg] = useState(false);
 
   const cmp = (a: Delivery, b: Delivery): number => {
