@@ -4,15 +4,17 @@ import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
 import { appendDeliveryToSheet } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
+import { normalizeName } from '@/lib/textNormalize';
 
 export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabase();
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q'); // フリー検索（複数列を横断）
-    const projectName = searchParams.get('project_name');
+    // 物件名・業者名は正規化して照合（半角/全角・空白差を無視）
+    const projectName = normalizeName(searchParams.get('project_name')) || null;
     const item = searchParams.get('item');
-    const vendor = searchParams.get('vendor');
+    const vendor = normalizeName(searchParams.get('vendor')) || null;
     const unloadLocation = searchParams.get('unload_location');
     const status = searchParams.get('status');
     const dateFrom = searchParams.get('date_from');
@@ -67,9 +69,10 @@ export async function POST(req: NextRequest) {
 
     // 前後の空白は重複判定・保存の両方でズレの原因になるため揃える。
     const trim = (v: string | null | undefined) => (typeof v === 'string' ? v.trim() : v);
-    const projectName = trim(body.project_name) as string;
+    // 物件名・業者名は半角/全角・空白差で別物件に割れないよう正規化して保存する。
+    const projectName = normalizeName(body.project_name);
     const itemName = trim(body.item) as string;
-    const vendorName = trim(body.vendor) as string;
+    const vendorName = normalizeName(body.vendor);
     const spec = trim(body.specification);
     const specEmpty = spec == null || spec === '';
 

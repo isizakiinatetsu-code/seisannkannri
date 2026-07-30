@@ -10,6 +10,7 @@ import SearchPanel from '@/components/SearchPanel';
 import NotificationPanel from '@/components/NotificationPanel';
 import ContactPanel, { formatContact } from '@/components/ContactPanel';
 import { UNLOAD_LOCATIONS } from '@/lib/constants';
+import { normalizeName } from '@/lib/textNormalize';
 
 type Tab = 'calendar' | 'list';
 
@@ -399,18 +400,27 @@ export default function HomePage() {
     }
   }
 
-  const vendorOptions = useMemo(() =>
-    [...new Set(deliveries.map(d => d.vendor).filter(Boolean))].sort() as string[],
-    [deliveries]
-  );
+  // 半角/全角・空白差を無視して同じ名前はまとめる（正規化キーで重複排除・表示は正規化後の形）。
+  const vendorOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const d of deliveries) {
+      const name = normalizeName(d.vendor);
+      if (!name || seen.has(name)) continue;
+      seen.add(name); out.push(name);
+    }
+    return out.sort((a, b) => a.localeCompare(b, 'ja'));
+  }, [deliveries]);
   const unloadLocationOptions = UNLOAD_LOCATIONS as unknown as string[];
   const projectOptions = useMemo(() => {
     const seen = new Set<string>();
-    return deliveries
-      .slice()
-      .sort((a, b) => b.delivery_date.localeCompare(a.delivery_date))
-      .map(d => d.project_name)
-      .filter(p => { if (seen.has(p)) return false; seen.add(p); return true; });
+    const out: string[] = [];
+    for (const d of deliveries.slice().sort((a, b) => b.delivery_date.localeCompare(a.delivery_date))) {
+      const name = normalizeName(d.project_name);
+      if (!name || seen.has(name)) continue;
+      seen.add(name); out.push(name);
+    }
+    return out;
   }, [deliveries]);
 
   const hasFilters = Object.values(filters).some(v => v !== '');
