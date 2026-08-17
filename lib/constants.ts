@@ -76,9 +76,9 @@ export const UNLOADER_NAMES: string[] = UNLOAD_CONTACT_GROUPS.flatMap(g => g.nam
 // 降し場所の選択肢（固定リスト）
 export const UNLOAD_LOCATIONS = [
   '事務所',
-  '第一南', '第一北',
-  '第二南', '第二北',
-  '第三(表)', '第四(表)',
+  '第一南',
+  '第二北', '第二南',
+  '第三', '第四',
   '第一ヤード', '第二ヤード', '第三ヤード', '第四ヤード', '第五ヤード', '第六ヤード',
   '未定',
 ] as const;

@@ -4,7 +4,7 @@ import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
 import { appendDeliveryToSheet } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
-import { normalizeName } from '@/lib/textNormalize';
+import { normalizeName, normalizeUnloadLocation } from '@/lib/textNormalize';
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const projectName = normalizeName(searchParams.get('project_name')) || null;
     const item = searchParams.get('item');
     const vendor = normalizeName(searchParams.get('vendor')) || null;
-    const unloadLocation = searchParams.get('unload_location');
+    const unloadLocation = normalizeUnloadLocation(searchParams.get('unload_location')) || null;
     const status = searchParams.get('status');
     const dateFrom = searchParams.get('date_from');
     const dateTo = searchParams.get('date_to');
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       item: itemName,
       specification: specEmpty ? null : spec,
       vendor: vendorName,
-      unload_location: body.unload_location,
+      unload_location: normalizeUnloadLocation(body.unload_location),
       storage_location: body.storage_location ?? null,
       quantity: body.quantity ?? null,
       unit: body.unit ?? null,

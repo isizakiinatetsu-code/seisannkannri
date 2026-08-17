@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { normalizeName, normalizeUnloadLocation } from '@/lib/textNormalize';
 
 // スプレッドシートを「年ごとのタブ（2025 / 2026 ...）」に分けて読み書きする。
 // - 各年タブは固定の列レイアウト（CANONICAL_HEADERS）で統一する。
@@ -382,11 +383,11 @@ export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefine
 export function contentKeyOfSheetRow(r: string[]): string {
   const norm = (v: unknown) => String(v ?? '').trim();
   const date = normalizeDate(r[H.DATE]);
-  const project = norm(r[H.PROJECT]);
+  const project = normalizeName(norm(r[H.PROJECT]));
   const item = norm(r[H.ITEM]);
   const spec = norm(r[H.SPEC]);
-  const vendor = norm(r[H.VENDOR]) || '未設定';
-  const unload = norm(r[H.UNLOAD]) || '未設定';
+  const vendor = normalizeName(norm(r[H.VENDOR])) || '未設定';
+  const unload = normalizeUnloadLocation(norm(r[H.UNLOAD])) || '未設定';
   const time = norm(r[H.TIME]);
   return JSON.stringify([date, project, item, spec, vendor, unload, time]);
 }
@@ -432,11 +433,11 @@ function readLegacyRow(header: string[], r: string[]): { year: string; no: strin
     f: {
       delivery_date: dv,
       delivery_time: iTime >= 0 ? (String(r[iTime] ?? '').trim() || null) : null,
-      project_name: pj,
+      project_name: normalizeName(pj),
       item: it,
       specification: iSpec >= 0 ? (String(r[iSpec] ?? '').trim() || null) : null,
-      vendor: (iVendor >= 0 ? String(r[iVendor] ?? '').trim() : '') || '未設定',
-      unload_location: (iUnload >= 0 ? String(r[iUnload] ?? '').trim() : '') || '未設定',
+      vendor: normalizeName(iVendor >= 0 ? String(r[iVendor] ?? '').trim() : '') || '未設定',
+      unload_location: normalizeUnloadLocation(iUnload >= 0 ? String(r[iUnload] ?? '').trim() : '') || '未設定',
       notes: iNotes >= 0 ? (String(r[iNotes] ?? '').trim() || null) : null,
     },
   };
@@ -520,11 +521,11 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         const fields: SheetRowFields = {
           delivery_date: dv,
           delivery_time: String(r[H.TIME] ?? '').trim() || null,
-          project_name: pj,
+          project_name: normalizeName(pj),
           item: it,
           specification: String(r[H.SPEC] ?? '').trim() || null,
-          vendor: String(r[H.VENDOR] ?? '').trim() || '未設定',
-          unload_location: String(r[H.UNLOAD] ?? '').trim() || '未設定',
+          vendor: normalizeName(String(r[H.VENDOR] ?? '').trim()) || '未設定',
+          unload_location: normalizeUnloadLocation(String(r[H.UNLOAD] ?? '').trim()) || '未設定',
           notes: String(r[H.NOTES] ?? '').trim() || null,
         };
 
@@ -535,7 +536,7 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
         }
 
         candidates.push({
-          no, dateVal: dv, project: pj, item: it,
+          no, dateVal: dv, project: fields.project_name, item: it,
           specVal: fields.specification, vendorVal: fields.vendor, unloadVal: fields.unload_location,
           timeVal: fields.delivery_time, notesVal: fields.notes,
         });

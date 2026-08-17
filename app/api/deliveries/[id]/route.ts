@@ -3,7 +3,7 @@ import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
 import { pushDeliveryToSheetByNo, markSheetRowDeletedByNo, setSheetRowDeliveredByNo } from '@/lib/gsheetsWrite';
-import { normalizeName } from '@/lib/textNormalize';
+import { normalizeName, normalizeUnloadLocation } from '@/lib/textNormalize';
 
 export async function GET(
   _req: NextRequest,
@@ -45,6 +45,7 @@ export async function PATCH(
     // 物件名・業者名は半角/全角・空白差を吸収して保存（表記ゆれで別物件に割れないように）
     if (typeof fields.project_name === 'string') fields.project_name = normalizeName(fields.project_name);
     if (typeof fields.vendor === 'string') fields.vendor = normalizeName(fields.vendor);
+    if (typeof fields.unload_location === 'string') fields.unload_location = normalizeUnloadLocation(fields.unload_location);
 
     if (Object.keys(fields).length === 0) {
       const { data: existing, error: existingError } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
