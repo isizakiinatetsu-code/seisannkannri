@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { ITEM_CATEGORIES, UNLOADER_NAMES } from '@/lib/constants';
+import { normalizeUnloadLocation } from '@/lib/textNormalize';
 
 const TIME_OPTIONS = [
   '午前中', '午後', '9:00', '10:00', '11:00', '12:00',
@@ -38,7 +39,7 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
     specification: initial?.specification ?? '',
     vendor: initial?.vendor ?? '',
     is_postal: (initial?.notes?.startsWith('[配送]') || initial?.notes?.startsWith('[郵送]')) ?? false,
-    unload_location: initial?.unload_location ?? '',
+    unload_location: normalizeUnloadLocation(initial?.unload_location) || '',
     storage_location: initial?.storage_location ?? '',
     quantity: initial?.quantity?.toString() ?? '',
     unit: initial?.unit ?? '',
@@ -156,6 +157,10 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
               {unloadLocations.map(l => (
                 <option key={l} value={l}>{l}</option>
               ))}
+              {/* 旧表記など一覧に無い現在値も選択状態を保てるように表示 */}
+              {form.unload_location && form.unload_location !== 'その他' && !unloadLocations.includes(form.unload_location) && (
+                <option value={form.unload_location}>{form.unload_location}</option>
+              )}
               <option value="その他">その他</option>
             </select>
           </FormRow>
