@@ -33,3 +33,16 @@ export function normalizeUnloadLocation(value: string | null | undefined): strin
   }
   return t; // 判別できない場合は元の（正規化した）文字列を返す
 }
+
+// 荷下ろし場所の「決められた並び順」の順位を返す（事務所→第一南→…→未定）。
+// システム内で場所を並べるときは localeCompare ではなくこの順位を使う。
+// 循環参照を避けるためリストはここに直接持つ（lib/constants の UNLOAD_LOCATIONS と一致させること）。
+const UNLOAD_LOCATION_ORDER: readonly string[] = [
+  '事務所', '第一南', '第二北', '第二南', '第三', '第四',
+  '第一ヤード', '第二ヤード', '第三ヤード', '第四ヤード', '第五ヤード', '第六ヤード', '未定',
+];
+export function unloadLocationRank(value: string | null | undefined): number {
+  const n = normalizeUnloadLocation(value);
+  const i = UNLOAD_LOCATION_ORDER.indexOf(n);
+  return i >= 0 ? i : UNLOAD_LOCATION_ORDER.length; // 一覧に無いものは末尾
+}
