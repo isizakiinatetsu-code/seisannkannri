@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react';
 import { Delivery } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
+import { unloadLocationRank } from '@/lib/textNormalize';
 
 type CalViewMode = '月' | '週' | '日';
 
@@ -391,7 +392,7 @@ function DayView({ current, deliveries, onSelectDelivery, canEdit = false }: {
       case 'item': return a.item.localeCompare(b.item, 'ja') || byProjectItem || a.id - b.id;
       case 'vendor': return s(a.vendor).localeCompare(s(b.vendor), 'ja') || byProjectItem || a.id - b.id;
       case 'unloader': return s(a.unloaded_by).localeCompare(s(b.unloaded_by), 'ja') || byProjectItem || a.id - b.id;
-      case 'unload': return s(a.unload_location).localeCompare(s(b.unload_location), 'ja') || byProjectItem || a.id - b.id;
+      case 'unload': return (unloadLocationRank(a.unload_location) - unloadLocationRank(b.unload_location)) || byProjectItem || a.id - b.id;
       case 'time': return s(a.delivery_time).localeCompare(s(b.delivery_time)) || byProjectItem || a.id - b.id;
       case 'status': return (a.status === '納入済み' ? 1 : 0) - (b.status === '納入済み' ? 1 : 0) || byProjectItem || a.id - b.id;
       default: return byProjectItem || a.id - b.id;
