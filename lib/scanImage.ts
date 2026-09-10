@@ -152,12 +152,34 @@ function enhanceColor(canvas: HTMLCanvasElement): void {
   ctx.putImageData(imageData, 0, 0);
 }
 
+// アップロード時の圧縮設定。伝票の文字が読める範囲で軽量化し、Storage容量の増加を抑える。
+const MAX_EDGE = 1800;      // 長辺の上限(px)。これより大きい画像は縮小する。
+const JPEG_QUALITY = 0.82;  // JPEG画質（文字が読める品質を優先）
+
+// 長辺が MAX_EDGE を超える場合だけ縮小したcanvasを返す（それ以外は元のcanvas）。
+function downscaleCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const longEdge = Math.max(canvas.width, canvas.height);
+  if (longEdge <= MAX_EDGE) return canvas;
+  const scale = MAX_EDGE / longEdge;
+  const out = document.createElement('canvas');
+  out.width = Math.round(canvas.width * scale);
+  out.height = Math.round(canvas.height * scale);
+  const ctx = out.getContext('2d');
+  if (!ctx) return canvas;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, out.width, out.height);
+  return out;
+}
+
 function canvasToFile(canvas: HTMLCanvasElement, name: string, fallback: File): Promise<File> {
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
+    const target = downscaleCanvas(canvas);
+    // 拡張子を .jpg に揃える（JPEGで保存するため）
+    const jpgName = name.replace(/\.[^.]+$/, '') + '.jpg';
+    target.toBlob((blob) => {
       if (!blob) { resolve(fallback); return; }
-      resolve(new File([blob], name, { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.92);
+      resolve(new File([blob], jpgName, { type: 'image/jpeg' }));
+    }, 'image/jpeg', JPEG_QUALITY);
   });
 }
 
