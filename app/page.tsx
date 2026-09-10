@@ -487,6 +487,13 @@ export default function HomePage() {
               </span>
             )}
           </button>
+          <a
+            href="/progress"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+          >
+            <span>📋</span>
+            <span>物件別 進捗</span>
+          </a>
           {canEdit && (
             <button
               onClick={handleGsSync}
