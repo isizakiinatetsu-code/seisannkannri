@@ -165,6 +165,26 @@ export default function ProgressPage() {
                 <Tile n={rec.summary.na} l="対象外" c="var(--na)" />
                 <Tile n={rec.ready.date ? md(rec.ready.date) : '—'} l={rec.ready.allDelivered ? '最終納入（登録分）' : '揃う予定'} c="var(--navy)" />
               </div>
+              {rec.parts.length > 0 && (
+                <section className="parts">
+                  <div className="phead">部位別「流せる日」<span className="psub">全部そろうのを待たず、部位ごとに加工・組立へ流せる日</span></div>
+                  <div className="pgrid">
+                    {rec.parts.map(p => (
+                      <div className={`pcard ${p.status}`} key={p.part}>
+                        <div className="pname">{p.part}</div>
+                        <div className="pdate">{p.status === 'blocked' ? '未確定' : md(p.readyDate)}</div>
+                        <div className="pmsg">
+                          {p.status === 'ready' ? '✓ 揃い済み・流せます'
+                            : p.status === 'waiting' ? `この日から流せる（待ち ${p.ordered}）`
+                              : `⚠ 未発注 ${p.none} 件`}
+                        </div>
+                        <div className="pcnt">納入済 {p.done} / {p.total}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               <p className="note no-print">この物件で<b>使わない項目は「対象外」</b>にできます{canEdit ? '（各行の「対象外」ボタン）' : ''}。対象外を除いた<b>「未手配」＝発注忘れの候補</b>です。{!canEdit && '（対象外の設定は編集権限のみ）'}</p>
 
               {rec.sections.map(sec => (
@@ -282,6 +302,16 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;box-shadow:var(--shadow);}
 .tile .n{font-size:1.4rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;} .tile .tl{font-size:.72rem;color:var(--ink-2);margin-top:2px;}
 .note{font-size:.78rem;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 0 14px;} .note b{color:var(--ink);}
+.parts{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 14px;margin-bottom:12px;}
+.phead{font-size:.92rem;font-weight:800;margin-bottom:10px;} .psub{font-size:.73rem;font-weight:400;color:var(--ink-3);margin-left:8px;}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;}
+.pcard{border:1px solid var(--line);border-radius:11px;padding:10px 11px;background:var(--surface-2);}
+.pcard .pname{font-size:.8rem;font-weight:800;color:var(--ink-2);}
+.pcard .pdate{font-size:1.3rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;}
+.pcard .pmsg{font-size:.71rem;font-weight:700;margin-top:2px;} .pcard .pcnt{font-size:.7rem;color:var(--ink-3);margin-top:3px;}
+.pcard.ready{background:var(--good-bg);border-color:transparent;} .pcard.ready .pdate,.pcard.ready .pmsg,.pcard.ready .pname{color:var(--good);}
+.pcard.waiting{background:var(--warn-bg);border-color:transparent;} .pcard.waiting .pdate,.pcard.waiting .pmsg{color:var(--warn);}
+.pcard.blocked{background:#fbe9e6;border-color:transparent;} .pcard.blocked .pdate,.pcard.blocked .pmsg{color:var(--crit);}
 .sec{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}

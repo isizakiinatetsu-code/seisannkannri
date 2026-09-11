@@ -62,11 +62,37 @@ export interface DeliveryLite {
   id: number; item: string; specification: string | null; notes: string | null;
   vendor: string; delivery_date: string; status: string; unload_location?: string | null;
 }
-export interface ReconciledItem { key: string; label: string; status: ItemStatus; info: string }
+export interface ReconciledItem { key: string; label: string; status: ItemStatus; info: string; date: string | null }
+
+// 部位（柱／大梁／小梁…）の判定。部位ごとに「流せる日」を出すために使う。
+const PART_BY_GROUP: Record<string, string> = {
+  'コラム柱': '柱', 'H柱': '柱', '柱': '柱', '柱（PL）': '柱',
+  'ブラケット': 'ブラケット', '大梁': '大梁', '小梁': '小梁', '間柱': '間柱', 'ブレース': 'ブレース',
+};
+export const PART_ORDER = ['柱', 'ブラケット', '大梁', '小梁', '間柱', 'ブレース', '共通'];
+export function partOf(group: string, label: string): string {
+  const g = PART_BY_GROUP[group];
+  if (g) return g;
+  const t = `${group} ${label}`;
+  if (t.includes('間柱')) return '間柱';
+  if (t.includes('大梁')) return '大梁';
+  if (t.includes('小梁')) return '小梁';
+  if (t.includes('ブレース')) return 'ブレース';
+  if (t.includes('柱')) return '柱';        // 「柱ブラケット付き」は柱側に寄せる
+  if (t.includes('ブラケット')) return 'ブラケット';
+  return '共通';
+}
+
+// 部位ごとの状況。status: ready=揃い済み / waiting=納入待ち / blocked=未発注あり(日付未確定)
+export interface PartSummary {
+  part: string; done: number; ordered: number; none: number; total: number;
+  readyDate: string | null; status: 'ready' | 'waiting' | 'blocked';
+}
 export interface ReconciledGroup { group: string; items: ReconciledItem[] }
 export interface ReconciledSection { section: string; groups: ReconciledGroup[]; done: number; ordered: number; none: number; na: number }
 export interface Reconciled {
   sections: ReconciledSection[];
+  parts: PartSummary[];
   summary: { done: number; ordered: number; none: number; na: number; total: number; matchedDeliveries: number };
   ready: { date: string | null; pending: number; allDelivered: boolean };
   unmatched: { item: string; specification: string | null; vendor: string; delivery_date: string; status: string }[];
@@ -82,6 +108,8 @@ export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconci
   const rows = dels.map(d => ({ ...d, hay: `${d.item ?? ''} ${d.specification ?? ''} ${d.notes ?? ''}` }));
   const used = new Set<number>();
   const ex = excluded ?? new Set<string>();
+  // 部位ごとの集計用（done/ordered件数と、それぞれの最終日）
+  const partAcc = new Map<string, { done: number; ordered: number; none: number; doneMax: string; ordMax: string }>();
 
   const sections: ReconciledSection[] = CHECKLIST.map(sec => {
     let sDone = 0, sOrd = 0, sNone = 0, sNa = 0;
@@ -102,7 +130,19 @@ export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconci
         // 対象外は、一致が無い（未手配）項目にのみ適用する（発注/納入がある項目は実績を優先）
         if (status === 'none' && ex.has(key)) status = 'na';
         if (status === 'done') sDone++; else if (status === 'ordered') sOrd++; else if (status === 'na') sNa++; else sNone++;
-        return { key, label: it.label, status, info };
+        const date = matches.length
+          ? (matches.find(m => m.status === '納入済み') ?? matches.slice().sort((a, b) => a.delivery_date.localeCompare(b.delivery_date))[0]).delivery_date
+          : null;
+        // 部位ごとの集計（対象外は除外）
+        if (status !== 'na') {
+          const p = partOf(g.group, it.label);
+          const acc = partAcc.get(p) ?? { done: 0, ordered: 0, none: 0, doneMax: '', ordMax: '' };
+          if (status === 'done') { acc.done++; if (date && date > acc.doneMax) acc.doneMax = date; }
+          else if (status === 'ordered') { acc.ordered++; if (date && date > acc.ordMax) acc.ordMax = date; }
+          else acc.none++;
+          partAcc.set(p, acc);
+        }
+        return { key, label: it.label, status, info, date };
       }),
     }));
     return { section: sec.section, groups, done: sDone, ordered: sOrd, none: sNone, na: sNa };
@@ -126,8 +166,22 @@ export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconci
     item: r.item, specification: r.specification, vendor: r.vendor, delivery_date: r.delivery_date, status: r.status,
   }));
 
+  // 部位ごとの「流せる日」：未発注が残る部位は日付未確定(blocked)、
+  // 納入待ちがあれば最後の予定日(waiting)、全部届いていれば最終納入日(ready)。
+  const parts: PartSummary[] = PART_ORDER
+    .filter(p => partAcc.has(p))
+    .map(p => {
+      const a = partAcc.get(p)!;
+      const total = a.done + a.ordered + a.none;
+      const status: PartSummary['status'] = a.none > 0 ? 'blocked' : (a.ordered > 0 ? 'waiting' : 'ready');
+      const readyDate = status === 'waiting' ? (a.ordMax || null) : (status === 'ready' ? (a.doneMax || null) : null);
+      return { part: p, done: a.done, ordered: a.ordered, none: a.none, total, readyDate, status };
+    })
+    .filter(p => p.total > 0);
+
   return {
     sections,
+    parts,
     summary: { done, ordered, none, na, total: done + ordered + none + na, matchedDeliveries: used.size },
     ready: { date: readyDate, pending: pending.length, allDelivered },
     unmatched,
