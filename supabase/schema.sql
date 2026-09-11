@@ -78,3 +78,12 @@ create trigger trg_deliveries_updated_at
 
 -- service_role キー経由のみアクセスする運用のため RLS は無効のままにする
 -- （API は必ずサーバー側の Supabase service role 経由でのみ呼ばれる）
+
+-- 現寸チェック台帳：物件ごとに「対象外」にした項目を保存する（未手配＝発注忘れの精度を上げるため）。
+-- project_key は物件名を正規化した文字列、item_key は「セクション|分類|項目」。
+create table if not exists checklist_excluded (
+  project_key text not null,
+  item_key text not null,
+  updated_at timestamptz not null default now(),
+  primary key (project_key, item_key)
+);

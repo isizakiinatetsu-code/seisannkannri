@@ -46,7 +46,14 @@ export async function GET(req: NextRequest) {
     if (project) {
       const key = normalizeName(project);
       const mine = rows.filter(r => normalizeName(r.project_name) === key);
-      return NextResponse.json({ project, count: mine.length, reconciled: reconcile(mine) });
+      // 対象外に設定された項目を読み込む（テーブルが無い環境では空扱い）
+      let excluded = new Set<string>();
+      try {
+        const supabase = getSupabase();
+        const { data, error } = await supabase.from('checklist_excluded').select('item_key').eq('project_key', key);
+        if (!error && data) excluded = new Set(data.map((d: { item_key: string }) => d.item_key));
+      } catch { /* テーブル未作成などは無視 */ }
+      return NextResponse.json({ project, count: mine.length, reconciled: reconcile(mine, excluded) });
     }
 
     // 物件ごとにまとめて、組立工ビュー用のサマリ（揃う日・進捗）を返す。

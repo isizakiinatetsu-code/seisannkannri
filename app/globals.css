@@ -12,6 +12,18 @@
   box-sizing: border-box;
 }
 
+/* 印刷時は、カレンダー用の固定表示(position:fixed / overflow:hidden)を解除して全ページ出す。
+   これが無いと body{position:fixed} により1ページで切れてしまう。 */
+@media print {
+  html, body {
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    width: auto !important;
+  }
+}
+
 html {
   height: 100%;
   overflow: hidden;
