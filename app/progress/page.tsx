@@ -84,7 +84,7 @@ export default function ProgressPage() {
       </header>
 
       <div className="persp no-print">
-        <button aria-pressed={view === 'k'} onClick={() => setView('k')}><span className="t">🔧 組立工ビュー</span><span className="d">いつ全部揃う＝組立できる日</span></button>
+        <button aria-pressed={view === 'k'} onClick={() => setView('k')}><span className="t">🔧 組立工ビュー</span><span className="d">登録済みの納入予定の進捗（未手配は要確認）</span></button>
         <button aria-pressed={view === 'g'} onClick={() => setView('g')}><span className="t">📐 原寸班ビュー</span><span className="d">発注・納入の反映状況を物件別に</span></button>
       </div>
 
@@ -97,25 +97,26 @@ export default function ProgressPage() {
             <button className="tbtn" onClick={() => setPicker(true)}>表示する物件を選ぶ（{visible.length}/{board.length}）</button>
             <button className="tbtn" onClick={exportBoardCSV}>📥 CSV</button>
             <button className="tbtn" onClick={() => window.print()}>🖨 PDF / 印刷</button>
-            <span className="hint">{chosenSet ? '選択した物件のみ表示中' : '完了した物件は自動で非表示'}</span>
+            <span className="hint">{chosenSet ? '選択した物件のみ表示中' : '登録分が全て納入済みの物件は自動で非表示'}</span>
           </div>
+          <p className="warn no-print">⚠ 「納入済み」は<b>システムに登録済みの納入予定</b>に対する進捗です。<b>未手配（未発注）の項目は含みません</b>。加工を始めてよいかは、原寸班ビューで<b>未手配</b>が残っていないかを必ず確認してください。</p>
           <div className="kgrid">
             {visible.length === 0 && <p className="muted">表示する物件がありません。「表示する物件を選ぶ」から選んでください。</p>}
             {visible.map(b => {
-              const cls = b.allDelivered ? 'g' : (b.done === 0 ? 'i' : 'w');
+              const cls = b.allDelivered ? 'b' : (b.done === 0 ? 'i' : 'w');
               const rate = b.total ? Math.round(b.done / b.total * 100) : 0;
               return (
-                <button key={b.name} className={`kcard ${b.allDelivered ? 'ready' : ''}`} onClick={() => { setSel(b.name); setView('g'); }}>
+                <button key={b.name} className="kcard" onClick={() => { setSel(b.name); setView('g'); }}>
                   <div className={`kdate ${cls}`}>
                     <div className="d2">{md(b.readyDate)}</div>
-                    <div className="m2">{b.allDelivered ? '納入完了' : '揃う予定'}</div>
+                    <div className="m2">{b.allDelivered ? '最終納入' : '揃う予定'}</div>
                   </div>
                   <div className="kbody">
                     <div className="p">{b.name}</div>
-                    <div className="s">納入済み <b>{b.done}</b> / {b.total} 件{b.pending ? `（未着 ${b.pending}）` : ''}</div>
-                    <div className="bar"><span style={{ width: `${rate}%` }} className={b.allDelivered ? 'fg' : 'fw'} /></div>
-                    <span className={`tag ${b.allDelivered ? 'tg-g' : (b.done === 0 ? 'tg-i' : 'tg-w')}`}>
-                      {b.allDelivered ? '● 全て納入済み' : (b.done === 0 ? '○ 未着' : `◐ あと ${b.pending} 件`)}
+                    <div className="s">登録分 納入済み <b>{b.done}</b> / {b.total} 件{b.pending ? `（未着 ${b.pending}）` : ''}</div>
+                    <div className="bar"><span style={{ width: `${rate}%` }} className={b.allDelivered ? 'fb' : 'fw'} /></div>
+                    <span className={`tag ${b.allDelivered ? 'tg-b' : (b.done === 0 ? 'tg-i' : 'tg-w')}`}>
+                      {b.allDelivered ? '登録分は納入済み（未手配は要確認）' : (b.done === 0 ? '○ 未着' : `◐ あと ${b.pending} 件`)}
                     </span>
                   </div>
                 </button>
@@ -144,7 +145,7 @@ export default function ProgressPage() {
                 <Tile n={rec.summary.done} l="納入済み" c="var(--good)" />
                 <Tile n={rec.summary.ordered} l="発注済み（予定）" c="var(--warn)" />
                 <Tile n={rec.summary.none} l="未手配" c="var(--na)" />
-                <Tile n={rec.ready.date ? md(rec.ready.date) : '—'} l={rec.ready.allDelivered ? '揃いました' : '揃う予定'} c="var(--navy)" />
+                <Tile n={rec.ready.date ? md(rec.ready.date) : '—'} l={rec.ready.allDelivered ? '最終納入（登録分）' : '揃う予定'} c="var(--navy)" />
               </div>
               <p className="note no-print">「未手配」＝この物件の納入データに一致が無い項目です。<b>本当に発注忘れか、対象外か</b>の区別（手動での消し込み）は次フェーズで対応します。</p>
 
@@ -247,11 +248,13 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .kdate{flex-shrink:0;width:86px;text-align:center;border-radius:12px;padding:9px 6px;background:var(--surface-2);border:1px solid var(--line);}
 .kdate .d2{font-size:1.35rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;} .kdate .m2{font-size:.68rem;color:var(--ink-2);margin-top:3px;}
 .kdate.g{background:var(--good-bg);border-color:transparent;} .kdate.g .d2,.kdate.g .m2{color:var(--good);}
+.kdate.b{background:#e7edfb;border-color:transparent;} .kdate.b .d2,.kdate.b .m2{color:var(--navy);}
 .kdate.i{background:var(--na-bg);border-color:transparent;} .kdate.i .d2,.kdate.i .m2{color:var(--ink-3);}
+.warn{font-size:.8rem;color:var(--warn);background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);border-radius:10px;padding:10px 13px;margin:0 0 12px;line-height:1.7;} .warn b{color:var(--ink);}
 .kbody{min-width:0;} .kbody .p{font-size:1rem;font-weight:800;} .kbody .s{font-size:.79rem;color:var(--ink-2);margin-top:3px;}
-.bar{height:7px;border-radius:999px;background:var(--na-bg);overflow:hidden;margin-top:8px;} .bar span{display:block;height:100%;border-radius:999px;} .fg{background:var(--good);} .fw{background:linear-gradient(90deg,var(--good),var(--warn));}
+.bar{height:7px;border-radius:999px;background:var(--na-bg);overflow:hidden;margin-top:8px;} .bar span{display:block;height:100%;border-radius:999px;} .fg{background:var(--good);} .fw{background:linear-gradient(90deg,var(--good),var(--warn));} .fb{background:var(--navy);}
 .tag{display:inline-block;font-size:.72rem;font-weight:800;padding:3px 9px;border-radius:999px;margin-top:8px;}
-.tg-g{color:var(--good);background:var(--good-bg);} .tg-w{color:var(--warn);background:var(--warn-bg);} .tg-i{color:var(--ink-2);background:var(--na-bg);}
+.tg-g{color:var(--good);background:var(--good-bg);} .tg-w{color:var(--warn);background:var(--warn-bg);} .tg-i{color:var(--ink-2);background:var(--na-bg);} .tg-b{color:var(--navy);background:#e7edfb;}
 .lb{font-size:.72rem;color:var(--ink-2);font-weight:700;}
 #prjsel{font:inherit;font-size:.95rem;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow);max-width:100%;}
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;}
@@ -283,8 +286,13 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .mname{flex:1;} .mtag{font-size:.72rem;font-weight:700;color:var(--warn);background:var(--warn-bg);padding:2px 8px;border-radius:999px;} .mtag.done{color:var(--good);background:var(--good-bg);}
 .save{margin-top:12px;width:100%;border:0;background:var(--navy);color:#fff;font:inherit;font-weight:800;padding:11px;border-radius:11px;cursor:pointer;}
 @media print{
+  /* グローバルの html,body{height:100%;overflow:hidden} を印刷時だけ解除し、全ページ出す */
+  html,body{height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important;}
   .no-print{display:none!important;} .print-only{display:block;}
-  .pg{height:auto;overflow:visible;background:#fff;padding:0;}
-  .sec,.tile,.kcard{box-shadow:none;} .printtitle{font-size:1.1rem;font-weight:800;margin:0 0 10px;}
+  .pg{height:auto!important;max-height:none!important;overflow:visible!important;background:#fff;padding:0;}
+  .pg>*{max-width:none;}
+  .sec,.tile,.kcard{box-shadow:none;break-inside:avoid;}
+  .it,.grp{break-inside:avoid;}
+  .printtitle{font-size:1.1rem;font-weight:800;margin:0 0 10px;}
 }
 `;
