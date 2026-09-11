@@ -56,34 +56,39 @@ export const CHECKLIST: ChkSection[] = [
   ]},
 ];
 
-export type ItemStatus = 'done' | 'ordered' | 'none'; // 納入済み / 発注済み(予定あり) / 未手配
+export type ItemStatus = 'done' | 'ordered' | 'none' | 'na'; // 納入済み / 発注済み(予定あり) / 未手配 / 対象外
 
 export interface DeliveryLite {
   id: number; item: string; specification: string | null; notes: string | null;
   vendor: string; delivery_date: string; status: string; unload_location?: string | null;
 }
-export interface ReconciledItem { label: string; status: ItemStatus; info: string }
+export interface ReconciledItem { key: string; label: string; status: ItemStatus; info: string }
 export interface ReconciledGroup { group: string; items: ReconciledItem[] }
-export interface ReconciledSection { section: string; groups: ReconciledGroup[]; done: number; ordered: number; none: number }
+export interface ReconciledSection { section: string; groups: ReconciledGroup[]; done: number; ordered: number; none: number; na: number }
 export interface Reconciled {
   sections: ReconciledSection[];
-  summary: { done: number; ordered: number; none: number; total: number; matchedDeliveries: number };
+  summary: { done: number; ordered: number; none: number; na: number; total: number; matchedDeliveries: number };
   ready: { date: string | null; pending: number; allDelivered: boolean };
   unmatched: { item: string; specification: string | null; vendor: string; delivery_date: string; status: string }[];
 }
 
+// 項目を一意に識別するキー（対象外設定の保存に使う）
+export const itemKey = (section: string, group: string, label: string) => `${section}|${group}|${label}`;
+
 const jpDate = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${Number(m[2])}/${Number(m[3])}` : d; };
 
-// 納入データ配列を現寸チェックテンプレートに反映する。
-export function reconcile(dels: DeliveryLite[]): Reconciled {
+// 納入データ配列を現寸チェックテンプレートに反映する。excluded=対象外にした項目キーの集合。
+export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconciled {
   const rows = dels.map(d => ({ ...d, hay: `${d.item ?? ''} ${d.specification ?? ''} ${d.notes ?? ''}` }));
   const used = new Set<number>();
+  const ex = excluded ?? new Set<string>();
 
   const sections: ReconciledSection[] = CHECKLIST.map(sec => {
-    let sDone = 0, sOrd = 0, sNone = 0;
+    let sDone = 0, sOrd = 0, sNone = 0, sNa = 0;
     const groups: ReconciledGroup[] = sec.groups.map(g => ({
       group: g.group,
       items: g.items.map(it => {
+        const key = itemKey(sec.section, g.group, it.label);
         const kws = it.kw && it.kw.length ? it.kw : [];
         const matches = kws.length ? rows.filter(r => kws.some(k => r.hay.includes(k))) : [];
         let status: ItemStatus = 'none'; let info = '';
@@ -94,16 +99,19 @@ export function reconcile(dels: DeliveryLite[]): Reconciled {
           info = done ? `${chosen.vendor}・${jpDate(chosen.delivery_date)} 納入` : `${chosen.vendor}・予定 ${jpDate(chosen.delivery_date)}`;
           matches.forEach(m => used.add(m.id));
         }
-        if (status === 'done') sDone++; else if (status === 'ordered') sOrd++; else sNone++;
-        return { label: it.label, status, info };
+        // 対象外は、一致が無い（未手配）項目にのみ適用する（発注/納入がある項目は実績を優先）
+        if (status === 'none' && ex.has(key)) status = 'na';
+        if (status === 'done') sDone++; else if (status === 'ordered') sOrd++; else if (status === 'na') sNa++; else sNone++;
+        return { key, label: it.label, status, info };
       }),
     }));
-    return { section: sec.section, groups, done: sDone, ordered: sOrd, none: sNone };
+    return { section: sec.section, groups, done: sDone, ordered: sOrd, none: sNone, na: sNa };
   });
 
   const done = sections.reduce((s, x) => s + x.done, 0);
   const ordered = sections.reduce((s, x) => s + x.ordered, 0);
   const none = sections.reduce((s, x) => s + x.none, 0);
+  const na = sections.reduce((s, x) => s + x.na, 0);
 
   // 揃う日：未納入(予定)の中で最も遅い納入予定日。全部納入済みなら最後の納入日。
   const pending = rows.filter(r => r.status !== '納入済み');
@@ -120,7 +128,7 @@ export function reconcile(dels: DeliveryLite[]): Reconciled {
 
   return {
     sections,
-    summary: { done, ordered, none, total: done + ordered + none, matchedDeliveries: used.size },
+    summary: { done, ordered, none, na, total: done + ordered + none + na, matchedDeliveries: used.size },
     ready: { date: readyDate, pending: pending.length, allDelivered },
     unmatched,
   };

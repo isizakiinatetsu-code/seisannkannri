@@ -27,6 +27,10 @@ export default function ProgressPage() {
   const [err, setErr] = useState('');
   const [chosen, setChosen] = useState<string[] | null>(null); // 表示対象の物件（null=未設定）
   const [picker, setPicker] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const [exBusy, setExBusy] = useState(false);
+
+  useEffect(() => { fetch('/api/auth/me').then(r => r.json()).then(d => setCanEdit(d.role === 'edit')).catch(() => {}); }, []);
 
   useEffect(() => {
     try { const s = localStorage.getItem(LS_KEY); if (s) setChosen(JSON.parse(s)); } catch { /* noop */ }
@@ -45,6 +49,19 @@ export default function ProgressPage() {
       .catch(() => setRec(null)).finally(() => setLoadingRec(false));
   }, []);
   useEffect(() => { if (view === 'g' && sel) loadRec(sel); }, [view, sel, loadRec]);
+
+  async function toggleEx(key: string, excluded: boolean) {
+    if (!sel || exBusy) return;
+    setExBusy(true);
+    try {
+      const res = await fetch('/api/checklist/exclude', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: sel, itemKey: key, excluded }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error ?? '更新に失敗しました'); return; }
+      loadRec(sel);
+    } finally { setExBusy(false); }
+  }
 
   // 表示する物件：選択済みならそれ、未設定なら「完了していない物件」だけ（＝終わった物件は隠す）
   const chosenSet = useMemo(() => (chosen ? new Set(chosen) : null), [chosen]);
@@ -141,13 +158,14 @@ export default function ProgressPage() {
           {loadingRec && <p className="muted">読み込み中…</p>}
           {rec && !loadingRec && (
             <>
-              <div className="tiles">
+              <div className="tiles t5">
                 <Tile n={rec.summary.done} l="納入済み" c="var(--good)" />
                 <Tile n={rec.summary.ordered} l="発注済み（予定）" c="var(--warn)" />
-                <Tile n={rec.summary.none} l="未手配" c="var(--na)" />
+                <Tile n={rec.summary.none} l="未手配（発注忘れ候補）" c="var(--crit)" />
+                <Tile n={rec.summary.na} l="対象外" c="var(--na)" />
                 <Tile n={rec.ready.date ? md(rec.ready.date) : '—'} l={rec.ready.allDelivered ? '最終納入（登録分）' : '揃う予定'} c="var(--navy)" />
               </div>
-              <p className="note no-print">「未手配」＝この物件の納入データに一致が無い項目です。<b>本当に発注忘れか、対象外か</b>の区別（手動での消し込み）は次フェーズで対応します。</p>
+              <p className="note no-print">この物件で<b>使わない項目は「対象外」</b>にできます{canEdit ? '（各行の「対象外」ボタン）' : ''}。対象外を除いた<b>「未手配」＝発注忘れの候補</b>です。{!canEdit && '（対象外の設定は編集権限のみ）'}</p>
 
               {rec.sections.map(sec => (
                 <section className="sec" key={sec.section}>
@@ -155,14 +173,16 @@ export default function ProgressPage() {
                   {sec.groups.map(g => (
                     <div key={g.group}>
                       <div className="grp">▸ {g.group}</div>
-                      {g.items.map((it, i) => (
-                        <div className={`it ${it.status}`} key={i}>
+                      {g.items.map((it) => (
+                        <div className={`it ${it.status}`} key={it.key}>
                           <span className={`box ${it.status}`}>{it.status === 'done' ? '✓' : it.status === 'ordered' ? '▲' : ''}</span>
                           <span className="labi">{it.label}</span>
                           <span className={`st ${it.status}`}>
-                            {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
+                            {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : it.status === 'na' ? '対象外' : '未手配'}
                             {it.info && <span className="sub">{it.info}</span>}
                           </span>
+                          {canEdit && it.status === 'none' && <button className="exbtn no-print" disabled={exBusy} onClick={() => toggleEx(it.key, true)}>対象外</button>}
+                          {canEdit && it.status === 'na' && <button className="exbtn undo no-print" disabled={exBusy} onClick={() => toggleEx(it.key, false)}>戻す</button>}
                         </div>
                       ))}
                     </div>
@@ -266,12 +286,14 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
+.it{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
 .box{width:19px;height:19px;border-radius:5px;border:2px solid var(--na);display:grid;place-items:center;font-size:11px;font-weight:800;}
-.box.done{background:var(--good);border-color:var(--good);color:#fff;} .box.ordered{border-color:var(--warn);color:var(--warn);} .box.n,.box.none{border-color:var(--line);background:var(--na-bg);}
+.box.done{background:var(--good);border-color:var(--good);color:#fff;} .box.ordered{border-color:var(--warn);color:var(--warn);} .box.n,.box.none,.box.na{border-color:var(--line);background:var(--na-bg);}
 .labi{font-size:.88rem;font-weight:500;} .labi small{display:block;font-size:.72rem;color:var(--ink-3);}
 .st{font-size:.76rem;font-weight:800;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;} .st .sub{display:block;font-size:.7rem;font-weight:400;color:var(--ink-3);}
-.st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--na);} .it.none .labi{color:var(--ink-3);}
+.st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .st.na{color:var(--na);} .it.none .labi{color:var(--ink);} .it.na .labi{color:var(--na);text-decoration:line-through;text-decoration-thickness:1px;}
+.exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--na);background:var(--na-bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn.undo{color:var(--navy);background:#e7edfb;} .exbtn:disabled{opacity:.5;}
+.tiles.t5{grid-template-columns:repeat(5,1fr);} @media(max-width:720px){.tiles.t5{grid-template-columns:repeat(2,1fr);}}
 .print-only{display:none;}
 /* モーダル */
 .modal{position:fixed;inset:0;background:rgba(10,18,32,.5);display:flex;align-items:flex-end;justify-content:center;z-index:50;}
