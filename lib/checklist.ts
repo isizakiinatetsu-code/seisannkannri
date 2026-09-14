@@ -101,7 +101,13 @@ export interface Reconciled {
 // 項目を一意に識別するキー（対象外設定の保存に使う）
 export const itemKey = (section: string, group: string, label: string) => `${section}|${group}|${label}`;
 
-const jpDate = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${Number(m[2])}/${Number(m[3])}` : d; };
+const WD = ['日', '月', '火', '水', '木', '金', '土'];
+const jpDate = (d: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${Number(m[2])}/${Number(m[3])}(${WD[dt.getDay()]})`;
+};
 
 // 納入データ配列を現寸チェックテンプレートに反映する。excluded=対象外にした項目キーの集合。
 export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconciled {

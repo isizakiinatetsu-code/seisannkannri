@@ -6,6 +6,8 @@ import type { Reconciled } from '@/lib/checklist';
 interface BoardItem { name: string; total: number; done: number; pending: number; allDelivered: boolean; readyDate: string }
 
 const md = (d: string | null) => { if (!d) return '—'; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${Number(m[2])}/${Number(m[3])}` : d; };
+const WD = ['日', '月', '火', '水', '木', '金', '土'];
+const mdw = (d: string | null) => { if (!d) return '—'; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); if (!m) return d; const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])); return `${Number(m[2])}/${Number(m[3])}(${WD[dt.getDay()]})`; };
 const LS_KEY = 'progress_selected_projects';
 
 function downloadCSV(filename: string, rows: (string | number)[][]) {
@@ -210,7 +212,7 @@ export default function ProgressPage() {
                       <span className="cel">状態</span>
                       <span className="cel">項目</span>
                       <span className="cel">業者・納入日</span>
-                      <span className="cel chkcell">対象<small>外すと除外</small></span>
+                      <span className="cel chkcell">発注対象<small>外すと除外</small></span>
                     </div>
                     {groups.map(g => (
                       <div key={g.group}>
@@ -263,7 +265,7 @@ export default function ProgressPage() {
                     <div className="it" key={i}>
                       <span className={`cel st ${u.status === '納入済み' ? 'done' : 'ordered'}`}>{u.status === '納入済み' ? '✓ 納入' : '予定'}</span>
                       <span className="cel labi">{u.item}<small>{u.specification ?? ''}</small></span>
-                      <span className="cel info2">{u.vendor}・{md(u.delivery_date)}</span>
+                      <span className="cel info2">{u.vendor}・{mdw(u.delivery_date)}</span>
                       <span className="cel chkcell" />
                     </div>
                   ))}
@@ -363,7 +365,7 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it,.ithead{display:grid;grid-template-columns:110px minmax(96px,1.1fr) 1.5fr 74px;align-items:stretch;border-top:1px solid var(--line);}
+.it,.ithead{display:grid;grid-template-columns:110px minmax(96px,1.1fr) 1.5fr 88px;align-items:stretch;border-top:1px solid var(--line);}
 .ithead{background:var(--surface-2);font-size:.72rem;font-weight:700;color:var(--ink-2);}
 .cel{padding:8px 12px;border-left:1px solid var(--line);display:flex;align-items:center;min-width:0;}
 .cel:first-child{border-left:0;}
