@@ -211,14 +211,14 @@ export default function ProgressPage() {
                         <div className="grp">▸ {g.group}</div>
                         {g.items.map((it) => (
                           <div className={`it ${it.status}`} key={it.key}>
+                            <span className={`st ${it.status}`}>
+                              {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
+                            </span>
+                            <span className="labi">{it.label}</span>
+                            <span className="info2">{it.info}</span>
                             <input type="checkbox" className="chk" checked readOnly={!canEdit} disabled={exBusy || !canEdit}
                               title={canEdit ? 'チェックを外すと対象外（一覧から除外）' : '対象'} aria-label="対象"
                               onChange={() => { if (canEdit) toggleEx(it.key, true); }} />
-                            <span className="labi">{it.label}</span>
-                            <span className={`st ${it.status}`}>
-                              {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
-                              {it.info && <span className="sub">{it.info}</span>}
-                            </span>
                           </div>
                         ))}
                       </div>
@@ -253,9 +253,10 @@ export default function ProgressPage() {
                   <h2>未分類（テンプレ外の納入）<span className="c">{rec.unmatched.length} 件</span></h2>
                   {rec.unmatched.map((u, i) => (
                     <div className="it" key={i}>
-                      <span className="box n" />
+                      <span className={`st ${u.status === '納入済み' ? 'done' : 'ordered'}`}>{u.status === '納入済み' ? '✓ 納入' : '予定'}</span>
                       <span className="labi">{u.item}<small>{u.specification ?? ''}</small></span>
-                      <span className="st">{u.status === '納入済み' ? '✓ 納入' : '予定'} {md(u.delivery_date)}<span className="sub">{u.vendor}</span></span>
+                      <span className="info2">{u.vendor}・{md(u.delivery_date)}</span>
+                      <span />
                     </div>
                   ))}
                 </section>
@@ -354,13 +355,16 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
-.chk{width:19px;height:19px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
-.box{width:19px;height:19px;border-radius:5px;border:2px solid var(--na);display:grid;place-items:center;font-size:11px;font-weight:800;}
-.box.done{background:var(--good);border-color:var(--good);color:#fff;} .box.ordered{border-color:var(--warn);color:var(--warn);} .box.n,.box.none,.box.na{border-color:var(--line);background:var(--na-bg);}
-.labi{font-size:.88rem;font-weight:500;} .labi small{display:block;font-size:.72rem;color:var(--ink-3);}
-.st{font-size:.76rem;font-weight:800;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;} .st .sub{display:block;font-size:.7rem;font-weight:400;color:var(--ink-3);}
+.it{display:grid;grid-template-columns:96px minmax(96px,auto) 1fr 22px;gap:10px;align-items:center;padding:8px 16px;border-top:1px solid var(--line);grid-template-areas:"st label info chk";}
+.chk{grid-area:chk;justify-self:end;width:20px;height:20px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
+.labi{grid-area:label;font-size:.9rem;font-weight:600;} .labi small{display:block;font-size:.72rem;font-weight:400;color:var(--ink-3);}
+.info2{grid-area:info;font-size:.9rem;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums;}
+.st{grid-area:st;font-size:.8rem;font-weight:800;white-space:nowrap;text-align:left;font-variant-numeric:tabular-nums;}
 .st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .it.none .labi{color:var(--ink);}
+@media(max-width:640px){
+  .it{grid-template-columns:auto 1fr 22px;grid-template-areas:"st label chk" "st info info";row-gap:2px;}
+  .st{align-self:start;} .info2{font-size:.82rem;}
+}
 .exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn:hover{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 35%,var(--line));} .exbtn.undo{color:var(--navy);background:#e7edfb;border-color:transparent;} .exbtn.undo:hover{color:var(--navy);} .exbtn:disabled{opacity:.5;}
 .nabox{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
 .nahead{width:100%;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font:inherit;font-size:.82rem;font-weight:800;color:var(--ink-2);background:var(--surface-2);border:0;padding:10px 16px;cursor:pointer;text-align:left;}
