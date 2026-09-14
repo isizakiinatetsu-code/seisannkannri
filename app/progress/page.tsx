@@ -371,7 +371,7 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .cel:first-child{border-left:0;}
 .chkcell{justify-content:center;flex-direction:column;gap:1px;text-align:center;}
 .ithead .chkcell small{font-size:.62rem;font-weight:400;color:var(--ink-3);}
-.chk{width:20px;height:20px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
+.chk{width:16px;height:16px;flex-shrink:0;accent-color:var(--na);opacity:.75;cursor:pointer;} .chk:hover{opacity:1;} .chk:disabled{cursor:default;opacity:.5;}
 .labi{font-size:.9rem;font-weight:600;min-width:0;} .labi small{font-size:.72rem;font-weight:400;color:var(--ink-3);margin-left:6px;}
 .info2{font-size:.9rem;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;}
 .st{font-size:.8rem;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
