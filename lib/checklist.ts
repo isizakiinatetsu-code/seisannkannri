@@ -62,7 +62,7 @@ export interface DeliveryLite {
   id: number; item: string; specification: string | null; notes: string | null;
   vendor: string; delivery_date: string; status: string; unload_location?: string | null;
 }
-export interface ReconciledItem { key: string; label: string; status: ItemStatus; info: string; date: string | null }
+export interface ReconciledItem { key: string; label: string; status: ItemStatus; info: string; vendor: string; dateLabel: string; date: string | null }
 
 // 部位（柱／大梁／小梁…）の判定。部位ごとに「流せる日」を出すために使う。
 const PART_BY_GROUP: Record<string, string> = {
@@ -125,12 +125,14 @@ export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconci
         const key = itemKey(sec.section, g.group, it.label);
         const kws = it.kw && it.kw.length ? it.kw : [];
         const matches = kws.length ? rows.filter(r => kws.some(k => r.hay.includes(k))) : [];
-        let status: ItemStatus = 'none'; let info = '';
+        let status: ItemStatus = 'none'; let info = ''; let vendor = ''; let dateLabel = '';
         if (matches.length) {
           const done = matches.find(m => m.status === '納入済み');
           const chosen = done ?? matches.slice().sort((a, b) => a.delivery_date.localeCompare(b.delivery_date))[0];
           status = done ? 'done' : 'ordered';
-          info = done ? `${chosen.vendor}・${jpDate(chosen.delivery_date)} 納入` : `${chosen.vendor}・予定 ${jpDate(chosen.delivery_date)}`;
+          vendor = chosen.vendor ?? '';
+          dateLabel = done ? `${jpDate(chosen.delivery_date)} 納入` : `予定 ${jpDate(chosen.delivery_date)}`;
+          info = `${vendor}・${dateLabel}`;
           matches.forEach(m => used.add(m.id));
         }
         // 対象外は、一致が無い（未手配）項目にのみ適用する（発注/納入がある項目は実績を優先）
@@ -148,7 +150,7 @@ export function reconcile(dels: DeliveryLite[], excluded?: Set<string>): Reconci
           else acc.none++;
           partAcc.set(p, acc);
         }
-        return { key, label: it.label, status, info, date };
+        return { key, label: it.label, status, info, vendor, dateLabel, date };
       }),
     }));
     return { section: sec.section, groups, done: sDone, ordered: sOrd, none: sNone, na: sNa };
