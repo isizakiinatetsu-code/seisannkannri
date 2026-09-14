@@ -211,7 +211,8 @@ export default function ProgressPage() {
                     <div className="ithead">
                       <span className="cel">状態</span>
                       <span className="cel">項目</span>
-                      <span className="cel">業者・納入日</span>
+                      <span className="cel">業者</span>
+                      <span className="cel">納入日</span>
                       <span className="cel chkcell">発注対象<small>外すと除外</small></span>
                     </div>
                     {groups.map(g => (
@@ -223,7 +224,8 @@ export default function ProgressPage() {
                               {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
                             </span>
                             <span className="cel labi">{it.label}</span>
-                            <span className="cel info2">{it.info}</span>
+                            <span className="cel info2">{it.vendor}</span>
+                            <span className="cel info2 dcol">{it.dateLabel}</span>
                             <span className="cel chkcell">
                               <input type="checkbox" className="chk" checked readOnly={!canEdit} disabled={exBusy || !canEdit}
                                 title={canEdit ? 'チェックを外すと対象外（一覧から除外）' : '対象'} aria-label="対象"
@@ -265,7 +267,8 @@ export default function ProgressPage() {
                     <div className="it" key={i}>
                       <span className={`cel st ${u.status === '納入済み' ? 'done' : 'ordered'}`}>{u.status === '納入済み' ? '✓ 納入' : '予定'}</span>
                       <span className="cel labi">{u.item}<small>{u.specification ?? ''}</small></span>
-                      <span className="cel info2">{u.vendor}・{mdw(u.delivery_date)}</span>
+                      <span className="cel info2">{u.vendor}</span>
+                      <span className="cel info2 dcol">{mdw(u.delivery_date)}</span>
                       <span className="cel chkcell" />
                     </div>
                   ))}
@@ -365,7 +368,8 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it,.ithead{display:grid;grid-template-columns:110px minmax(96px,1.1fr) 1.5fr 88px;align-items:stretch;border-top:1px solid var(--line);}
+.it,.ithead{display:grid;grid-template-columns:110px minmax(96px,1.1fr) 1.2fr 130px 88px;align-items:stretch;border-top:1px solid var(--line);}
+.dcol{white-space:nowrap;}
 .ithead{background:var(--surface-2);font-size:.72rem;font-weight:700;color:var(--ink-2);}
 .cel{padding:8px 12px;border-left:1px solid var(--line);display:flex;align-items:center;min-width:0;}
 .cel:first-child{border-left:0;}
@@ -378,9 +382,10 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .it.none .labi{color:var(--ink);}
 @media(max-width:640px){
   .ithead{display:none;}
-  .it{grid-template-columns:auto 1fr 44px;grid-template-areas:"st label chk" "st info info";}
+  .it{grid-template-columns:auto 1fr auto 44px;grid-template-areas:"st label label chk" "st vendor date date";}
   .cel{border-left:0;padding:5px 12px;}
-  .st{grid-area:st;align-self:center;} .labi{grid-area:label;} .info2{grid-area:info;font-size:.82rem;} .chkcell{grid-area:chk;}
+  .st{grid-area:st;align-self:center;} .labi{grid-area:label;}
+  .info2{grid-area:vendor;font-size:.82rem;} .dcol{grid-area:date;justify-content:flex-end;} .chkcell{grid-area:chk;}
 }
 .exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn:hover{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 35%,var(--line));} .exbtn.undo{color:var(--navy);background:#e7edfb;border-color:transparent;} .exbtn.undo:hover{color:var(--navy);} .exbtn:disabled{opacity:.5;}
 .nabox{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
