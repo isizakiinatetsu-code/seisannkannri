@@ -206,19 +206,27 @@ export default function ProgressPage() {
                 return (
                   <section className="sec" key={sec.section}>
                     <h2>{sec.section}<span className="c">納入済 {sec.done} / 発注済 {sec.ordered} / 未手配 {sec.none}</span></h2>
+                    <div className="ithead">
+                      <span className="cel">状態</span>
+                      <span className="cel">項目</span>
+                      <span className="cel">業者・納入日</span>
+                      <span className="cel chkcell">対象<small>外すと除外</small></span>
+                    </div>
                     {groups.map(g => (
                       <div key={g.group}>
                         <div className="grp">▸ {g.group}</div>
                         {g.items.map((it) => (
                           <div className={`it ${it.status}`} key={it.key}>
-                            <span className={`st ${it.status}`}>
+                            <span className={`cel st ${it.status}`}>
                               {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
                             </span>
-                            <span className="labi">{it.label}</span>
-                            <span className="info2">{it.info}</span>
-                            <input type="checkbox" className="chk" checked readOnly={!canEdit} disabled={exBusy || !canEdit}
-                              title={canEdit ? 'チェックを外すと対象外（一覧から除外）' : '対象'} aria-label="対象"
-                              onChange={() => { if (canEdit) toggleEx(it.key, true); }} />
+                            <span className="cel labi">{it.label}</span>
+                            <span className="cel info2">{it.info}</span>
+                            <span className="cel chkcell">
+                              <input type="checkbox" className="chk" checked readOnly={!canEdit} disabled={exBusy || !canEdit}
+                                title={canEdit ? 'チェックを外すと対象外（一覧から除外）' : '対象'} aria-label="対象"
+                                onChange={() => { if (canEdit) toggleEx(it.key, true); }} />
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -253,10 +261,10 @@ export default function ProgressPage() {
                   <h2>未分類（テンプレ外の納入）<span className="c">{rec.unmatched.length} 件</span></h2>
                   {rec.unmatched.map((u, i) => (
                     <div className="it" key={i}>
-                      <span className={`st ${u.status === '納入済み' ? 'done' : 'ordered'}`}>{u.status === '納入済み' ? '✓ 納入' : '予定'}</span>
-                      <span className="labi">{u.item}<small>{u.specification ?? ''}</small></span>
-                      <span className="info2">{u.vendor}・{md(u.delivery_date)}</span>
-                      <span />
+                      <span className={`cel st ${u.status === '納入済み' ? 'done' : 'ordered'}`}>{u.status === '納入済み' ? '✓ 納入' : '予定'}</span>
+                      <span className="cel labi">{u.item}<small>{u.specification ?? ''}</small></span>
+                      <span className="cel info2">{u.vendor}・{md(u.delivery_date)}</span>
+                      <span className="cel chkcell" />
                     </div>
                   ))}
                 </section>
@@ -355,15 +363,22 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it{display:grid;grid-template-columns:96px minmax(96px,auto) 1fr 22px;gap:10px;align-items:center;padding:8px 16px;border-top:1px solid var(--line);grid-template-areas:"st label info chk";}
-.chk{grid-area:chk;justify-self:end;width:20px;height:20px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
-.labi{grid-area:label;font-size:.9rem;font-weight:600;} .labi small{display:block;font-size:.72rem;font-weight:400;color:var(--ink-3);}
+.it,.ithead{display:grid;grid-template-columns:110px minmax(96px,1.1fr) 1.5fr 74px;align-items:stretch;border-top:1px solid var(--line);}
+.ithead{background:var(--surface-2);font-size:.72rem;font-weight:700;color:var(--ink-2);}
+.cel{padding:8px 12px;border-left:1px solid var(--line);display:flex;align-items:center;min-width:0;}
+.cel:first-child{border-left:0;}
+.chkcell{grid-area:chk;justify-content:center;flex-direction:column;gap:1px;text-align:center;}
+.ithead .chkcell small{font-size:.62rem;font-weight:400;color:var(--ink-3);}
+.chk{width:20px;height:20px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
+.labi{grid-area:label;font-size:.9rem;font-weight:600;} .labi small{font-size:.72rem;font-weight:400;color:var(--ink-3);margin-left:6px;}
 .info2{grid-area:info;font-size:.9rem;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums;}
-.st{grid-area:st;font-size:.8rem;font-weight:800;white-space:nowrap;text-align:left;font-variant-numeric:tabular-nums;}
+.st{grid-area:st;font-size:.8rem;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .it.none .labi{color:var(--ink);}
 @media(max-width:640px){
-  .it{grid-template-columns:auto 1fr 22px;grid-template-areas:"st label chk" "st info info";row-gap:2px;}
-  .st{align-self:start;} .info2{font-size:.82rem;}
+  .ithead{display:none;}
+  .it{grid-template-columns:auto 1fr 44px;grid-template-areas:"st label chk" "st info info";}
+  .cel{border-left:0;padding:5px 12px;} .st{align-self:center;} .info2{font-size:.82rem;padding-top:0;}
+  .labi{padding-bottom:0;}
 }
 .exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn:hover{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 35%,var(--line));} .exbtn.undo{color:var(--navy);background:#e7edfb;border-color:transparent;} .exbtn.undo:hover{color:var(--navy);} .exbtn:disabled{opacity:.5;}
 .nabox{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
