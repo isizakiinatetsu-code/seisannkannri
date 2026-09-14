@@ -195,7 +195,7 @@ export default function ProgressPage() {
                 </section>
               )}
 
-              <p className="note no-print">この物件で<b>使わない項目は「対象外」</b>にできます{canEdit ? '（各行の「対象外」ボタン）' : ''}。対象外を除いた<b>「未手配」＝発注忘れの候補</b>です。{!canEdit && '（対象外の設定は編集権限のみ）'}</p>
+              <p className="note no-print">この物件で<b>使わない項目はチェックを外す</b>と対象外になり、一覧から除外されます{canEdit ? '' : ''}。対象外を除いた<b>「未手配」＝発注忘れの候補</b>です。{!canEdit && '（チェックの変更は編集権限のみ）'}</p>
 
               {rec.sections.map(sec => {
                 // 対象外は一覧から外す。全項目が対象外のグループ／セクションは非表示。
@@ -211,13 +211,14 @@ export default function ProgressPage() {
                         <div className="grp">▸ {g.group}</div>
                         {g.items.map((it) => (
                           <div className={`it ${it.status}`} key={it.key}>
-                            <span className={`box ${it.status}`}>{it.status === 'done' ? '✓' : it.status === 'ordered' ? '▲' : ''}</span>
+                            <input type="checkbox" className="chk" checked readOnly={!canEdit} disabled={exBusy || !canEdit}
+                              title={canEdit ? 'チェックを外すと対象外（一覧から除外）' : '対象'} aria-label="対象"
+                              onChange={() => { if (canEdit) toggleEx(it.key, true); }} />
                             <span className="labi">{it.label}</span>
                             <span className={`st ${it.status}`}>
                               {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
                               {it.info && <span className="sub">{it.info}</span>}
                             </span>
-                            {canEdit && it.status === 'none' && <button className="exbtn no-print" disabled={exBusy} onClick={() => toggleEx(it.key, true)}>対象外にする</button>}
                           </div>
                         ))}
                       </div>
@@ -236,8 +237,10 @@ export default function ProgressPage() {
                     <div className="nalist">
                       {naItems.map(it => (
                         <div className="narow" key={it.key}>
+                          <input type="checkbox" className="chk" checked={false} readOnly={!canEdit} disabled={exBusy || !canEdit}
+                            title={canEdit ? 'チェックすると対象（一覧に戻す）' : '対象外'} aria-label="対象外"
+                            onChange={() => { if (canEdit) toggleEx(it.key, false); }} />
                           <span className="nalabel">{it.label}<small>{it.section}・{it.group}</small></span>
-                          {canEdit && <button className="exbtn undo" disabled={exBusy} onClick={() => toggleEx(it.key, false)}>一覧に戻す</button>}
                         </div>
                       ))}
                     </div>
@@ -351,7 +354,8 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
+.it{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
+.chk{width:19px;height:19px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
 .box{width:19px;height:19px;border-radius:5px;border:2px solid var(--na);display:grid;place-items:center;font-size:11px;font-weight:800;}
 .box.done{background:var(--good);border-color:var(--good);color:#fff;} .box.ordered{border-color:var(--warn);color:var(--warn);} .box.n,.box.none,.box.na{border-color:var(--line);background:var(--na-bg);}
 .labi{font-size:.88rem;font-weight:500;} .labi small{display:block;font-size:.72rem;color:var(--ink-3);}
