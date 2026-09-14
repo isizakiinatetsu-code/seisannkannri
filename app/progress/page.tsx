@@ -29,6 +29,7 @@ export default function ProgressPage() {
   const [picker, setPicker] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [exBusy, setExBusy] = useState(false);
+  const [showNa, setShowNa] = useState(false);
 
   useEffect(() => { fetch('/api/auth/me').then(r => r.json()).then(d => setCanEdit(d.role === 'edit')).catch(() => {}); }, []);
 
@@ -73,6 +74,15 @@ export default function ProgressPage() {
     setChosen(list);
     try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch { /* noop */ }
   }
+
+  // 対象外にした項目（下部の折りたたみに集約）
+  const naItems = useMemo(() => {
+    if (!rec) return [] as { key: string; label: string; section: string; group: string }[];
+    const out: { key: string; label: string; section: string; group: string }[] = [];
+    for (const sec of rec.sections) for (const g of sec.groups) for (const it of g.items)
+      if (it.status === 'na') out.push({ key: it.key, label: it.label, section: sec.section, group: g.group });
+    return out;
+  }, [rec]);
 
   function exportBoardCSV() {
     const rows: (string | number)[][] = [['物件名', '揃う予定日', '納入済み', '全件', '未着', '状態']];
@@ -185,30 +195,58 @@ export default function ProgressPage() {
                 </section>
               )}
 
-              <p className="note no-print">この物件で<b>使わない項目は「対象外」</b>にできます{canEdit ? '（各行の「対象外」ボタン）' : ''}。対象外を除いた<b>「未手配」＝発注忘れの候補</b>です。{!canEdit && '（対象外の設定は編集権限のみ）'}</p>
+              <p className="note no-print">この物件で<b>使わない項目はチェックを外す</b>と対象外になり、一覧から除外されます{canEdit ? '' : ''}。対象外を除いた<b>「未手配」＝発注忘れの候補</b>です。{!canEdit && '（チェックの変更は編集権限のみ）'}</p>
 
-              {rec.sections.map(sec => (
-                <section className="sec" key={sec.section}>
-                  <h2>{sec.section}<span className="c">納入済 {sec.done} / 発注済 {sec.ordered} / 未手配 {sec.none}</span></h2>
-                  {sec.groups.map(g => (
-                    <div key={g.group}>
-                      <div className="grp">▸ {g.group}</div>
-                      {g.items.map((it) => (
-                        <div className={`it ${it.status}`} key={it.key}>
-                          <span className={`box ${it.status}`}>{it.status === 'done' ? '✓' : it.status === 'ordered' ? '▲' : ''}</span>
-                          <span className="labi">{it.label}</span>
-                          <span className={`st ${it.status}`}>
-                            {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : it.status === 'na' ? '対象外' : '未手配'}
-                            {it.info && <span className="sub">{it.info}</span>}
-                          </span>
-                          {canEdit && it.status === 'none' && <button className="exbtn no-print" disabled={exBusy} onClick={() => toggleEx(it.key, true)}>対象外</button>}
-                          {canEdit && it.status === 'na' && <button className="exbtn undo no-print" disabled={exBusy} onClick={() => toggleEx(it.key, false)}>戻す</button>}
+              {rec.sections.map(sec => {
+                // 対象外は一覧から外す。全項目が対象外のグループ／セクションは非表示。
+                const groups = sec.groups
+                  .map(g => ({ group: g.group, items: g.items.filter(it => it.status !== 'na') }))
+                  .filter(g => g.items.length > 0);
+                if (groups.length === 0) return null;
+                return (
+                  <section className="sec" key={sec.section}>
+                    <h2>{sec.section}<span className="c">納入済 {sec.done} / 発注済 {sec.ordered} / 未手配 {sec.none}</span></h2>
+                    {groups.map(g => (
+                      <div key={g.group}>
+                        <div className="grp">▸ {g.group}</div>
+                        {g.items.map((it) => (
+                          <div className={`it ${it.status}`} key={it.key}>
+                            <input type="checkbox" className="chk" checked readOnly={!canEdit} disabled={exBusy || !canEdit}
+                              title={canEdit ? 'チェックを外すと対象外（一覧から除外）' : '対象'} aria-label="対象"
+                              onChange={() => { if (canEdit) toggleEx(it.key, true); }} />
+                            <span className="labi">{it.label}</span>
+                            <span className={`st ${it.status}`}>
+                              {it.status === 'done' ? '✓ 納入済み' : it.status === 'ordered' ? '▲ 発注済み' : '未手配'}
+                              {it.info && <span className="sub">{it.info}</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </section>
+                );
+              })}
+
+              {naItems.length > 0 && (
+                <section className="nabox no-print">
+                  <button className="nahead" onClick={() => setShowNa(v => !v)}>
+                    <span>{showNa ? '▾' : '▸'} 対象外にした項目（{naItems.length}）</span>
+                    <span className="nahint">この物件で使わない項目。一覧からは非表示です{canEdit ? '。戻せます' : ''}。</span>
+                  </button>
+                  {showNa && (
+                    <div className="nalist">
+                      {naItems.map(it => (
+                        <div className="narow" key={it.key}>
+                          <input type="checkbox" className="chk" checked={false} readOnly={!canEdit} disabled={exBusy || !canEdit}
+                            title={canEdit ? 'チェックすると対象（一覧に戻す）' : '対象外'} aria-label="対象外"
+                            onChange={() => { if (canEdit) toggleEx(it.key, false); }} />
+                          <span className="nalabel">{it.label}<small>{it.section}・{it.group}</small></span>
                         </div>
                       ))}
                     </div>
-                  ))}
+                  )}
                 </section>
-              ))}
+              )}
 
               {rec.unmatched.length > 0 && (
                 <section className="sec">
@@ -290,7 +328,7 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .kdate.g{background:var(--good-bg);border-color:transparent;} .kdate.g .d2,.kdate.g .m2{color:var(--good);}
 .kdate.b{background:#e7edfb;border-color:transparent;} .kdate.b .d2,.kdate.b .m2{color:var(--navy);}
 .kdate.i{background:var(--na-bg);border-color:transparent;} .kdate.i .d2,.kdate.i .m2{color:var(--ink-3);}
-.warn{font-size:.8rem;color:var(--warn);background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);border-radius:10px;padding:10px 13px;margin:0 0 12px;line-height:1.7;} .warn b{color:var(--ink);}
+.warn{font-size:.8rem;color:var(--warn);background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent);border-radius:10px;padding:10px 13px;margin:0 auto 12px;line-height:1.7;} .warn b{color:var(--ink);}
 .kbody{min-width:0;} .kbody .p{font-size:1rem;font-weight:800;} .kbody .s{font-size:.79rem;color:var(--ink-2);margin-top:3px;}
 .bar{height:7px;border-radius:999px;background:var(--na-bg);overflow:hidden;margin-top:8px;} .bar span{display:block;height:100%;border-radius:999px;} .fg{background:var(--good);} .fw{background:linear-gradient(90deg,var(--good),var(--warn));} .fb{background:var(--navy);}
 .tag{display:inline-block;font-size:.72rem;font-weight:800;padding:3px 9px;border-radius:999px;margin-top:8px;}
@@ -301,7 +339,7 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 @media(max-width:560px){.tiles{grid-template-columns:repeat(2,1fr);}}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;box-shadow:var(--shadow);}
 .tile .n{font-size:1.4rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;} .tile .tl{font-size:.72rem;color:var(--ink-2);margin-top:2px;}
-.note{font-size:.78rem;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 0 14px;} .note b{color:var(--ink);}
+.note{font-size:.78rem;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 auto 14px;} .note b{color:var(--ink);}
 .parts{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:13px 14px;margin-bottom:12px;}
 .phead{font-size:.92rem;font-weight:800;margin-bottom:10px;} .psub{font-size:.73rem;font-weight:400;color:var(--ink-3);margin-left:8px;}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;}
@@ -316,13 +354,19 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .sec>h2{margin:0;font-size:.82rem;font-weight:800;letter-spacing:.1em;color:#fff;background:var(--navy);padding:9px 16px;display:flex;justify-content:space-between;align-items:center;}
 .sec>h2 .c{font-size:.72rem;font-weight:700;opacity:.9;}
 .grp{font-size:.72rem;font-weight:700;color:var(--ink-2);background:var(--surface-2);padding:5px 16px;border-top:1px solid var(--line);}
-.it{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
+.it{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:7px 16px;border-top:1px solid var(--line);}
+.chk{width:19px;height:19px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
 .box{width:19px;height:19px;border-radius:5px;border:2px solid var(--na);display:grid;place-items:center;font-size:11px;font-weight:800;}
 .box.done{background:var(--good);border-color:var(--good);color:#fff;} .box.ordered{border-color:var(--warn);color:var(--warn);} .box.n,.box.none,.box.na{border-color:var(--line);background:var(--na-bg);}
 .labi{font-size:.88rem;font-weight:500;} .labi small{display:block;font-size:.72rem;color:var(--ink-3);}
 .st{font-size:.76rem;font-weight:800;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;} .st .sub{display:block;font-size:.7rem;font-weight:400;color:var(--ink-3);}
-.st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .st.na{color:var(--na);} .it.none .labi{color:var(--ink);} .it.na .labi{color:var(--na);text-decoration:line-through;text-decoration-thickness:1px;}
-.exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--na);background:var(--na-bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn.undo{color:var(--navy);background:#e7edfb;} .exbtn:disabled{opacity:.5;}
+.st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .it.none .labi{color:var(--ink);}
+.exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn:hover{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 35%,var(--line));} .exbtn.undo{color:var(--navy);background:#e7edfb;border-color:transparent;} .exbtn.undo:hover{color:var(--navy);} .exbtn:disabled{opacity:.5;}
+.nabox{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
+.nahead{width:100%;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font:inherit;font-size:.82rem;font-weight:800;color:var(--ink-2);background:var(--surface-2);border:0;padding:10px 16px;cursor:pointer;text-align:left;}
+.nahint{font-size:.72rem;font-weight:400;color:var(--ink-3);}
+.narow{display:flex;align-items:center;gap:10px;padding:7px 16px;border-top:1px solid var(--line);}
+.nalabel{flex:1;font-size:.86rem;color:var(--ink-2);} .nalabel small{display:block;font-size:.7rem;color:var(--ink-3);}
 .tiles.t5{grid-template-columns:repeat(5,1fr);} @media(max-width:720px){.tiles.t5{grid-template-columns:repeat(2,1fr);}}
 .print-only{display:none;}
 /* モーダル */
