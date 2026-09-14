@@ -367,18 +367,18 @@ h1{font-size:1.3rem;margin:0;} .sub{font-size:.82rem;color:var(--ink-2);margin:2
 .ithead{background:var(--surface-2);font-size:.72rem;font-weight:700;color:var(--ink-2);}
 .cel{padding:8px 12px;border-left:1px solid var(--line);display:flex;align-items:center;min-width:0;}
 .cel:first-child{border-left:0;}
-.chkcell{grid-area:chk;justify-content:center;flex-direction:column;gap:1px;text-align:center;}
+.chkcell{justify-content:center;flex-direction:column;gap:1px;text-align:center;}
 .ithead .chkcell small{font-size:.62rem;font-weight:400;color:var(--ink-3);}
 .chk{width:20px;height:20px;flex-shrink:0;accent-color:var(--navy);cursor:pointer;} .chk:disabled{cursor:default;opacity:.7;}
-.labi{grid-area:label;font-size:.9rem;font-weight:600;} .labi small{font-size:.72rem;font-weight:400;color:var(--ink-3);margin-left:6px;}
-.info2{grid-area:info;font-size:.9rem;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums;}
-.st{grid-area:st;font-size:.8rem;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.labi{font-size:.9rem;font-weight:600;min-width:0;} .labi small{font-size:.72rem;font-weight:400;color:var(--ink-3);margin-left:6px;}
+.info2{font-size:.9rem;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;}
+.st{font-size:.8rem;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .st.done{color:var(--good);} .st.ordered{color:var(--warn);} .st.none{color:var(--crit);} .it.none .labi{color:var(--ink);}
 @media(max-width:640px){
   .ithead{display:none;}
   .it{grid-template-columns:auto 1fr 44px;grid-template-areas:"st label chk" "st info info";}
-  .cel{border-left:0;padding:5px 12px;} .st{align-self:center;} .info2{font-size:.82rem;padding-top:0;}
-  .labi{padding-bottom:0;}
+  .cel{border-left:0;padding:5px 12px;}
+  .st{grid-area:st;align-self:center;} .labi{grid-area:label;} .info2{grid-area:info;font-size:.82rem;} .chkcell{grid-area:chk;}
 }
 .exbtn{font:inherit;font-size:.7rem;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;} .exbtn:hover{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 35%,var(--line));} .exbtn.undo{color:var(--navy);background:#e7edfb;border-color:transparent;} .exbtn.undo:hover{color:var(--navy);} .exbtn:disabled{opacity:.5;}
 .nabox{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;}
