@@ -46,6 +46,10 @@ export default function HomePage() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showContact, setShowContact] = useState(false);
+  const [showOverdue, setShowOverdue] = useState(false);
+  // 納入日が過ぎたのに未納入/一部納入のままの予定（表示月に関わらず全件）
+  const [overdue, setOverdue] = useState<Delivery[] | null>(null);
+  const [overdueLoading, setOverdueLoading] = useState(false);
   const [todayContact, setTodayContact] = useState<string | null>(null);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
@@ -111,6 +115,28 @@ export default function HomePage() {
 
   const ymd = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // 納入日が過ぎたのに未納入/一部納入のままの予定を全件取得する（表示月に依存しない）。
+  const loadOverdue = useCallback(async () => {
+    setOverdueLoading(true);
+    try {
+      const yesterday = ymd(new Date(Date.now() - 86400000));
+      const res = await fetch(`/api/deliveries?date_to=${yesterday}&status=予定`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('取得に失敗');
+      const data: Delivery[] = await res.json();
+      // 念のため納入済みは除外し、古い順（遅延が長い順）に並べる。
+      const list = (Array.isArray(data) ? data : [])
+        .filter(d => d.status !== '納入済み')
+        .sort((a, b) => a.delivery_date.localeCompare(b.delivery_date) || a.project_name.localeCompare(b.project_name, 'ja'));
+      setOverdue(list);
+    } catch {
+      setOverdue([]);
+    } finally {
+      setOverdueLoading(false);
+    }
+  }, []);
+  // 起動時に一度読み込んでバッジ件数を出す。
+  useEffect(() => { loadOverdue(); }, [loadOverdue]);
 
   // 実際に取得するクエリ。検索中は条件そのまま、そうでなければ
   // 表示中の月の前後（前月・当月・翌月）だけに絞って軽くする。
@@ -275,6 +301,7 @@ export default function HomePage() {
     }
     fetchDeliveries(effectiveQuery);
     fetchToday();
+    loadOverdue();
   }
 
   async function handleMarkDelivered(id: number) {
@@ -470,6 +497,20 @@ export default function HomePage() {
             {formatContact(todayContact) && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f5c000', color: '#0d2c66' }}>
                 {formatContact(todayContact)}
+              </span>
+            )}
+          </button>
+          {/* 納入日が過ぎたのに未納入/一部納入のままの予定を一覧表示 */}
+          <button
+            onClick={() => { setShowOverdue(true); loadOverdue(); }}
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            style={{ color: 'rgba(255,255,255,0.6)' }}
+          >
+            <span className="text-lg">⏰</span>
+            <span className="flex-1 text-left">納入遅れ</span>
+            {overdue && overdue.length > 0 && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#dc2626', color: 'white' }}>
+                {overdue.length}
               </span>
             )}
           </button>
@@ -690,6 +731,17 @@ export default function HomePage() {
               <span className="px-2 py-0.5 rounded-full text-white text-xs font-medium" style={{ background: '#16a34a' }}>納入済み {todaySummary.done}</span>
             </span>
           )}
+          {/* 納入遅れ（過ぎたのに未納入）が有ればチップ表示。タップで一覧。 */}
+          {overdue && overdue.length > 0 && (
+            <button
+              onClick={() => { setShowOverdue(true); loadOverdue(); }}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-bold hover:opacity-90"
+              style={{ background: '#dc2626' }}
+              title="納入日が過ぎた未納入・一部納入の一覧"
+            >
+              <span>⏰</span><span>納入遅れ {overdue.length}</span>
+            </button>
+          )}
           {/* 本日の荷下ろし連絡先（タップで変更） */}
           <button
             onClick={() => setShowContact(true)}
@@ -862,6 +914,72 @@ export default function HomePage() {
           onClose={() => setShowContact(false)}
           onSaved={(c) => setTodayContact(c)}
         />
+      )}
+      {showOverdue && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50" onClick={() => setShowOverdue(false)}>
+          <div className="bg-white w-full md:max-w-2xl md:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 text-white flex-shrink-0" style={{ background: '#0d2c66' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⏰</span>
+                <div>
+                  <div className="font-bold text-sm">納入遅れ 一覧</div>
+                  <div className="text-xs text-white/60">納入日が過ぎた 未納入・一部納入</div>
+                </div>
+              </div>
+              <button onClick={() => setShowOverdue(false)} className="text-white/70 hover:text-white text-2xl leading-none">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {overdueLoading && (!overdue || overdue.length === 0) ? (
+                <div className="text-center text-gray-400 py-12 text-sm">読み込み中…</div>
+              ) : !overdue || overdue.length === 0 ? (
+                <div className="text-center text-gray-500 py-12">
+                  <div className="text-3xl mb-2">🎉</div>
+                  <div className="text-sm">納入遅れはありません</div>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {overdue.map(d => {
+                    const days = Math.max(0, Math.floor((Date.now() - new Date(`${d.delivery_date}T00:00:00`).getTime()) / 86400000));
+                    const partial = d.status !== '納入済み' && d.is_partial;
+                    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d.delivery_date);
+                    const dateLabel = m ? `${Number(m[2])}/${Number(m[3])}` : d.delivery_date;
+                    return (
+                      <li key={d.id}>
+                        <button
+                          onClick={() => { setShowOverdue(false); openDeliveryById(d.id); }}
+                          className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="flex-shrink-0 text-center w-14">
+                            <div className="text-base font-bold text-gray-800 tabular-nums">{dateLabel}</div>
+                            <div className="text-[10px] font-bold" style={{ color: '#dc2626' }}>{days}日超過</div>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: partial ? '#d97706' : '#dc2626' }}>
+                                {partial ? '一部納入' : '未納入'}
+                              </span>
+                              <span className="font-bold text-sm text-gray-800 truncate">{d.project_name}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5 truncate">
+                              {d.item}{d.specification ? `・${d.specification}` : ''}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-0.5 truncate">
+                              {d.vendor || '業者未設定'}{d.unload_location ? `・${d.unload_location}` : ''}
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <div className="flex-shrink-0 px-4 py-2.5 border-t bg-gray-50 flex items-center justify-between">
+              <span className="text-xs text-gray-500">{overdue ? `${overdue.length} 件` : ''}</span>
+              <button onClick={loadOverdue} className="text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100">🔄 更新</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
