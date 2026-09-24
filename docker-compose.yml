@@ -1,0 +1,35 @@
+# 納入管理システム 本番構成（アプリ + Caddy による自動HTTPS）
+# 使い方は docs/DEPLOY-DOCKER.md を参照。
+services:
+  app:
+    build: .
+    image: seisannkannri:latest
+    env_file: .env
+    restart: unless-stopped        # 落ちても・サーバー再起動後も自動で立ち上がる
+    expose:
+      - "3000"                     # 外部には公開しない（Caddy経由のみ）
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }   # ログが肥大化しないよう自動ローテーション
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?.env に DOMAIN を設定してください}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data             # 証明書（自動取得・自動更新）の保存先
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  caddy_data:
+  caddy_config:
