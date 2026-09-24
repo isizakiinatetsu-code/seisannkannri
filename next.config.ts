@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Docker(自社サーバー/VPS)用に最小構成の server.js を出力する。Vercel でもそのまま動く。
+  output: 'standalone',
   serverExternalPackages: ['better-sqlite3'],
   experimental: {
     serverActions: {

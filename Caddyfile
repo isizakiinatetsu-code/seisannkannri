@@ -1,0 +1,11 @@
+# DOMAIN（例: nouhin.example.co.jp）宛のアクセスを HTTPS 化してアプリへ転送する。
+# 証明書は Let's Encrypt から自動取得・自動更新される（手作業不要）。
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy app:3000 {
+		flush_interval -1
+	}
+}
