@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { pushDeliveryToNotion } from '@/lib/notionSync';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
@@ -98,6 +99,8 @@ export async function PATCH(
       if (!c.ok) console.warn('sheet color failed:', c.reason);
     }
 
+    // Notion へ即時反映（応答後に実行）
+    after(() => pushDeliveryToNotion(Number(id)));
     return NextResponse.json(data);
   } catch (e) {
     console.error(e);
@@ -131,6 +134,7 @@ export async function DELETE(
       if (!w.ok) console.warn('sheet delete-mark failed:', w.reason);
     }
 
+    after(() => pushDeliveryToNotion(Number(id)));
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error(e);

@@ -61,6 +61,8 @@ export default function HomePage() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(true);
   const [importMsg, setImportMsg] = useState('');
   const [gsSyncing, setGsSyncing] = useState(false);
+  // Notion 同期（手動）。null=停止中、文字列=進行状況
+  const [notionSync, setNotionSync] = useState<string | null>(null);
   const [role, setRole] = useState<'edit' | 'view' | null>(null);
   // カレンダーで表示中の月（この前後3か月だけ取得するために使う）
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
@@ -386,6 +388,31 @@ export default function HomePage() {
     await finalizeMutation(res, '削除できませんでした。');
   }
 
+  // Notion へ一括同期。サーバーは時間を区切って返すので、完了まで繰り返し呼ぶ。
+  async function handleNotionSync() {
+    if (notionSync) return;
+    let written = 0;
+    try {
+      for (let i = 0; i < 80; i++) {
+        setNotionSync(`Notion同期中… ${written}件反映`);
+        const res = await fetch('/api/notion/sync', { method: 'POST' });
+        const r = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(`Notion同期に失敗しました。\n${r.error ?? res.status}`); return; }
+        written += r.written ?? 0;
+        if (r.done) {
+          const c = r.counts ?? {};
+          alert(`Notion同期が完了しました（今回 ${written} 件を反映）\n物件 ${c.projects ?? 0} / 納入予定 ${c.deliveries ?? 0} / 納入遅れ ${c.overdue ?? 0} / 発注忘れ候補 ${c.orders ?? 0}`);
+          return;
+        }
+      }
+      alert(`途中まで反映しました（${written} 件）。もう一度押すと続きから再開します。`);
+    } catch {
+      alert('Notion同期に失敗しました。通信環境を確認してください。');
+    } finally {
+      setNotionSync(null);
+    }
+  }
+
   async function handleGsSync() {
     setGsSyncing(true);
     setImportMsg('');
@@ -543,6 +570,16 @@ export default function HomePage() {
             >
               <span>{gsSyncing ? '⏳' : '🔄'}</span>
               <span>{gsSyncing ? '同期中...' : 'Sheets 同期'}</span>
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={handleNotionSync}
+              disabled={!!notionSync}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
+            >
+              <span>{notionSync ? '⏳' : '🗂️'}</span>
+              <span>{notionSync ?? 'Notion 同期'}</span>
             </button>
           )}
           {canEdit && (

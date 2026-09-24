@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { pushDeliveryToNotion } from '@/lib/notionSync';
 import { getSupabase, DeliveryInput } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
 import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbErrors';
@@ -146,6 +147,8 @@ export async function POST(req: NextRequest) {
       unload_location: String(row.unload_location),
       notes: (row.notes as string) ?? null,
     });
+    // Notion へ即時反映（応答後に実行するので画面は待たされない）
+    after(() => pushDeliveryToNotion(Number(row.id)));
     if (w.ok && w.sheetNo) {
       const { data: updated, error: updErr } = await supabase
         .from('deliveries')

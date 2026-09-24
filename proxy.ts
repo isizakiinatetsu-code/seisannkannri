@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_COOKIE } from '@/lib/auth';
+import { AUTH_COOKIE, isCronRequest } from '@/lib/auth';
 import { verifySession } from '@/lib/session';
 
 export async function proxy(req: NextRequest) {
@@ -11,6 +11,12 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon')
   ) {
+    return NextResponse.next();
+  }
+
+  // 定期実行（Vercel Cron / GitHub Actions / サーバーのcron）からの Notion 同期は
+  // Cookie の代わりに合言葉（CRON_SECRET）で認証する。検証はルート側でも再度行う。
+  if (pathname === '/api/notion/sync' && isCronRequest(req)) {
     return NextResponse.next();
   }
 
