@@ -40,3 +40,16 @@
 - AGENTS.md の指示どおり、コードを書く前に `node_modules/next/dist/docs/` のガイドを読む（この版は破壊的変更あり）。`node_modules` は未インストール状態のため要 `npm install`。
 - OCRタブは名前だけで、実際はOCR未実装（画像保存のみ）。
 - 作業ブランチ: `claude/analyze-repo-contents-vsl5Y`。
+
+## 保留中：常駐PCへの完全Docker移行（上長依頼・回答待ち）
+上長依頼：Vercel/Supabase をやめ、社内の常駐PC1台に Docker で構築し、そこへアクセスする方式にする（自分のPCで構築→そのまま配布）。
+- 済：アプリのDocker化（PR #150：Dockerfile / docker-compose.yml / Caddyfile / docs/DEPLOY-DOCKER.md）。
+- 追加で必要：Postgres をDocker同梱、Supabaseからデータ移行、伝票画像(約245MB)をローカル保存へ、Supabase依存コード置換、バックアップ仕組み。
+- 上長へ確認中（回答待ち）：
+  1. 外出先・現場からのアクセス（社内のみ / VPN / 外部公開）
+  2. HTTPS（ログインCookieが secure 固定のためHTTPS必須。社内LANなら自己署名 or 緩和）
+  3. 「配布」の意味（常駐PC1台のみ / 他拠点へも配布）
+  4. 常駐PCのOS・メモリ
+  5. バックアップ先（NAS / 外付けHDD / Googleドライブ）
+  6. Googleスプレッドシート連携の継続可否
+回答が来たら上記を前提に構築を再開する。
