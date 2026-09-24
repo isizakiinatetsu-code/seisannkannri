@@ -16,3 +16,9 @@ export async function requireEditRole(req: NextRequest): Promise<NextResponse | 
   }
   return null;
 }
+
+/** 定期実行（cron）からの呼び出しか。Authorization: Bearer <CRON_SECRET> で判定する。 */
+export function isCronRequest(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  return !!secret && req.headers.get('authorization') === `Bearer ${secret}`;
+}

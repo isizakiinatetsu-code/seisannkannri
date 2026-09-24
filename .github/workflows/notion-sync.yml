@@ -1,0 +1,31 @@
+name: Notion 定期同期
+
+# 毎時5分に、納入管理システムの内容を Notion へ反映する。
+# リポジトリの Settings → Secrets and variables → Actions に
+#   APP_URL（例: https://seisannkannri.vercel.app）と CRON_SECRET を登録すると動く。
+# 未登録の間は何もせず正常終了する。
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Notion 同期を呼び出す
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL / CRON_SECRET が未設定のためスキップします"; exit 0
+          fi
+          for i in 1 2 3 4 5 6; do
+            body=$(curl -sS --max-time 90 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/notion/sync")
+            echo "$body"
+            echo "$body" | grep -q '"done":true' && exit 0
+            echo "$body" | grep -q '"error"' && exit 1
+          done
+          echo "まだ途中です（次回の実行で続きから進みます）"
