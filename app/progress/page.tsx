@@ -36,6 +36,7 @@ export default function ProgressPage() {
   useEffect(() => { fetch('/api/auth/me').then(r => r.json()).then(d => setCanEdit(d.role === 'edit')).catch(() => {}); }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     try { const s = localStorage.getItem(LS_KEY); if (s) setChosen(JSON.parse(s)); } catch { /* noop */ }
     fetch('/api/checklist', { cache: 'no-store' })
       .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? '取得に失敗'); return r.json(); })
@@ -51,6 +52,7 @@ export default function ProgressPage() {
       .then(r => r.json()).then(d => setRec(d.reconciled ?? null))
       .catch(() => setRec(null)).finally(() => setLoadingRec(false));
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (view === 'g' && sel) loadRec(sel); }, [view, sel, loadRec]);
 
   async function toggleEx(key: string, excluded: boolean) {

@@ -50,6 +50,7 @@ export default function HomePage() {
   // 納入日が過ぎたのに未納入/一部納入のままの予定（表示月に関わらず全件）
   const [overdue, setOverdue] = useState<Delivery[] | null>(null);
   const [overdueLoading, setOverdueLoading] = useState(false);
+  const [overdueAt, setOverdueAt] = useState(0); // 一覧を取得した時刻（超過日数の計算に使う）
   const [todayContact, setTodayContact] = useState<string | null>(null);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
@@ -131,6 +132,7 @@ export default function HomePage() {
         .filter(d => d.status !== '納入済み')
         .sort((a, b) => a.delivery_date.localeCompare(b.delivery_date) || a.project_name.localeCompare(b.project_name, 'ja'));
       setOverdue(list);
+      setOverdueAt(Date.now());
     } catch {
       setOverdue([]);
     } finally {
@@ -138,6 +140,7 @@ export default function HomePage() {
     }
   }, []);
   // 起動時に一度読み込んでバッジ件数を出す。
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadOverdue(); }, [loadOverdue]);
 
   // 実際に取得するクエリ。検索中は条件そのまま、そうでなければ
@@ -187,8 +190,9 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeliveries(effectiveQuery);
     fetchToday();
-  }, [effectiveQuery, fetchDeliveries]);
+  }, [effectiveQuery, fetchDeliveries, fetchToday]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchToday(); }, [fetchToday]);
 
   // 本日の荷下ろし連絡先を取得
@@ -199,6 +203,7 @@ export default function HomePage() {
       setTodayContact(d?.contact ?? null);
     } catch { /* 失敗は本体に影響させない */ }
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchTodayContact(); }, [fetchTodayContact]);
 
   // ---- アプリ内お知らせ（新着：他の人が追加した予定）----
@@ -342,7 +347,7 @@ export default function HomePage() {
     await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
 
-  async function handleAdd(data: Partial<Delivery>) {
+  async function handleAdd(data: Partial<Delivery>, orderFiles: File[] = []) {
     const res = await fetch('/api/deliveries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -362,6 +367,21 @@ export default function HomePage() {
     setShowAddForm(false);
     // 自分が登録した分は「新着お知らせ」に出さないよう、既読時刻を進める
     markNotificationsSeen();
+    // 発注書PDFが選ばれていれば、できた予定に添付する（本文は finalizeMutation が読むので複製して読む）
+    if (finalRes.ok && orderFiles.length) {
+      const created = await finalRes.clone().json().catch(() => null) as { id?: number } | null;
+      if (created?.id) {
+        let failed = 0;
+        for (const f of orderFiles) {
+          const fd = new FormData();
+          fd.append('file', f);
+          fd.append('kind', 'order');
+          const r = await fetch(`/api/deliveries/${created.id}/slips`, { method: 'POST', body: fd }).catch(() => null);
+          if (!r || !r.ok) failed++;
+        }
+        if (failed) alert(`予定は登録しましたが、発注書 ${failed} 件の添付に失敗しました。予定を開いて「発注書を添付」からもう一度追加してください。`);
+      }
+    }
     await finalizeMutation(finalRes, '予定の登録に失敗しました。もう一度お試しください。');
   }
 
@@ -976,7 +996,7 @@ export default function HomePage() {
               ) : (
                 <ul className="divide-y divide-gray-100">
                   {overdue.map(d => {
-                    const days = Math.max(0, Math.floor((Date.now() - new Date(`${d.delivery_date}T00:00:00`).getTime()) / 86400000));
+                    const days = Math.max(0, Math.floor((overdueAt - new Date(`${d.delivery_date}T00:00:00`).getTime()) / 86400000));
                     const partial = d.status !== '納入済み' && d.is_partial;
                     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d.delivery_date);
                     const dateLabel = m ? `${Number(m[2])}/${Number(m[3])}` : d.delivery_date;
