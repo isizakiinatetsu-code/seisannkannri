@@ -30,6 +30,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
+    // kind=order は「発注書」（工場の人が納入内容を確認するためのPDF）。伝票とはファイル名の頭で区別する。
+    const isOrder = formData.get('kind') === 'order';
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'ファイルが大きすぎます（最大15MB）' }, { status: 400 });
@@ -38,9 +40,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!CONTENT_TYPE[ext]) {
       return NextResponse.json({ error: '対応形式: JPG, PNG, PDF, WEBP' }, { status: 400 });
     }
+    if (isOrder && ext !== 'pdf') {
+      return NextResponse.json({ error: '発注書はPDFを選んでください' }, { status: 400 });
+    }
 
     const supabase = getSupabase();
-    const filename = `slip_${id}_${Date.now()}.${ext}`;
+    const filename = `${isOrder ? 'order' : 'slip'}_${id}_${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await supabase.storage
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const datePart = delivery?.delivery_date ?? new Date().toISOString().slice(0, 10);
       const projectPart = (delivery?.project_name ?? '物件未設定').replace(/[\\/:*?"<>|]/g, '_');
       const itemPart = (delivery?.item ?? '').replace(/[\\/:*?"<>|]/g, '_');
-      const driveName = `${datePart}_${projectPart}_${itemPart}_伝票${id}_${Date.now()}.${ext}`;
+      const driveName = `${datePart}_${projectPart}_${itemPart}_${isOrder ? '発注書' : '伝票'}${id}_${Date.now()}.${ext}`;
       await uploadToDrive(buffer, driveName, CONTENT_TYPE[ext]);
     } catch (driveErr) {
       console.error('Drive 連携でエラー（無視して続行）', driveErr);
