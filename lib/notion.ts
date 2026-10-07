@@ -9,7 +9,6 @@ export const NOTION_DS = {
   projects: process.env.NOTION_DS_PROJECTS || '34aaea24-1d7a-4236-8981-cf1dd7787ae7',
   deliveries: process.env.NOTION_DS_DELIVERIES || 'a33db35b-66da-44da-b6eb-e07e98317765',
   overdue: process.env.NOTION_DS_OVERDUE || 'd324fab9-e241-404d-bd78-bcbd5bf24453',
-  orders: process.env.NOTION_DS_ORDERS || '23bacc89-b416-4762-ba5d-0ab19e25b624',
 };
 
 export function notionEnabled(): boolean {

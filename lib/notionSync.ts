@@ -1,11 +1,10 @@
 // 納入管理システム → Notion の片方向同期。
-// ・システム側が正。Notion の「担当」「対応済み」「対応メモ」「確認済み」は利用者の入力欄なので上書きしない。
+// ・システム側が正。Notion の「担当」「対応済み」「対応メモ」は利用者の入力欄なので上書きしない。
 // ・同期は何度実行しても同じ結果になる（途中で時間切れになっても、次回の実行で続きから進む）。
 import { getSupabase } from '@/lib/supabase';
 import { IMPL_START_DATE } from '@/lib/constants';
 import { normalizeName } from '@/lib/textNormalize';
 import { isMissingColumnError } from '@/lib/dbErrors';
-import { reconcile, DeliveryLite } from '@/lib/checklist';
 import {
   NOTION_DS as DS, notionEnabled, queryAll, findByNumber, findByText,
   upsertPage, trashPage, P, R, NotionPage,
@@ -130,7 +129,7 @@ export interface SyncResult {
   done: boolean;
   phase: string;
   written: number;
-  counts: { projects: number; deliveries: number; overdue: number; orders: number };
+  counts: { projects: number; deliveries: number; overdue: number };
 }
 
 export async function runNotionSync(budgetMs = 8000): Promise<SyncResult> {
@@ -140,7 +139,7 @@ export async function runNotionSync(budgetMs = 8000): Promise<SyncResult> {
   // 読み込みだけで時間を使い切っても前に進めるよう、1回の呼び出しで最低3件は書き込む
   // （これが無いと、データが多いとき書き込み0件のまま「途中」を返し続けて終わらない）。
   const over = () => written >= 3 && Date.now() - start > budgetMs;
-  const counts = { projects: 0, deliveries: 0, overdue: 0, orders: 0 };
+  const counts = { projects: 0, deliveries: 0, overdue: 0 };
   const partial = (phase: string): SyncResult => ({ done: false, phase, written, counts });
 
   const rows = await fetchRows();
@@ -237,45 +236,6 @@ export async function runNotionSync(budgetMs = 8000): Promise<SyncResult> {
       await upsertPage(DS.overdue, page.id, { 区分: P.select('解消（納入済み）'), 最終同期: P.date(nowIso()) });
       written++;
     }
-  }
-
-  // ---- 発注忘れ候補（現寸チェックの未手配） ----
-  const excluded = new Map<string, Set<string>>();
-  try {
-    const { data, error } = await getSupabase().from('checklist_excluded').select('project_key, item_key');
-    if (!error) for (const d of (data ?? []) as { project_key: string; item_key: string }[]) {
-      const s = excluded.get(d.project_key) ?? new Set<string>();
-      s.add(d.item_key);
-      excluded.set(d.project_key, s);
-    }
-  } catch { /* テーブル未作成なら除外なし */ }
-  const oPages = new Map<string, NotionPage>();
-  for (const p of await queryAll(DS.orders)) oPages.set(R.text(p.properties['物件キー']), p);
-
-  for (const [key, g] of groups) {
-    // 新規作成は進行中（未納入が残っている）物件だけ。既に Notion にある物件は、
-    // 全部納入済みになった後も未手配（発注忘れ）が残り得るので引き続き更新する。
-    if (!g.rows.some(r => r.status !== '納入済み') && !oPages.has(key)) continue;
-    const rec = reconcile(g.rows as unknown as DeliveryLite[], excluded.get(key));
-    const items: string[] = [];
-    for (const sec of rec.sections) for (const gr of sec.groups) for (const it of gr.items)
-      if (it.status === 'none') items.push(`・${sec.section}／${gr.group}／${it.label}`);
-    counts.orders += items.length ? 1 : 0;
-    const text = items.join('\n');
-    const state = items.length ? '未手配あり' : '解消';
-    const page = oPages.get(key);
-    if (!page && !items.length) continue;
-    const same = page
-      && R.num(page.properties['未手配件数']) === items.length
-      && R.text(page.properties['未手配項目']) === (text.length > 1900 ? `${text.slice(0, 1900)}…` : text)
-      && R.select(page.properties['状態']) === state;
-    if (same) continue;
-    if (over()) return partial('発注忘れ候補');
-    await upsertPage(DS.orders, page?.id ?? null, {
-      件名: P.title(`${g.name} 発注忘れ候補`), 物件キー: P.text(key), 物件: P.rel(projId(g.name) ? [projId(g.name)!] : []),
-      未手配件数: P.num(items.length), 未手配項目: P.text(text), 状態: P.select(state), 最終同期: P.date(nowIso()),
-    });
-    written++;
   }
 
   return { done: true, phase: '完了', written, counts };

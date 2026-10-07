@@ -421,7 +421,7 @@ export default function HomePage() {
         written += r.written ?? 0;
         if (r.done) {
           const c = r.counts ?? {};
-          alert(`Notion同期が完了しました（今回 ${written} 件を反映）\n物件 ${c.projects ?? 0} / 納入予定 ${c.deliveries ?? 0} / 納入遅れ ${c.overdue ?? 0} / 発注忘れ候補 ${c.orders ?? 0}`);
+          alert(`Notion同期が完了しました（今回 ${written} 件を反映）\n物件 ${c.projects ?? 0} / 納入予定 ${c.deliveries ?? 0} / 納入遅れ ${c.overdue ?? 0}`);
           return;
         }
       }
@@ -575,13 +575,6 @@ export default function HomePage() {
               </span>
             )}
           </button>
-          <a
-            href="/progress"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
-          >
-            <span>📋</span>
-            <span>物件別 進捗</span>
-          </a>
           {canEdit && (
             <button
               onClick={handleGsSync}
