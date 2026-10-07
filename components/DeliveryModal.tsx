@@ -31,7 +31,12 @@ export default function DeliveryModal({
   const [scanning, setScanning] = useState(false);
   const [loadingSlips, setLoadingSlips] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [uploadingOrder, setUploadingOrder] = useState(false);
+  const [previewId, setPreviewId] = useState<number | null>(null);
   const color = getCategoryColor(delivery.item);
+  // 発注書（工場の人が納入内容を確認するためのPDF）と納入伝票は同じ表に入っており、ファイル名の頭で区別する。
+  const orders = slips.filter(isOrderFile);
+  const receipts = slips.filter(sl => !isOrderFile(sl));
 
   useEffect(() => {
     fetch(`/api/deliveries/${delivery.id}/slips`, { cache: 'no-store' })
@@ -66,8 +71,31 @@ export default function DeliveryModal({
     }
   }
 
+  async function handleOrderUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!/\.pdf$/i.test(file.name)) { alert('発注書はPDFを選んでください'); return; }
+    setUploadingOrder(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('kind', 'order');
+      const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.id) setSlips(prev => [...prev, data]);
+      else alert(data.error ?? 'アップロードに失敗しました');
+    } catch {
+      alert('アップロードに失敗しました。通信環境を確認してください。');
+    } finally {
+      setUploadingOrder(false);
+    }
+  }
+
   async function handleDownloadPdf() {
-    if (slips.length === 0) return;
+    // PDFの伝票は画像として埋め込めないので、画像の伝票だけをまとめる
+    const images = receipts.filter(sl => !isPdfFile(sl));
+    if (images.length === 0) { alert('画像の伝票がありません（PDFの伝票はそのまま開いて保存してください）'); return; }
     setGeneratingPdf(true);
     try {
       const { jsPDF } = await import('jspdf');
@@ -75,9 +103,9 @@ export default function DeliveryModal({
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
 
-      for (let i = 0; i < slips.length; i++) {
+      for (let i = 0; i < images.length; i++) {
         if (i > 0) doc.addPage();
-        const slip = slips[i];
+        const slip = images[i];
         const dataUrl = await imageUrlToDataUrl(slip.slip_image_path);
         const { width, height } = await getImageSize(dataUrl);
         const margin = 10;
@@ -88,7 +116,7 @@ export default function DeliveryModal({
         const h = height * ratio;
         const x = (pageW - w) / 2;
         doc.setFontSize(11);
-        doc.text(`${delivery.project_name} / ${delivery.item}（伝票 ${i + 1}/${slips.length}）`, margin, 8);
+        doc.text(`${delivery.project_name} / ${delivery.item}（伝票 ${i + 1}/${images.length}）`, margin, 8);
         doc.addImage(dataUrl, 'JPEG', x, margin + 4, w, h);
       }
 
@@ -101,8 +129,8 @@ export default function DeliveryModal({
     }
   }
 
-  async function handleDeleteSlip(slipId: number) {
-    if (!confirm('この伝票を削除しますか？')) return;
+  async function handleDeleteSlip(slipId: number, label = 'この伝票') {
+    if (!confirm(`${label}を削除しますか？`)) return;
     const res = await fetch(`/api/slips/${slipId}`, { method: 'DELETE' });
     if (res.ok) {
       setSlips(prev => prev.filter(s => s.id !== slipId));
@@ -206,13 +234,71 @@ export default function DeliveryModal({
               : <span className="text-gray-400">未登録（「編集する」から設定できます）</span>}
           </Row>
 
+          {/* 発注書（PDF）：工場の人が納入内容を把握するためのもの */}
+          {(orders.length > 0 || canEdit) && !loadingSlips && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
+              <div className="text-xs font-bold text-blue-900 mb-2">
+                📄 発注書 {orders.length > 0 && `(${orders.length}件)`}
+                <span className="font-normal text-blue-900/60 ml-1">納入内容の確認用</span>
+              </div>
+              {orders.length > 0 && (
+                <div className="space-y-2 mb-2">
+                  {orders.map((o, i) => (
+                    <div key={o.id} className="bg-white border border-blue-100 rounded-lg overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <span className="text-xl">📄</span>
+                        <span className="flex-1 text-sm font-medium text-gray-800">発注書 {i + 1}</span>
+                        <button
+                          onClick={() => setPreviewId(previewId === o.id ? null : o.id)}
+                          className="hidden md:inline-block text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+                        >
+                          {previewId === o.id ? '閉じる' : 'ここで見る'}
+                        </button>
+                        <a
+                          href={o.slip_image_path}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold px-3 py-1.5 rounded-lg text-white"
+                          style={{ background: '#0d2c66' }}
+                        >
+                          開く
+                        </a>
+                        {canEdit && (
+                          <button
+                            onClick={() => handleDeleteSlip(o.id, 'この発注書')}
+                            className="text-gray-400 hover:text-red-500 text-lg leading-none px-1"
+                            title="削除"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                      {previewId === o.id && (
+                        <iframe src={o.slip_image_path} title={`発注書 ${i + 1}`} className="w-full h-[60vh] border-t" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {canEdit && (
+                <label className="border-2 border-dashed border-blue-300 rounded-lg p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:border-blue-500 bg-white transition-colors">
+                  <span className="text-lg">{uploadingOrder ? '⏳' : '📎'}</span>
+                  <span className="text-sm text-blue-900/80">
+                    {uploadingOrder ? 'アップロード中...' : orders.length > 0 ? '発注書を追加 (PDF)' : '発注書を添付 (PDF)'}
+                  </span>
+                  <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleOrderUpload} disabled={uploadingOrder} />
+                </label>
+              )}
+            </div>
+          )}
+
           {/* Slip images */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs text-gray-500 font-medium">
-                納入伝票 {!loadingSlips && slips.length > 0 && `(${slips.length}枚)`}
+                納入伝票 {!loadingSlips && receipts.length > 0 && `(${receipts.length}枚)`}
               </div>
-              {!loadingSlips && slips.length > 0 && (
+              {!loadingSlips && receipts.some(sl => !isPdfFile(sl)) && (
                 <button
                   onClick={handleDownloadPdf}
                   disabled={generatingPdf}
@@ -227,16 +313,23 @@ export default function DeliveryModal({
               <div className="text-sm text-gray-400 text-center py-2">読み込み中...</div>
             ) : (
               <>
-                {slips.length > 0 && (
+                {receipts.length > 0 && (
                   <div className="space-y-2 mb-2">
-                    {slips.map((slip, i) => (
+                    {receipts.map((slip, i) => (
                       <div key={slip.id} className="relative border rounded-lg overflow-hidden">
                         <a href={slip.slip_image_path} target="_blank" rel="noopener noreferrer">
-                          <img
-                            src={slip.slip_image_path}
-                            alt={`納入伝票 ${i + 1}`}
-                            className="w-full max-h-48 object-contain bg-gray-50"
-                          />
+                          {isPdfFile(slip) ? (
+                            <div className="flex items-center gap-2 px-3 py-4 bg-gray-50 text-sm text-gray-700">
+                              <span className="text-2xl">📄</span>PDFの伝票（タップで開く）
+                            </div>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={slip.slip_image_path}
+                              alt={`納入伝票 ${i + 1}`}
+                              className="w-full max-h-48 object-contain bg-gray-50"
+                            />
+                          )}
                         </a>
                         {canEdit && (
                           <button
@@ -259,7 +352,7 @@ export default function DeliveryModal({
                   <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
                     <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
                     <span className="text-sm text-gray-500">
-                      {scanning ? 'スキャン処理中...' : uploading ? 'アップロード中...' : slips.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
+                      {scanning ? 'スキャン処理中...' : uploading ? 'アップロード中...' : receipts.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
                     </span>
                     <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
                   </label>
@@ -360,4 +453,11 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   );
+}
+
+function isOrderFile(sl: DeliverySlip): boolean {
+  return /\/order_[^/]*$/.test(sl.slip_image_path);
+}
+function isPdfFile(sl: DeliverySlip): boolean {
+  return /\.pdf(\?|$)/i.test(sl.slip_image_path);
 }
