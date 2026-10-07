@@ -21,7 +21,8 @@ function todayLocalYmd() {
 interface Props {
   initial?: Partial<Delivery>;
   defaultDate?: string;
-  onSave: (data: Partial<Delivery>) => void;
+  // orderFiles: 新規追加時に選んだ発注書PDF（登録後にその予定へ添付する）
+  onSave: (data: Partial<Delivery>, orderFiles?: File[]) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: (id: number) => void;
   vendors?: string[];
@@ -54,29 +55,48 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
   const setPostal = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, is_postal: e.target.checked }));
 
-  function handleSubmit(e: React.FormEvent) {
+  // 発注書PDF（新規追加のときだけ選べる。編集時は予定詳細の「発注書」欄から追加する）
+  const isNew = !initial?.id;
+  const [orderFiles, setOrderFiles] = useState<File[]>([]);
+  function pickOrderFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    const pdfs = picked.filter(f => /\.pdf$/i.test(f.name));
+    if (pdfs.length < picked.length) alert('発注書はPDFだけ添付できます（PDF以外は外しました）');
+    setOrderFiles(prev => [...prev, ...pdfs]);
+  }
+
+  // 二度押し防止（通信が遅いと連打で同じ予定が2件できてしまうため）
+  const [saving, setSaving] = useState(false);
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // 必須入力チェックは廃止（未入力でもそのまま登録できる）。
-    // ただし納入予定日だけは日付型のため、空なら今日を補う（DBの日付型が空文字を受け付けないため）。
-    const notesValue = form.is_postal
-      ? `[配送] ${form.notes}`.trimEnd()
-      : form.notes || null;
-    onSave({
-      delivery_date: form.delivery_date || todayLocalYmd(),
-      delivery_time: form.delivery_time || null,
-      project_name: form.project_name,
-      item: form.item,
-      specification: form.specification || null,
-      vendor: form.vendor,
-      unload_location: form.unload_location,
-      storage_location: form.storage_location || null,
-      quantity: form.quantity ? parseFloat(form.quantity) : null,
-      unit: form.unit || null,
-      order_number: form.order_number || null,
-      notes: notesValue,
-      created_by: form.created_by,
-      unloaded_by: form.unloaded_by || null,
-    });
+    if (saving) return;
+    setSaving(true);
+    try {
+      // 必須入力チェックは廃止（未入力でもそのまま登録できる）。
+      // ただし納入予定日だけは日付型のため、空なら今日を補う（DBの日付型が空文字を受け付けないため）。
+      const notesValue = form.is_postal
+        ? `[配送] ${form.notes}`.trimEnd()
+        : form.notes || null;
+      await onSave({
+        delivery_date: form.delivery_date || todayLocalYmd(),
+        delivery_time: form.delivery_time || null,
+        project_name: form.project_name,
+        item: form.item,
+        specification: form.specification || null,
+        vendor: form.vendor,
+        unload_location: form.unload_location,
+        storage_location: form.storage_location || null,
+        quantity: form.quantity ? parseFloat(form.quantity) : null,
+        unit: form.unit || null,
+        order_number: form.order_number || null,
+        notes: notesValue,
+        created_by: form.created_by,
+        unloaded_by: form.unloaded_by || null,
+      }, isNew ? orderFiles : undefined);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -181,6 +201,26 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
               className="input resize-y"
             />
           </FormRow>
+
+          {isNew && (
+            <FormRow label="　 発注書">
+              <div className="space-y-2">
+                {orderFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-100 bg-blue-50/40 text-sm">
+                    <span>📄</span>
+                    <span className="flex-1 truncate text-gray-700">{f.name}</span>
+                    <button type="button" onClick={() => setOrderFiles(prev => prev.filter((_, k) => k !== i))}
+                      className="text-gray-400 hover:text-red-500 text-lg leading-none px-1" title="外す">×</button>
+                  </div>
+                ))}
+                <label className="border-2 border-dashed border-blue-300 rounded-lg p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:border-blue-500 transition-colors">
+                  <span>📎</span>
+                  <span className="text-sm text-blue-900/80">{orderFiles.length ? '発注書を追加 (PDF)' : '発注書を添付 (PDF・任意)'}</span>
+                  <input type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={pickOrderFiles} />
+                </label>
+              </div>
+            </FormRow>
+          )}
         </form>
 
         <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-white">
@@ -190,10 +230,11 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
           <button
             type="submit"
             onClick={handleSubmit}
-            className="flex-1 py-3 rounded-xl text-white font-bold"
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-60"
             style={{ background: '#0d2c66' }}
           >
-            {initial?.id ? '更新する' : '登録する'}
+            {saving ? '保存中…' : initial?.id ? '更新する' : '登録する'}
           </button>
         </div>
 

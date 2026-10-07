@@ -78,32 +78,49 @@ export function yearOf(dateStr: string | null | undefined): string {
 }
 
 // 日付を "YYYY-MM-DD" に正規化（Googleシリアル値/文字列どちらも解釈）
-function normalizeDate(raw: unknown): string {
+// yearHint: 年タブ("2026"等)から読むときはその年。年が書かれていない「1/15」などに使う。
+function normalizeDate(raw: unknown, yearHint?: string): string {
   if (typeof raw === 'number') {
     const ms = Date.UTC(1899, 11, 30) + raw * 86400000;
     const d = new Date(ms);
     if (isNaN(d.getTime())) return '';
     return d.toISOString().slice(0, 10);
   }
-  const s = String(raw ?? '').trim();
+  // 全角数字・全角記号（２０２６／７／９ 等）は半角にそろえてから解釈する
+  const s = String(raw ?? '').normalize('NFKC').trim();
   if (!s) return '';
+  // 「2026年7月9日」形式
+  const ymdJa = s.match(/^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+  if (ymdJa) return `${ymdJa[1]}-${ymdJa[2].padStart(2, '0')}-${ymdJa[3].padStart(2, '0')}`;
   // 「7/27」「7月27日」など“年が無い”表記は、JSが 2001年 と誤解釈してしまう。
-  // その場合は当年（運用開始が2026年なので通常は今年）を補って解釈する。
+  // 年タブなら そのタブの年、それ以外は当年を補って解釈する。
   if (!/\d{4}/.test(s)) {
     const md = s.match(/(\d{1,2})\s*[/.\-月]\s*(\d{1,2})/);
     if (md) {
-      const y = new Date().getFullYear();
+      const y = yearHint && /^\d{4}$/.test(yearHint) ? yearHint : String(new Date().getFullYear());
       const mo = String(Number(md[1])).padStart(2, '0');
       const da = String(Number(md[2])).padStart(2, '0');
       return `${y}-${mo}-${da}`;
     }
   }
   const d = new Date(s);
-  if (isNaN(d.getTime())) return s;
+  // 読めない日付（「未定」等）は空として扱い、その行は取り込まない。
+  // ※元の文字をそのまま返すとDBの日付型で拒否され、同期全体が失敗していた。
+  if (isNaN(d.getTime())) return '';
   const y = d.getFullYear();
   const mo = String(d.getMonth() + 1).padStart(2, '0');
   const da = String(d.getDate()).padStart(2, '0');
   return `${y}-${mo}-${da}`;
+}
+
+// 時刻を正規化する。アプリは「9:00」等で書き込むが、シートは時刻型に変換するため
+// 読み戻すと 0.375（1日の割合）になる。数値ならアプリと同じ「H:MM」に戻す。
+function normalizeTime(raw: unknown): string {
+  if (typeof raw === 'number' && raw >= 0 && raw < 1) {
+    const mins = Math.round(raw * 1440);
+    return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
+  }
+  return String(raw ?? '').normalize('NFKC').trim();
 }
 
 async function listSheets(sheets: Sheets, spreadsheetId: string): Promise<SheetInfo[]> {
@@ -388,7 +405,7 @@ export function contentKeyOfSheetRow(r: string[]): string {
   const spec = norm(r[H.SPEC]);
   const vendor = normalizeName(norm(r[H.VENDOR])) || '未設定';
   const unload = normalizeUnloadLocation(norm(r[H.UNLOAD])) || '未設定';
-  const time = norm(r[H.TIME]);
+  const time = normalizeTime(r[H.TIME]);
   return JSON.stringify([date, project, item, spec, vendor, unload, time]);
 }
 
@@ -432,7 +449,7 @@ function readLegacyRow(header: string[], r: string[]): { year: string; no: strin
     del: iMark >= 0 && String(r[iMark] ?? '').includes('削除') ? DELETE_MARK_VALUE : '',
     f: {
       delivery_date: dv,
-      delivery_time: iTime >= 0 ? (String(r[iTime] ?? '').trim() || null) : null,
+      delivery_time: iTime >= 0 ? (normalizeTime(r[iTime]) || null) : null,
       project_name: normalizeName(pj),
       item: it,
       specification: iSpec >= 0 ? (String(r[iSpec] ?? '').trim() || null) : null,
@@ -491,6 +508,8 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
     const candidates: SheetCandidate[] = [];
     // 着色などで読み直さずに再利用するため、読んだ行を保持する。
     const tabsData: TabRows[] = [];
+    // 行をコピーして新しい予定を作るとNoまで重複する。同じNoが2回目に出たら新しいNoを振り直す。
+    const seenNos = new Set<string>();
     const yearTabs = all.filter(s => isYearTitle(s.title)).sort((a, b) => a.title.localeCompare(b.title));
     // 日付の年とタブ名が食い違う行（例: 2001タブに2026の予定）を、正しい年タブへ移す。
     const misplaced: { correctYear: string; row: string[]; fromTab: string; rowNum: number }[] = [];
@@ -504,23 +523,24 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
       const numberUpdates: { range: string; values: string[][] }[] = [];
       for (let i = 1; i < rows.length; i++) {
         const r = rows[i] as string[];
-        const dv = normalizeDate(r[H.DATE]);
+        const dv = normalizeDate(r[H.DATE], tab.title);
         const pj = String(r[H.PROJECT] ?? '').trim();
         const it = String(r[H.ITEM] ?? '').trim();
         // 日付と物件名があれば取り込む（品目未入力でも拾う）
         if (!dv || !pj) continue;
         let no = String(r[H.NO] ?? '').trim();
-        if (!no) {
+        if (!no || seenNos.has(no)) {
           no = String(nextNo++);
           numberUpdates.push({ range: `${tab.title}!${colLetter(H.NO)}${i + 1}`, values: [[no]] });
           setup.numbered++;
         }
+        seenNos.add(no);
         if (dv < minDate) continue;                       // 運用開始日より前は取り込まない
         if (String(r[H.DEL] ?? '').includes('削除')) continue; // 削除印は取り込まない
 
         const fields: SheetRowFields = {
           delivery_date: dv,
-          delivery_time: String(r[H.TIME] ?? '').trim() || null,
+          delivery_time: normalizeTime(r[H.TIME]) || null,
           project_name: normalizeName(pj),
           item: it,
           specification: String(r[H.SPEC] ?? '').trim() || null,

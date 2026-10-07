@@ -42,7 +42,11 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const navigate = useCallback((delta: number) => {
     setCurrent(d => {
       const n = new Date(d);
-      if (mode === '月') n.setMonth(n.getMonth() + delta);
+      if (mode === '月') {
+        // 31日に「次の月」を押すと11月31日→12月1日のように1か月飛ぶので、月末日で止める
+        const last = new Date(d.getFullYear(), d.getMonth() + delta + 1, 0).getDate();
+        return new Date(d.getFullYear(), d.getMonth() + delta, Math.min(d.getDate(), last));
+      }
       else if (mode === '週') n.setDate(n.getDate() + delta * 7);
       else n.setDate(n.getDate() + delta);
       return n;
@@ -191,10 +195,11 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
   // 加算し、最終行が他より小さくなることがないようにする）。
   const gridRef = useRef<HTMLDivElement>(null);
   const [rowHeight, setRowHeight] = useState<number | null>(null);
+  const [gridH, setGridH] = useState(0); // 描画中に ref を読まないよう、全体の高さも実測値を保持する
   useLayoutEffect(() => {
     const el = gridRef.current;
     if (!el) return;
-    const measure = () => setRowHeight(Math.floor(el.clientHeight / 6));
+    const measure = () => { setGridH(el.clientHeight); setRowHeight(Math.floor(el.clientHeight / 6)); };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -219,7 +224,7 @@ function MonthView({ current, deliveriesForDate, today, onSelectDelivery, onDate
           className="grid border-t border-gray-200 overflow-hidden flex-shrink-0"
           style={{
             gridTemplateColumns: '2fr 2fr 2fr 2fr 2fr 1fr 1fr',
-            height: rowHeight == null ? `${100 / 6}%` : (wi === 5 ? gridRef.current!.clientHeight - rowHeight * 5 : rowHeight),
+            height: rowHeight == null ? `${100 / 6}%` : (wi === 5 ? gridH - rowHeight * 5 : rowHeight),
           }}
         >
           {week.map((cell, di) => {

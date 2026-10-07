@@ -37,6 +37,8 @@ export default function SearchPanel({ filters, onChange, onClose, total, vendors
   const [draft, setDraft] = useState<SearchFilters>(filters);
 
   useEffect(() => {
+    // 親で検索条件がクリア等されたら入力欄も揃える
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(filters);
   }, [filters]);
 

@@ -38,6 +38,12 @@ function loadOpenCV(): Promise<unknown> {
     // 読み込みが極端に遅い場合のタイムアウト
     setTimeout(() => reject(new Error('opencv load timeout')), 20000);
   });
+  // 失敗（電波が弱い等）を覚えたままだと、ページを開き直すまで書類の切り抜きが使えなくなる。
+  // 失敗したら忘れて、次のアップロードで読み込みをやり直す。
+  opencvPromise.catch(() => {
+    opencvPromise = null;
+    document.querySelector('script[data-opencv]')?.remove();
+  });
   return opencvPromise;
 }
 

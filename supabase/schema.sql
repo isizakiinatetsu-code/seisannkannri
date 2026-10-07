@@ -81,6 +81,7 @@ create trigger trg_deliveries_updated_at
 
 -- 現寸チェック台帳：物件ごとに「対象外」にした項目を保存する（未手配＝発注忘れの精度を上げるため）。
 -- project_key は物件名を正規化した文字列、item_key は「セクション|分類|項目」。
+-- ※ 物件別進捗（現寸チェック）は削除済み。このテーブルは現在未使用（残っていても害はない）。
 create table if not exists checklist_excluded (
   project_key text not null,
   item_key text not null,

@@ -30,6 +30,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
+    // 存在しない予定に添付しようとすると、ファイルだけが残ってしまうので先に確かめる
+    if (!/^\d+$/.test(id)) return NextResponse.json({ error: '予定が見つかりません' }, { status: 404 });
+    {
+      const { data: exists } = await getSupabase().from('deliveries').select('id').eq('id', id).maybeSingle();
+      if (!exists) return NextResponse.json({ error: '予定が見つかりません' }, { status: 404 });
+    }
     // kind=order は「発注書」（工場の人が納入内容を確認するためのPDF）。伝票とはファイル名の頭で区別する。
     const isOrder = formData.get('kind') === 'order';
 
@@ -60,7 +66,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .insert({ delivery_id: Number(id), slip_image_path: urlData.publicUrl })
       .select()
       .single();
-    if (insertError) throw insertError;
+    if (insertError) {
+      await supabase.storage.from(BUCKET).remove([filename]); // 記録できなかったファイルは残さない
+      throw insertError;
+    }
 
     // ベストエフォートで Google Drive の【納入管理】フォルダにも保存する。
     // Claude Cowork などから検索・参照できるようにするための経路。失敗しても伝票保存は成功扱い。

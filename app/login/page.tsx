@@ -32,7 +32,9 @@ function LoginForm() {
         setError(data.error ?? 'ログインに失敗しました');
         return;
       }
-      const next = searchParams.get('next') || '/';
+      // 外部サイトへ飛ばされないよう、サイト内のパス（/〜、//以外）だけ許可する
+      const raw = searchParams.get('next') || '/';
+      const next = raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\') ? raw : '/';
       router.replace(next);
       router.refresh();
     } finally {

@@ -50,6 +50,7 @@ export default function HomePage() {
   // 納入日が過ぎたのに未納入/一部納入のままの予定（表示月に関わらず全件）
   const [overdue, setOverdue] = useState<Delivery[] | null>(null);
   const [overdueLoading, setOverdueLoading] = useState(false);
+  const [overdueAt, setOverdueAt] = useState(0); // 一覧を取得した時刻（超過日数の計算に使う）
   const [todayContact, setTodayContact] = useState<string | null>(null);
   const [addDefaultDate, setAddDefaultDate] = useState<string | undefined>();
   const [filters, setFilters] = useState<SearchFilters>(emptyFilters);
@@ -131,6 +132,7 @@ export default function HomePage() {
         .filter(d => d.status !== '納入済み')
         .sort((a, b) => a.delivery_date.localeCompare(b.delivery_date) || a.project_name.localeCompare(b.project_name, 'ja'));
       setOverdue(list);
+      setOverdueAt(Date.now());
     } catch {
       setOverdue([]);
     } finally {
@@ -138,12 +140,14 @@ export default function HomePage() {
     }
   }, []);
   // 起動時に一度読み込んでバッジ件数を出す。
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadOverdue(); }, [loadOverdue]);
 
   // 実際に取得するクエリ。検索中は条件そのまま、そうでなければ
   // 表示中の月の前後（前月・当月・翌月）だけに絞って軽くする。
   const effectiveQuery = useMemo(() => {
-    if (hasActiveFilters) return buildQuery(filters);
+    // 検索条件は検索タブだけに効かせる（カレンダーに戻ったら、その月の全予定を出す）
+    if (hasActiveFilters && tab === 'list') return buildQuery(filters);
     const y = calendarMonth.getFullYear();
     const m = calendarMonth.getMonth();
     const from = new Date(y, m - 1, 1);      // 前月1日
@@ -152,7 +156,7 @@ export default function HomePage() {
     p.set('date_from', ymd(from));
     p.set('date_to', ymd(to));
     return p.toString();
-  }, [hasActiveFilters, filters, calendarMonth, buildQuery]);
+  }, [hasActiveFilters, filters, calendarMonth, buildQuery, tab]);
 
   // 月スワイプ・30秒間隔・フォーカス復帰が同時に走ると、遅れて返った古い応答が
   // 新しい一覧を上書きしてしまう。リクエスト番号で最新の応答だけを採用する。
@@ -187,8 +191,9 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDeliveries(effectiveQuery);
     fetchToday();
-  }, [effectiveQuery, fetchDeliveries]);
+  }, [effectiveQuery, fetchDeliveries, fetchToday]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchToday(); }, [fetchToday]);
 
   // 本日の荷下ろし連絡先を取得
@@ -199,6 +204,7 @@ export default function HomePage() {
       setTodayContact(d?.contact ?? null);
     } catch { /* 失敗は本体に影響させない */ }
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchTodayContact(); }, [fetchTodayContact]);
 
   // ---- アプリ内お知らせ（新着：他の人が追加した予定）----
@@ -254,7 +260,8 @@ export default function HomePage() {
   // 自動更新：アプリ再表示/フォーカス時と、30秒ごとに最新化する。
   // これにより「アプリを閉じ直さないと反映されない」「他の人の変更が見えない」を解消。
   useEffect(() => {
-    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); fetchNotifications(); };
+    // 開きっぱなしでも「納入遅れ」件数・今日の荷下ろし担当が古くならないよう一緒に更新する
+    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); fetchNotifications(); loadOverdue(); fetchTodayContact(); };
     const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refetch);
@@ -264,7 +271,7 @@ export default function HomePage() {
       window.removeEventListener('focus', refetch);
       clearInterval(timer);
     };
-  }, [effectiveQuery, fetchDeliveries, fetchToday, fetchNotifications]);
+  }, [effectiveQuery, fetchDeliveries, fetchToday, fetchNotifications, loadOverdue, fetchTodayContact]);
 
   const todaySummary = useMemo(() => {
     const total = todayItems.length;
@@ -342,7 +349,7 @@ export default function HomePage() {
     await finalizeMutation(res, '「予定に戻す」を保存できませんでした。');
   }
 
-  async function handleAdd(data: Partial<Delivery>) {
+  async function handleAdd(data: Partial<Delivery>, orderFiles: File[] = []) {
     const res = await fetch('/api/deliveries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -359,9 +366,25 @@ export default function HomePage() {
         body: JSON.stringify({ ...data, status: '予定', force: true }),
       });
     }
-    setShowAddForm(false);
+    // 失敗したときはフォームを開いたままにして、入力内容を失わないようにする
+    if (finalRes.ok) setShowAddForm(false);
     // 自分が登録した分は「新着お知らせ」に出さないよう、既読時刻を進める
     markNotificationsSeen();
+    // 発注書PDFが選ばれていれば、できた予定に添付する（本文は finalizeMutation が読むので複製して読む）
+    if (finalRes.ok && orderFiles.length) {
+      const created = await finalRes.clone().json().catch(() => null) as { id?: number } | null;
+      if (created?.id) {
+        let failed = 0;
+        for (const f of orderFiles) {
+          const fd = new FormData();
+          fd.append('file', f);
+          fd.append('kind', 'order');
+          const r = await fetch(`/api/deliveries/${created.id}/slips`, { method: 'POST', body: fd }).catch(() => null);
+          if (!r || !r.ok) failed++;
+        }
+        if (failed) alert(`予定は登録しましたが、発注書 ${failed} 件の添付に失敗しました。予定を開いて「発注書を添付」からもう一度追加してください。`);
+      }
+    }
     await finalizeMutation(finalRes, '予定の登録に失敗しました。もう一度お試しください。');
   }
 
@@ -401,7 +424,7 @@ export default function HomePage() {
         written += r.written ?? 0;
         if (r.done) {
           const c = r.counts ?? {};
-          alert(`Notion同期が完了しました（今回 ${written} 件を反映）\n物件 ${c.projects ?? 0} / 納入予定 ${c.deliveries ?? 0} / 納入遅れ ${c.overdue ?? 0} / 発注忘れ候補 ${c.orders ?? 0}`);
+          alert(`Notion同期が完了しました（今回 ${written} 件を反映）\n物件 ${c.projects ?? 0} / 納入予定 ${c.deliveries ?? 0} / 納入遅れ ${c.overdue ?? 0}`);
           return;
         }
       }
@@ -555,13 +578,6 @@ export default function HomePage() {
               </span>
             )}
           </button>
-          <a
-            href="/progress"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium w-full border border-white/30 hover:bg-white/10 transition-colors"
-          >
-            <span>📋</span>
-            <span>物件別 進捗</span>
-          </a>
           {canEdit && (
             <button
               onClick={handleGsSync}
@@ -976,7 +992,7 @@ export default function HomePage() {
               ) : (
                 <ul className="divide-y divide-gray-100">
                   {overdue.map(d => {
-                    const days = Math.max(0, Math.floor((Date.now() - new Date(`${d.delivery_date}T00:00:00`).getTime()) / 86400000));
+                    const days = Math.max(0, Math.floor((overdueAt - new Date(`${d.delivery_date}T00:00:00`).getTime()) / 86400000));
                     const partial = d.status !== '納入済み' && d.is_partial;
                     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d.delivery_date);
                     const dateLabel = m ? `${Number(m[2])}/${Number(m[3])}` : d.delivery_date;

@@ -1,3 +1,4 @@
+import { jstYmd } from '@/lib/selectAll';
 import { NextResponse } from 'next/server';
 import { getSupabase, Delivery } from '@/lib/supabase';
 import { isMissingColumnError } from '@/lib/dbErrors';
@@ -55,8 +56,7 @@ export async function GET() {
     }
     const csv = '﻿' + lines.join('\r\n');
 
-    const now = new Date();
-    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const stamp = jstYmd().replace(/-/g, ''); // 日本時間の日付（サーバーはUTCのことがある）
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',

@@ -168,7 +168,9 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
   }
 
   // 1つのプルダウン（＋その他の手動入力）
-  function SlotSelect({ group, slot, names, isOther }: { group: string; slot: string; names: readonly string[]; isOther: boolean }) {
+  // 部品(コンポーネント)ではなく関数として呼ぶ。部品にすると描画のたびに作り直され、
+  // 手動入力欄が1文字ごとにフォーカスを失って文字が打てなくなるため。
+  function slotSelect({ group, slot, names, isOther }: { group: string; slot: string; names: readonly string[]; isOther: boolean }) {
     const key = `${group}|${slot}`;
     return (
       <div className="flex-1">
@@ -233,15 +235,15 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
                       <div className="flex gap-2">
                         <div className="flex-1">
                           <div className="text-xs text-gray-500 mb-1">午前</div>
-                          <SlotSelect group={g.group} slot="am" names={g.names} isOther={isOther} />
+                          {slotSelect({ group: g.group, slot: "am", names: g.names, isOther })}
                         </div>
                         <div className="flex-1">
                           <div className="text-xs text-gray-500 mb-1">午後</div>
-                          <SlotSelect group={g.group} slot="pm" names={g.names} isOther={isOther} />
+                          {slotSelect({ group: g.group, slot: "pm", names: g.names, isOther })}
                         </div>
                       </div>
                     ) : (
-                      <SlotSelect group={g.group} slot="all" names={g.names} isOther={isOther} />
+                      slotSelect({ group: g.group, slot: "all", names: g.names, isOther })
                     )}
                     <div className="mt-2">
                       <div className="text-xs text-gray-500 mb-1">備考</div>
