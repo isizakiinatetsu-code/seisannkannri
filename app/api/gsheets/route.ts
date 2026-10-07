@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { selectAll } from '@/lib/selectAll';
 import { google } from 'googleapis';
 import { getSupabase } from '@/lib/supabase';
 import { requireEditRole } from '@/lib/auth';
@@ -68,10 +69,13 @@ export async function POST(req: NextRequest) {
     type SelResult = { data: unknown; error: { code?: string; message?: string } | null };
     let existing: ExRow[] = [];
     {
-      let r = await supabase.from('deliveries').select(fullSel).gte('delivery_date', minDate) as SelResult;
+      // 1000行で打ち切られると、既存の予定を「新規」と誤認して二重登録してしまうため全件取得する
+      const all = (sel: string) => selectAll((f, t) =>
+        supabase.from('deliveries').select(sel).gte('delivery_date', minDate).order('id', { ascending: true }).range(f, t)) as Promise<SelResult>;
+      let r = await all(fullSel);
       if (r.error && isMissingColumnError(r.error)) {
         withoutNo = candidates; withNo = [];
-        r = await supabase.from('deliveries').select(minSel).gte('delivery_date', minDate) as SelResult;
+        r = await all(minSel);
       }
       if (r.error) throw r.error;
       existing = (r.data ?? []) as ExRow[];

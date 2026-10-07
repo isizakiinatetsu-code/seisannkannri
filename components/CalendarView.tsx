@@ -42,7 +42,11 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   const navigate = useCallback((delta: number) => {
     setCurrent(d => {
       const n = new Date(d);
-      if (mode === '月') n.setMonth(n.getMonth() + delta);
+      if (mode === '月') {
+        // 31日に「次の月」を押すと11月31日→12月1日のように1か月飛ぶので、月末日で止める
+        const last = new Date(d.getFullYear(), d.getMonth() + delta + 1, 0).getDate();
+        return new Date(d.getFullYear(), d.getMonth() + delta, Math.min(d.getDate(), last));
+      }
       else if (mode === '週') n.setDate(n.getDate() + delta * 7);
       else n.setDate(n.getDate() + delta);
       return n;

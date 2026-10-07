@@ -5,7 +5,7 @@ import { signSession, timingSafeEqual } from '@/lib/session';
 const MAX_AGE = 60 * 60 * 24 * 30; // 30日
 
 export async function POST(req: NextRequest) {
-  const { password } = await req.json();
+  const { password } = await req.json().catch(() => ({ password: undefined }));
 
   const editPassword = process.env.EDIT_PASSWORD;
   const viewPassword = process.env.VIEW_PASSWORD;

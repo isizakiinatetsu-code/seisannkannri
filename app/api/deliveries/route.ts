@@ -6,6 +6,7 @@ import { isMissingColumnError, insertWithMissingColumnFallback } from '@/lib/dbE
 import { appendDeliveryToSheet } from '@/lib/gsheetsWrite';
 import { IMPL_START_DATE } from '@/lib/constants';
 import { normalizeName, normalizeUnloadLocation } from '@/lib/textNormalize';
+import { selectAll } from '@/lib/selectAll';
 
 export async function GET(req: NextRequest) {
   try {
@@ -46,11 +47,14 @@ export async function GET(req: NextRequest) {
       if (excludeDeleted) query = query.eq('deleted', false);
       return query
         .order('delivery_date', { ascending: true })
-        .order('delivery_time', { ascending: true, nullsFirst: false });
+        .order('delivery_time', { ascending: true, nullsFirst: false })
+        .order('id', { ascending: true });
     };
+    // 1000行で打ち切られないよう、ページを分けて全件取得する
+    const fetchAll = (excludeDeleted: boolean) => selectAll((from, to) => build(excludeDeleted).range(from, to));
 
-    let { data, error } = await build(true);
-    if (error && isMissingColumnError(error)) ({ data, error } = await build(false));
+    let { data, error } = await fetchAll(true);
+    if (error && isMissingColumnError(error)) ({ data, error } = await fetchAll(false));
     if (error) throw error;
     return NextResponse.json(data, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },

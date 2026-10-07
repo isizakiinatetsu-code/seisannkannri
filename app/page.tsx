@@ -146,7 +146,8 @@ export default function HomePage() {
   // 実際に取得するクエリ。検索中は条件そのまま、そうでなければ
   // 表示中の月の前後（前月・当月・翌月）だけに絞って軽くする。
   const effectiveQuery = useMemo(() => {
-    if (hasActiveFilters) return buildQuery(filters);
+    // 検索条件は検索タブだけに効かせる（カレンダーに戻ったら、その月の全予定を出す）
+    if (hasActiveFilters && tab === 'list') return buildQuery(filters);
     const y = calendarMonth.getFullYear();
     const m = calendarMonth.getMonth();
     const from = new Date(y, m - 1, 1);      // 前月1日
@@ -155,7 +156,7 @@ export default function HomePage() {
     p.set('date_from', ymd(from));
     p.set('date_to', ymd(to));
     return p.toString();
-  }, [hasActiveFilters, filters, calendarMonth, buildQuery]);
+  }, [hasActiveFilters, filters, calendarMonth, buildQuery, tab]);
 
   // 月スワイプ・30秒間隔・フォーカス復帰が同時に走ると、遅れて返った古い応答が
   // 新しい一覧を上書きしてしまう。リクエスト番号で最新の応答だけを採用する。
@@ -259,7 +260,8 @@ export default function HomePage() {
   // 自動更新：アプリ再表示/フォーカス時と、30秒ごとに最新化する。
   // これにより「アプリを閉じ直さないと反映されない」「他の人の変更が見えない」を解消。
   useEffect(() => {
-    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); fetchNotifications(); };
+    // 開きっぱなしでも「納入遅れ」件数・今日の荷下ろし担当が古くならないよう一緒に更新する
+    const refetch = () => { fetchDeliveries(effectiveQuery); fetchToday(); fetchNotifications(); loadOverdue(); fetchTodayContact(); };
     const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refetch);
@@ -269,7 +271,7 @@ export default function HomePage() {
       window.removeEventListener('focus', refetch);
       clearInterval(timer);
     };
-  }, [effectiveQuery, fetchDeliveries, fetchToday, fetchNotifications]);
+  }, [effectiveQuery, fetchDeliveries, fetchToday, fetchNotifications, loadOverdue, fetchTodayContact]);
 
   const todaySummary = useMemo(() => {
     const total = todayItems.length;
@@ -364,7 +366,8 @@ export default function HomePage() {
         body: JSON.stringify({ ...data, status: '予定', force: true }),
       });
     }
-    setShowAddForm(false);
+    // 失敗したときはフォームを開いたままにして、入力内容を失わないようにする
+    if (finalRes.ok) setShowAddForm(false);
     // 自分が登録した分は「新着お知らせ」に出さないよう、既読時刻を進める
     markNotificationsSeen();
     // 発注書PDFが選ばれていれば、できた予定に添付する（本文は finalizeMutation が読むので複製して読む）

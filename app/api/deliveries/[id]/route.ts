@@ -40,7 +40,8 @@ export async function PATCH(
 
     const fields: Record<string, unknown> = {};
     for (const k of Object.keys(body)) {
-      if (k === 'id' || k === 'created_at' || k === 'updated_at' || k === 'expected_updated_at') continue;
+      // 削除・シート番号は専用の処理でのみ変更する（古い編集画面からの保存で削除が取り消されないように）
+      if (k === 'id' || k === 'created_at' || k === 'updated_at' || k === 'expected_updated_at' || k === 'deleted' || k === 'sheet_no') continue;
       fields[k] = body[k];
     }
     // 物件名・業者名は半角/全角・空白差を吸収して保存（表記ゆれで別物件に割れないように）
@@ -56,7 +57,8 @@ export async function PATCH(
     }
 
     const runUpdate = async (f: Record<string, unknown>) => {
-      let q = supabase.from('deliveries').update(f).eq('id', id);
+      // 削除済みの予定は更新しない（他の人が消した後に、古い画面から保存されても復活させない）
+      let q = supabase.from('deliveries').update(f).eq('id', id).not('deleted', 'is', true);
       if (expectedUpdatedAt) q = q.eq('updated_at', expectedUpdatedAt);
       return await q.select().maybeSingle();
     };
@@ -67,7 +69,7 @@ export async function PATCH(
     if (!data) {
       // 更新対象が0件。存在しないのか、競合（updated_atが変わった）のか判別する。
       const { data: current } = await supabase.from('deliveries').select('*').eq('id', id).maybeSingle();
-      if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      if (!current || (current as { deleted?: boolean }).deleted) return NextResponse.json({ error: 'この予定は削除されています' }, { status: 404 });
       // レコードは存在するのに更新できなかった = 別の人が先に更新している
       return NextResponse.json(
         { conflict: true, current, error: '他の人が先にこの予定を更新しました' },

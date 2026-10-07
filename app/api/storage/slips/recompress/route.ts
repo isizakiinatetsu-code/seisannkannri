@@ -21,17 +21,28 @@ export async function POST(req: NextRequest) {
     if (path.includes('..') || path.startsWith('/')) {
       return NextResponse.json({ error: '不正なパスです' }, { status: 400 });
     }
+    // 再圧縮できるのは画像だけ（発注書などのPDFをJPEGで上書きして壊さない）
+    if (!/\.(jpe?g|png|webp)$/i.test(path)) {
+      return NextResponse.json({ error: '画像以外は再圧縮できません' }, { status: 400 });
+    }
     const supabase = getSupabase();
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // 先に元を削除して空きを作る（超過中でも次のuploadが通るように）
-    const { error: rmErr } = await supabase.storage.from(BUCKET).remove([path]);
-    if (rmErr) throw rmErr;
-    // 同じパスへ軽い画像を入れ直す
-    const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, buffer, {
-      contentType: 'image/jpeg', upsert: true,
-    });
-    if (upErr) throw upErr;
+    // まず上書きで入れ替える（失敗しても元の画像は残る）。
+    const up = () => supabase.storage.from(BUCKET).upload(path, buffer, { contentType: 'image/jpeg', upsert: true });
+    let { error: upErr } = await up();
+    if (upErr) {
+      // 容量超過で上書きできないときだけ、元を消して空きを作ってから入れ直す。
+      // その入れ直しにも失敗したら元に戻す（画像が消えたままにならないように）。
+      const { data: orig } = await supabase.storage.from(BUCKET).download(path);
+      const { error: rmErr } = await supabase.storage.from(BUCKET).remove([path]);
+      if (rmErr) throw rmErr;
+      ({ error: upErr } = await up());
+      if (upErr) {
+        if (orig) await supabase.storage.from(BUCKET).upload(path, Buffer.from(await orig.arrayBuffer()), { contentType: orig.type || 'image/jpeg', upsert: true });
+        throw upErr;
+      }
+    }
 
     return NextResponse.json({ ok: true, newSize: buffer.length });
   } catch (e) {

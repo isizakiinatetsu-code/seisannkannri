@@ -65,6 +65,8 @@ export default function DeliveryModal({
       } else {
         alert(data.error ?? 'アップロードに失敗しました');
       }
+    } catch {
+      alert('アップロードに失敗しました。通信環境を確認するか、別の画像でお試しください。');
     } finally {
       setUploading(false);
       setScanning(false);
@@ -430,9 +432,10 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
 }
 
 function getImageSize(dataUrl: string): Promise<{ width: number; height: number }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve({ width: img.width, height: img.height });
+    img.onerror = () => reject(new Error('画像を読み込めませんでした')); // 無いと「生成中...」のまま止まる
     img.src = dataUrl;
   });
 }

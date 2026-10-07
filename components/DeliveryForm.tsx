@@ -22,7 +22,7 @@ interface Props {
   initial?: Partial<Delivery>;
   defaultDate?: string;
   // orderFiles: 新規追加時に選んだ発注書PDF（登録後にその予定へ添付する）
-  onSave: (data: Partial<Delivery>, orderFiles?: File[]) => void;
+  onSave: (data: Partial<Delivery>, orderFiles?: File[]) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: (id: number) => void;
   vendors?: string[];
@@ -66,29 +66,37 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
     setOrderFiles(prev => [...prev, ...pdfs]);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  // 二度押し防止（通信が遅いと連打で同じ予定が2件できてしまうため）
+  const [saving, setSaving] = useState(false);
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // 必須入力チェックは廃止（未入力でもそのまま登録できる）。
-    // ただし納入予定日だけは日付型のため、空なら今日を補う（DBの日付型が空文字を受け付けないため）。
-    const notesValue = form.is_postal
-      ? `[配送] ${form.notes}`.trimEnd()
-      : form.notes || null;
-    onSave({
-      delivery_date: form.delivery_date || todayLocalYmd(),
-      delivery_time: form.delivery_time || null,
-      project_name: form.project_name,
-      item: form.item,
-      specification: form.specification || null,
-      vendor: form.vendor,
-      unload_location: form.unload_location,
-      storage_location: form.storage_location || null,
-      quantity: form.quantity ? parseFloat(form.quantity) : null,
-      unit: form.unit || null,
-      order_number: form.order_number || null,
-      notes: notesValue,
-      created_by: form.created_by,
-      unloaded_by: form.unloaded_by || null,
-    }, isNew ? orderFiles : undefined);
+    if (saving) return;
+    setSaving(true);
+    try {
+      // 必須入力チェックは廃止（未入力でもそのまま登録できる）。
+      // ただし納入予定日だけは日付型のため、空なら今日を補う（DBの日付型が空文字を受け付けないため）。
+      const notesValue = form.is_postal
+        ? `[配送] ${form.notes}`.trimEnd()
+        : form.notes || null;
+      await onSave({
+        delivery_date: form.delivery_date || todayLocalYmd(),
+        delivery_time: form.delivery_time || null,
+        project_name: form.project_name,
+        item: form.item,
+        specification: form.specification || null,
+        vendor: form.vendor,
+        unload_location: form.unload_location,
+        storage_location: form.storage_location || null,
+        quantity: form.quantity ? parseFloat(form.quantity) : null,
+        unit: form.unit || null,
+        order_number: form.order_number || null,
+        notes: notesValue,
+        created_by: form.created_by,
+        unloaded_by: form.unloaded_by || null,
+      }, isNew ? orderFiles : undefined);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -222,10 +230,11 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
           <button
             type="submit"
             onClick={handleSubmit}
-            className="flex-1 py-3 rounded-xl text-white font-bold"
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-60"
             style={{ background: '#0d2c66' }}
           >
-            {initial?.id ? '更新する' : '登録する'}
+            {saving ? '保存中…' : initial?.id ? '更新する' : '登録する'}
           </button>
         </div>
 
