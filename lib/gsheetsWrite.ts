@@ -98,6 +98,8 @@ function normalizeDate(raw: unknown, yearHint?: string): string {
     const md = s.match(/(\d{1,2})\s*[/.\-月]\s*(\d{1,2})/);
     if (md) {
       const y = yearHint && /^\d{4}$/.test(yearHint) ? yearHint : String(new Date().getFullYear());
+      // 月・日として有り得ない値（「26/7/9」の 26 など）は読めない日付として扱う
+      if (Number(md[1]) < 1 || Number(md[1]) > 12 || Number(md[2]) < 1 || Number(md[2]) > 31) return '';
       const mo = String(Number(md[1])).padStart(2, '0');
       const da = String(Number(md[2])).padStart(2, '0');
       return `${y}-${mo}-${da}`;
@@ -397,9 +399,9 @@ export async function setSheetRowDeliveredByNo(sheetNo: string | null | undefine
 // 内容（日付・物件・品目・規格・業者・降し場所・時刻）でシート行を判定するためのキー。
 // No紐付けがズレていても、アプリの納入状態と確実に一致させられる（同期時の一括着色用）。
 // 内容キーの作り方は同期ルートの keyOf と一致させること。
-export function contentKeyOfSheetRow(r: string[]): string {
+export function contentKeyOfSheetRow(r: string[], yearHint?: string): string {
   const norm = (v: unknown) => String(v ?? '').trim();
-  const date = normalizeDate(r[H.DATE]);
+  const date = normalizeDate(r[H.DATE], yearHint);
   const project = normalizeName(norm(r[H.PROJECT]));
   const item = norm(r[H.ITEM]);
   const spec = norm(r[H.SPEC]);
@@ -420,7 +422,7 @@ export interface SheetSetup {
   ok: boolean; wrote: boolean; tabs: string[]; migrated: number; numbered: number; collected?: number; moved?: number; reason?: string;
 }
 // 年タブの読み取り結果（着色で再利用する）
-export interface TabRows { sheetId: number; rows: string[][]; }
+export interface TabRows { sheetId: number; rows: string[][]; title?: string; } // title: 年タブ名（年の無い日付の解釈に使う）
 
 // 旧シート(年名でないタブ)の1行を、その年タブに移せる形へ読み解く。
 // 既存のNo（管理番号）があれば保持する（アプリとの紐付け sheet_no を壊さないため）。
@@ -518,7 +520,7 @@ export async function prepareAndCollectSheet(minDate: string): Promise<{ ok: boo
       // 日付列の表示書式を「7月15日(水)」に統一（idempotent・best-effort）
       try { await applyDateColumnFormat(sheets, spreadsheetId, tab.sheetId); } catch { /* noop */ }
       const rows = await readTabRows(sheets, spreadsheetId, tab.title);
-      tabsData.push({ sheetId: tab.sheetId, rows });
+      tabsData.push({ sheetId: tab.sheetId, rows, title: tab.title });
       if (rows.length < 1) continue;
       const numberUpdates: { range: string; values: string[][] }[] = [];
       for (let i = 1; i < rows.length; i++) {
@@ -633,8 +635,8 @@ export async function colorTabsData(tabsData: TabRows[], deliveredKeys: string[]
   for (const t of tabsData) {
     for (let i = 1; i < t.rows.length; i++) {
       const r = t.rows[i] as string[];
-      if (!r || !normalizeDate(r[H.DATE]) || !String(r[H.PROJECT] ?? '').trim()) continue;
-      const key = contentKeyOfSheetRow(r);
+      if (!r || !normalizeDate(r[H.DATE], t.title) || !String(r[H.PROJECT] ?? '').trim()) continue;
+      const key = contentKeyOfSheetRow(r, t.title);
       let color: { red: number; green: number; blue: number } | null = null;
       if (delSet.has(key)) color = COLOR_DONE;
       else if (presentSet.has(key)) color = COLOR_NONE;

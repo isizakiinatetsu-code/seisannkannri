@@ -58,6 +58,8 @@ function describeVal(v: ContactVal | undefined): string {
 
 export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(true);
+  // 読み込みに失敗したまま保存すると、その日の担当を空で上書きしてしまうので保存を止める
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   // key = `${group}|${slot}` (slot: all | am | pm) → 選択値（名前 or MANUAL）
   const [sel, setSel] = useState<Record<string, string>>({});
@@ -68,8 +70,9 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
 
   useEffect(() => {
     fetch(`/api/daily-contact?date=${date}`, { cache: 'no-store' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then(d => {
+        setLoadFailed(false);
         const o = parseContact(d?.contact ?? null);
         setLoaded(o);
         const nextSel: Record<string, string> = {};
@@ -111,7 +114,7 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
         }
         setMemoByGroup(nextMemo);
       })
-      .catch(() => {})
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, [date]);
 
@@ -258,10 +261,13 @@ export default function ContactPanel({ date, canEdit, onClose, onSaved }: Props)
                   </div>
                 );
               })}
+              {loadFailed && (
+                <p className="text-sm text-red-600 text-center">今日の担当を読み込めませんでした。閉じて開き直してから保存してください。</p>
+              )}
               <button
                 onClick={handleSave}
-                disabled={saving}
-                className="w-full py-3 rounded-xl text-white font-bold text-base"
+                disabled={saving || loadFailed}
+                className="w-full py-3 rounded-xl text-white font-bold text-base disabled:opacity-50"
                 style={{ background: '#0d2c66' }}
               >
                 {saving ? '保存中...' : '保存する'}

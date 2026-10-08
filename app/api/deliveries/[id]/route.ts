@@ -57,9 +57,16 @@ export async function PATCH(
 
     const runUpdate = async (f: Record<string, unknown>) => {
       // 削除済みの予定は更新しない（他の人が消した後に、古い画面から保存されても復活させない）
-      let q = supabase.from('deliveries').update(f).eq('id', id).not('deleted', 'is', true);
-      if (expectedUpdatedAt) q = q.eq('updated_at', expectedUpdatedAt);
-      return await q.select().maybeSingle();
+      const run = (guardDeleted: boolean) => {
+        let q = supabase.from('deliveries').update(f).eq('id', id);
+        if (guardDeleted) q = q.not('deleted', 'is', true);
+        if (expectedUpdatedAt) q = q.eq('updated_at', expectedUpdatedAt);
+        return q.select().maybeSingle();
+      };
+      const r = await run(true);
+      // deleted 列がまだ無いDBでは、その条件を外して更新する（他のAPIと同じ扱い）
+      if (r.error && isMissingColumnError(r.error) && /deleted/.test(r.error.message ?? '')) return await run(false);
+      return r;
     };
     // 後付けの任意列がまだ無いDBでも編集できるよう、“実際に無い列だけ”を外して再試行。
     const { data, error } = await insertWithMissingColumnFallback(fields, runUpdate);

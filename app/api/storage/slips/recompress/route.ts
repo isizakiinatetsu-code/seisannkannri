@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
       // 容量超過で上書きできないときだけ、元を消して空きを作ってから入れ直す。
       // その入れ直しにも失敗したら元に戻す（画像が消えたままにならないように）。
       const { data: orig } = await supabase.storage.from(BUCKET).download(path);
+      // 元画像の控えが取れないときは消さない（入れ直しに失敗すると画像が失われるため）
+      if (!orig) throw upErr;
       const { error: rmErr } = await supabase.storage.from(BUCKET).remove([path]);
       if (rmErr) throw rmErr;
       ({ error: upErr } = await up());
