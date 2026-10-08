@@ -54,12 +54,18 @@ export default function CalendarView({ deliveries, onSelectDelivery, onDateClick
   }, [mode]);
 
   function onTouchStart(e: React.TouchEvent) {
+    // 2本指（拡大・縮小）や、拡大表示中の指1本の移動はスワイプとして扱わない
+    // （iPadで画面を拡大したときに、勝手に月や日が切り替わるのを防ぐ）
+    const zoomed = (window.visualViewport?.scale ?? 1) > 1.01;
+    if (e.touches.length > 1 || zoomed) { touchStartX.current = null; touchStartY.current = null; return; }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   }
 
   function onTouchEnd(e: React.TouchEvent) {
     if (touchStartX.current === null || touchStartY.current === null) return;
+    // まだ別の指が触れている（2本指の操作の途中）ならスワイプにしない
+    if (e.touches.length > 0) { touchStartX.current = null; touchStartY.current = null; return; }
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     touchStartX.current = null;
@@ -398,14 +404,14 @@ function DayView({ current, deliveries, onSelectDelivery, canEdit = false }: {
       case 'vendor': return s(a.vendor).localeCompare(s(b.vendor), 'ja') || byProjectItem || a.id - b.id;
       case 'unloader': return s(a.unloaded_by).localeCompare(s(b.unloaded_by), 'ja') || byProjectItem || a.id - b.id;
       case 'unload': return (unloadLocationRank(a.unload_location) - unloadLocationRank(b.unload_location)) || byProjectItem || a.id - b.id;
-      case 'time': return s(a.delivery_time).localeCompare(s(b.delivery_time)) || byProjectItem || a.id - b.id;
+      case 'time': return (timeKey(a.delivery_time) ?? '99').localeCompare(timeKey(b.delivery_time) ?? '99') || byProjectItem || a.id - b.id;
       case 'status': return (a.status === '納入済み' ? 1 : 0) - (b.status === '納入済み' ? 1 : 0) || byProjectItem || a.id - b.id;
       default: return byProjectItem || a.id - b.id;
     }
   };
 
-  const timed = deliveries.filter(d => d.delivery_time && /^\d{2}:\d{2}/.test(d.delivery_time)).sort(cmp);
-  const allDay = deliveries.filter(d => !d.delivery_time || !/^\d{2}:\d{2}/.test(d.delivery_time)).sort(cmp);
+  const timed = deliveries.filter(d => timeKey(d.delivery_time)).sort(cmp);
+  const allDay = deliveries.filter(d => !timeKey(d.delivery_time)).sort(cmp);
 
   async function handleSaveImage() {
     setSavingImg(true);
@@ -568,8 +574,9 @@ async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery
   for (const sec of sections) { H += secH; for (const it of sec.items) H += rowHeightOf(it) + rowGap; }
   H += pad;
 
-  // ブラウザのcanvas最大高(約32767px)を超えないよう、件数が多い日は解像度倍率を下げる。
-  const scale = H * 2 > 30000 ? 1 : 2;
+  // canvasの上限（高さ約32767px、iPhone/iPadは総画素数 約1670万）を超えないよう、
+  // 件数が多い日は解像度倍率を下げる。超えると画像が作れず「失敗しました」になる。
+  const scale = Math.min(2, Math.sqrt(16_000_000 / (W * H)), 30000 / H);
   const canvas = document.createElement('canvas');
   canvas.width = W * scale; canvas.height = H * scale;
   const ctx = canvas.getContext('2d');
@@ -614,7 +621,7 @@ async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery
       const bg = isDone ? '#f3f4f6' : getCategoryColor(it.item);
       rr(pad, y, rowW, h, 12); ctx.fillStyle = bg; ctx.fill();
       const tcol = isDone ? '#6b7280' : '#ffffff';
-      const time = it.delivery_time && /^\d{2}:\d{2}/.test(it.delivery_time) ? it.delivery_time + '  ' : '';
+      const time = timeKey(it.delivery_time) ? `${it.delivery_time}  ` : '';
       ctx.fillStyle = tcol;
       ctx.font = 'bold 20px sans-serif';
       ctx.fillText(clip(`${time}${it.project_name}`, rowW - 130), pad + 16, y + 28);
@@ -641,9 +648,26 @@ async function saveDayAsImage(current: Date, allDay: Delivery[], timed: Delivery
   const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('toBlob-failed');
   const ymd = `${current.getFullYear()}${String(current.getMonth() + 1).padStart(2, '0')}${String(current.getDate()).padStart(2, '0')}`;
+  const filename = `納入予定_${ymd}.png`;
+  // iPhone/iPad は共有シートを使う（「画像を保存」で写真に入る）。ホーム画面に追加したアプリでは
+  // ダウンロードのリンクがうまく動かないため。使えない・断られた場合は通常のダウンロードにする。
+  const file = new File([blob], filename, { type: 'image/png' });
+  const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  if (isTouch && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; }
+    catch (e) { if ((e as Error).name === 'AbortError') return; /* 共有できなければ下のダウンロードへ */ }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `納入予定_${ymd}.png`;
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Safari は「ダウンロードしますか？」の確認後に読みに来るので、すぐに消さない
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+// 時刻「9:00」「09:00」を比較用の「09:00」にそろえる。時刻でない値（午前中・午後・空）は null。
+// ※アプリは「9:00」の形で保存するため、2桁固定の判定だと9時台が「時刻未定」扱いになっていた。
+function timeKey(t: string | null | undefined): string | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t ?? '');
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
 }

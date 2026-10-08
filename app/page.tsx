@@ -92,7 +92,7 @@ export default function HomePage() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000); // Safari の確認ダイアログ後に読まれるので長めに残す
     } catch {
       alert('書き出しに失敗しました。通信環境を確認してもう一度お試しください。');
     }
@@ -164,11 +164,13 @@ export default function HomePage() {
     try {
       // 常に最新を取得（ブラウザ/モバイルのHTTPキャッシュで古い一覧が返るのを防ぐ）
       const res = await fetch(`/api/deliveries${query ? `?${query}` : ''}`, { cache: 'no-store' });
+      if (res.status === 401) { window.location.href = '/login'; return; } // ログインの期限切れ
       const data = await res.json();
       if (seq !== fetchSeqRef.current) return; // より新しい取得が始まっていれば破棄
-      setDeliveries(Array.isArray(data) ? data : []);
+      // 取得に失敗したとき（電波が弱い等）は前の表示を残す。空にすると「予定が無い」ように見えてしまう。
+      if (res.ok && Array.isArray(data)) setDeliveries(data);
     } catch {
-      if (seq === fetchSeqRef.current) setDeliveries([]);
+      /* 通信失敗：前の表示を残す（30秒ごと・画面に戻ったときに再取得される） */
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
     }
@@ -286,6 +288,15 @@ export default function HomePage() {
   }
 
   // 保存系の共通後処理：失敗・競合時はメッセージを出して最新状態に戻す（楽観更新の巻き戻し）。
+  // 保存用の fetch。通信そのものが失敗（電波が弱い等）しても「失敗した応答」として返す。
+  // これが無いと、画面は先に「納入済み」等に変わったのに保存されず、何の表示も出ないままになる。
+  function saveFetch(url: string, init: RequestInit): Promise<Response> {
+    return fetch(url, init).catch(() => new Response(
+      JSON.stringify({ error: '通信できませんでした。電波の良い場所で、もう一度お試しください' }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } },
+    ));
+  }
+
   async function finalizeMutation(res: Response, failMsg: string) {
     if (res.status === 409) {
       // 楽観ロックの競合：他の人が先に更新していた
@@ -317,7 +328,7 @@ export default function HomePage() {
     const now = new Date().toISOString();
     // 全納なので一部納入フラグは解除する
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '納入済み', delivered_at: now, is_partial: false } : d));
-    const res = await fetch(`/api/deliveries/${id}`, {
+    const res = await saveFetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '納入済み', delivered_at: now, is_partial: false, expected_updated_at: findUpdatedAt(id) }),
@@ -328,7 +339,7 @@ export default function HomePage() {
   // 一部納入：まだ全部は届いていないことを示す（ステータスは「予定」のまま＝未納入として扱う）
   async function handleMarkPartial(id: number) {
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null, is_partial: true } : d));
-    const res = await fetch(`/api/deliveries/${id}`, {
+    const res = await saveFetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '予定', delivered_at: null, is_partial: true, expected_updated_at: findUpdatedAt(id) }),
@@ -339,7 +350,7 @@ export default function HomePage() {
   async function handleRevertDelivered(id: number) {
     // 即時反映（納入済み・一部納入のどちらからも通常の「予定」に戻す）
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: '予定', delivered_at: null, is_partial: false } : d));
-    const res = await fetch(`/api/deliveries/${id}`, {
+    const res = await saveFetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: '予定', delivered_at: null, is_partial: false, expected_updated_at: findUpdatedAt(id) }),
@@ -348,7 +359,7 @@ export default function HomePage() {
   }
 
   async function handleAdd(data: Partial<Delivery>, orderFiles: File[] = []) {
-    const res = await fetch('/api/deliveries', {
+    const res = await saveFetch('/api/deliveries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, status: '予定' }),
@@ -358,7 +369,7 @@ export default function HomePage() {
     if (res.status === 409) {
       const ok = confirm('⚠️ 同じ内容の予定が既に登録されています。\n（日付・物件名・品目・業者・内容規格が同じ）\n\n他の人が既に入力しているかもしれません。それでも追加しますか？');
       if (!ok) return; // フォームは開いたまま
-      finalRes = await fetch('/api/deliveries', {
+      finalRes = await saveFetch('/api/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, status: '予定', force: true }),
@@ -377,7 +388,7 @@ export default function HomePage() {
           const fd = new FormData();
           fd.append('file', f);
           fd.append('kind', 'order');
-          const r = await fetch(`/api/deliveries/${created.id}/slips`, { method: 'POST', body: fd }).catch(() => null);
+          const r = await saveFetch(`/api/deliveries/${created.id}/slips`, { method: 'POST', body: fd }).catch(() => null);
           if (!r || !r.ok) failed++;
         }
         if (failed) alert(`予定は登録しましたが、発注書 ${failed} 件の添付に失敗しました。予定を開いて「発注書を添付」からもう一度追加してください。`);
@@ -392,7 +403,7 @@ export default function HomePage() {
     const expectedUpdatedAt = editDelivery.updated_at;
     // 即時反映：編集内容を先に画面へ反映
     setDeliveries(prev => prev.map(d => d.id === id ? { ...d, ...data } as Delivery : d));
-    const res = await fetch(`/api/deliveries/${id}`, {
+    const res = await saveFetch(`/api/deliveries/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, expected_updated_at: expectedUpdatedAt }),
@@ -405,7 +416,7 @@ export default function HomePage() {
     // 即時反映：先に画面から消す
     setDeliveries(prev => prev.filter(d => d.id !== id));
     setEditDelivery(null);
-    const res = await fetch(`/api/deliveries/${id}`, { method: 'DELETE' });
+    const res = await saveFetch(`/api/deliveries/${id}`, { method: 'DELETE' });
     await finalizeMutation(res, '削除できませんでした。');
   }
 
@@ -674,8 +685,26 @@ export default function HomePage() {
               </button>
             ))}
           </div>
-          {/* アクションボタン */}
+          {/* アクションボタン（iPad縦向き：PCのサイドバーにある操作をここに集める） */}
           <div className="flex items-center gap-2 py-2">
+            <button onClick={openNotifications} aria-label="お知らせ" title="お知らせ" className="relative flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-60">
+              🔔
+              {newItems.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold text-white rounded-full" style={{ background: '#d97706' }}>
+                  {newItems.length}
+                </span>
+              )}
+            </button>
+            <button onClick={handleExport} aria-label="Excel/CSVで書き出し" title="Excel/CSVで書き出し" className="relative flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-60">📥</button>
+            {canEdit && (
+              <button onClick={() => setShowDuplicates(true)} aria-label="重複チェック" title="重複チェック" className="relative flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-60">🔁</button>
+            )}
+            {canEdit && (
+              <button onClick={handleGsSync} disabled={gsSyncing} aria-label="Sheets 同期" title="Sheets 同期" className="relative flex items-center justify-center w-9 h-9 rounded-lg text-base bg-white/20 hover:bg-white/30 border border-white/30 disabled:opacity-60">
+                {gsSyncing ? '⏳' : '🔄'}
+              </button>
+            )}
+            <button onClick={handleLogout} className="px-2 py-1.5 rounded-lg text-xs text-white/70 hover:text-white whitespace-nowrap">ログアウト</button>
             {canEdit && (
               <button
                 onClick={() => { setShowAddForm(true); setAddDefaultDate(undefined); }}
