@@ -32,6 +32,7 @@ export default function DeliveryModal({
   const [loadingSlips, setLoadingSlips] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [uploadingOrder, setUploadingOrder] = useState(false);
+  const [orderDragOver, setOrderDragOver] = useState(false);
   const [previewId, setPreviewId] = useState<number | null>(null);
   const color = getCategoryColor(delivery.item);
   // 発注書（工場の人が納入内容を確認するためのPDF）と納入伝票は同じ表に入っており、ファイル名の頭で区別する。
@@ -73,25 +74,37 @@ export default function DeliveryModal({
     }
   }
 
-  async function handleOrderUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    if (!/\.pdf$/i.test(file.name)) { alert('発注書はPDFを選んでください'); return; }
+  async function uploadOrderFiles(files: File[]) {
+    const pdfs = files.filter(f => /\.pdf$/i.test(f.name));
+    if (pdfs.length === 0) { alert('発注書はPDFを選んでください'); return; }
+    if (pdfs.length < files.length) alert('PDF以外のファイルは添付できないため外しました');
     setUploadingOrder(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('kind', 'order');
-      const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.id) setSlips(prev => [...prev, data]);
-      else alert(data.error ?? 'アップロードに失敗しました');
+      for (const file of pdfs) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('kind', 'order');
+        const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (data.id) setSlips(prev => [...prev, data]);
+        else { alert(data.error ?? 'アップロードに失敗しました'); break; }
+      }
     } catch {
       alert('アップロードに失敗しました。通信環境を確認してください。');
     } finally {
       setUploadingOrder(false);
     }
+  }
+  function handleOrderUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length) uploadOrderFiles(files);
+  }
+  function handleOrderDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setOrderDragOver(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) uploadOrderFiles(files);
   }
 
   async function handleDownloadPdf() {
@@ -283,12 +296,18 @@ export default function DeliveryModal({
                 </div>
               )}
               {canEdit && (
-                <label className="border-2 border-dashed border-blue-300 rounded-lg p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:border-blue-500 bg-white transition-colors">
-                  <span className="text-lg">{uploadingOrder ? '⏳' : '📎'}</span>
+                <label
+                  onDragOver={e => { e.preventDefault(); setOrderDragOver(true); }}
+                  onDragLeave={() => setOrderDragOver(false)}
+                  onDrop={handleOrderDrop}
+                  className={`border-2 border-dashed rounded-lg p-3 flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-white transition-colors ${orderDragOver ? 'border-blue-500 bg-blue-50' : 'border-blue-300 hover:border-blue-500'}`}
+                >
+                  <span className="text-lg">{uploadingOrder ? '⏳' : orderDragOver ? '📥' : '📎'}</span>
                   <span className="text-sm text-blue-900/80">
-                    {uploadingOrder ? 'アップロード中...' : orders.length > 0 ? '発注書を追加 (PDF)' : '発注書を添付 (PDF)'}
+                    {uploadingOrder ? 'アップロード中...' : orderDragOver ? 'ここにドロップ' : orders.length > 0 ? '発注書を追加 (PDF)' : '発注書を添付 (PDF)'}
                   </span>
-                  <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleOrderUpload} disabled={uploadingOrder} />
+                  <span className="text-xs text-blue-900/50">タップで選択、またはPDFをここにドラッグ＆ドロップ</span>
+                  <input type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={handleOrderUpload} disabled={uploadingOrder} />
                 </label>
               )}
             </div>
