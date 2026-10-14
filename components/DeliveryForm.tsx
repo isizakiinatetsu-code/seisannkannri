@@ -58,12 +58,20 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
   // 発注書PDF（新規追加のときだけ選べる。編集時は予定詳細の「発注書」欄から追加する）
   const isNew = !initial?.id;
   const [orderFiles, setOrderFiles] = useState<File[]>([]);
-  function pickOrderFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files ?? []);
-    e.target.value = '';
+  const [orderDragOver, setOrderDragOver] = useState(false);
+  function addOrderFiles(picked: File[]) {
     const pdfs = picked.filter(f => /\.pdf$/i.test(f.name));
     if (pdfs.length < picked.length) alert('発注書はPDFだけ添付できます（PDF以外は外しました）');
-    setOrderFiles(prev => [...prev, ...pdfs]);
+    if (pdfs.length) setOrderFiles(prev => [...prev, ...pdfs]);
+  }
+  function pickOrderFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    addOrderFiles(Array.from(e.target.files ?? []));
+    e.target.value = '';
+  }
+  function dropOrderFiles(e: React.DragEvent) {
+    e.preventDefault();
+    setOrderDragOver(false);
+    addOrderFiles(Array.from(e.dataTransfer.files ?? []));
   }
 
   // 二度押し防止（通信が遅いと連打で同じ予定が2件できてしまうため）
@@ -213,9 +221,15 @@ export default function DeliveryForm({ initial, defaultDate, onSave, onCancel, o
                       className="text-gray-400 hover:text-red-500 text-lg leading-none px-1" title="外す">×</button>
                   </div>
                 ))}
-                <label className="border-2 border-dashed border-blue-300 rounded-lg p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:border-blue-500 transition-colors">
-                  <span>📎</span>
-                  <span className="text-sm text-blue-900/80">{orderFiles.length ? '発注書を追加 (PDF)' : '発注書を添付 (PDF・任意)'}</span>
+                <label
+                  onDragOver={e => { e.preventDefault(); setOrderDragOver(true); }}
+                  onDragLeave={() => setOrderDragOver(false)}
+                  onDrop={dropOrderFiles}
+                  className={`border-2 border-dashed rounded-lg p-3 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors ${orderDragOver ? 'border-blue-500 bg-blue-50' : 'border-blue-300 hover:border-blue-500'}`}
+                >
+                  <span>{orderDragOver ? '📥' : '📎'}</span>
+                  <span className="text-sm text-blue-900/80">{orderDragOver ? 'ここにドロップ' : orderFiles.length ? '発注書を追加 (PDF)' : '発注書を添付 (PDF・任意)'}</span>
+                  <span className="text-xs text-blue-900/50">タップで選択、またはPDFをここにドラッグ＆ドロップ</span>
                   <input type="file" accept=".pdf,application/pdf" multiple className="hidden" onChange={pickOrderFiles} />
                 </label>
               </div>
