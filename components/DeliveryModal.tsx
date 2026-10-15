@@ -33,6 +33,7 @@ export default function DeliveryModal({
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [uploadingOrder, setUploadingOrder] = useState(false);
   const [orderDragOver, setOrderDragOver] = useState(false);
+  const [slipDragOver, setSlipDragOver] = useState(false);
   const [previewId, setPreviewId] = useState<number | null>(null);
   const color = getCategoryColor(delivery.item);
   // 発注書（工場の人が納入内容を確認するためのPDF）と納入伝票は同じ表に入っており、ファイル名の頭で区別する。
@@ -47,24 +48,28 @@ export default function DeliveryModal({
       .finally(() => setLoadingSlips(false));
   }, [delivery.id]);
 
-  async function handleSlipUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
+  async function uploadSlips(files: File[]) {
+    // 伝票は画像(JPG/PNG/WEBP)とPDFに対応。それ以外は除外する。
+    const ok = files.filter(f => /\.(jpe?g|png|webp|pdf)$/i.test(f.name));
+    if (ok.length === 0) { alert('対応形式: JPG / PNG / PDF / WEBP'); return; }
+    if (ok.length < files.length) alert('対応外のファイルは添付できないため外しました');
     setUploading(true);
     try {
-      setScanning(true);
-      const processedFile = await processToScanStyle(file);
-      setScanning(false);
-      const fd = new FormData();
-      fd.append('file', processedFile);
-      const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.id) {
-        setSlips(prev => [...prev, data]);
-        onSlipUploaded(delivery.id, data.slip_image_path);
-      } else {
-        alert(data.error ?? 'アップロードに失敗しました');
+      for (const file of ok) {
+        setScanning(true);
+        const processedFile = await processToScanStyle(file);
+        setScanning(false);
+        const fd = new FormData();
+        fd.append('file', processedFile);
+        const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (data.id) {
+          setSlips(prev => [...prev, data]);
+          onSlipUploaded(delivery.id, data.slip_image_path);
+        } else {
+          alert(data.error ?? 'アップロードに失敗しました');
+          break;
+        }
       }
     } catch {
       alert('アップロードに失敗しました。通信環境を確認するか、別の画像でお試しください。');
@@ -72,6 +77,17 @@ export default function DeliveryModal({
       setUploading(false);
       setScanning(false);
     }
+  }
+  function handleSlipUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length) uploadSlips(files);
+  }
+  function handleSlipDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setSlipDragOver(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) uploadSlips(files);
   }
 
   async function uploadOrderFiles(files: File[]) {
@@ -370,12 +386,18 @@ export default function DeliveryModal({
                 )}
 
                 {canEdit && (
-                  <label className="border-2 border-dashed border-gray-300 rounded-lg p-3 flex flex-col items-center gap-1 cursor-pointer hover:border-blue-400 transition-colors">
-                    <span className="text-2xl">{uploading ? '⏳' : '📎'}</span>
+                  <label
+                    onDragOver={e => { e.preventDefault(); setSlipDragOver(true); }}
+                    onDragLeave={() => setSlipDragOver(false)}
+                    onDrop={handleSlipDrop}
+                    className={`border-2 border-dashed rounded-lg p-3 flex flex-col items-center gap-0.5 cursor-pointer transition-colors ${slipDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'}`}
+                  >
+                    <span className="text-2xl">{uploading ? '⏳' : slipDragOver ? '📥' : '📎'}</span>
                     <span className="text-sm text-gray-500">
-                      {scanning ? 'スキャン処理中...' : uploading ? 'アップロード中...' : receipts.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
+                      {scanning ? 'スキャン処理中...' : uploading ? 'アップロード中...' : slipDragOver ? 'ここにドロップ' : receipts.length > 0 ? '伝票を追加 (JPG/PNG/PDF)' : '伝票を添付 (JPG/PNG/PDF)'}
                     </span>
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" className="hidden" onChange={handleSlipUpload} disabled={uploading} />
+                    <span className="text-xs text-gray-400">タップで選択、または画像・PDFをここにドラッグ＆ドロップ</span>
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.webp" multiple className="hidden" onChange={handleSlipUpload} disabled={uploading} />
                   </label>
                 )}
               </>
