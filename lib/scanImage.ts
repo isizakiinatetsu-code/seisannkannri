@@ -189,6 +189,30 @@ function canvasToFile(canvas: HTMLCanvasElement, name: string, fallback: File): 
   });
 }
 
+// 荷下ろし確認写真など「現物の証拠写真」向けの軽量化。
+// 伝票と違い、OpenCV による書類検出・切り抜き・台形補正はしない（現物をそのまま残す）。
+// 長辺 MAX_EDGE に縮小し、JPEG で圧縮するだけ。PDF はそのまま返す。
+export function compressImage(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    if (file.type === 'application/pdf') { resolve(file); return; }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = async () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0);
+      resolve(await canvasToFile(canvas, file.name, file));
+    };
+    img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+    img.src = url;
+  });
+}
+
 export function processToScanStyle(file: File): Promise<File> {
   return new Promise((resolve, reject) => {
     if (file.type === 'application/pdf') { resolve(file); return; }

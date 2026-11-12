@@ -7,13 +7,14 @@ import { selectAll } from '@/lib/selectAll';
 // 伝票を物件・納入日の情報つきで返す。
 //
 // 注意:
-// - 発注書(PDF)と納入伝票は同じ delivery_slips 表に入っており、
-//   ファイル名の頭（/order_ か /slip_）でしか区別できない。ここでは
-//   DeliveryModal と同じ判定で「発注書」を除外し、納入伝票だけを返す。
+// - 発注書(PDF)・納入伝票・荷下ろし確認写真は同じ delivery_slips 表に入っており、
+//   ファイル名の頭（/order_ か /recv_ か /slip_）でしか区別できない。ここでは
+//   DeliveryModal と同じ判定で「発注書」と「荷下ろし確認写真」を除外し、納入伝票だけを返す。
 // - 並びは「納入日の新しい順」。同じ日の中では添付が新しい順。
 
-// URL末尾が /order_... なら発注書。DeliveryModal の isOrderFile と同じ判定。
+// URL末尾が /order_... なら発注書、/recv_... なら荷下ろし確認写真。DeliveryModal と同じ判定。
 const isOrderFile = (url: string) => /\/order_[^/]*$/.test(url);
+const isReceiptPhoto = (url: string) => /\/recv_[^/]*$/.test(url);
 
 interface EmbeddedDelivery {
   id: number;
@@ -57,8 +58,8 @@ export async function GET(_req: NextRequest) {
     if (error) throw error;
 
     const slips = (data ?? [])
-      // 発注書を除外し、納入伝票だけを残す
-      .filter((s) => !isOrderFile(s.slip_image_path))
+      // 発注書・荷下ろし確認写真を除外し、納入伝票だけを残す
+      .filter((s) => !isOrderFile(s.slip_image_path) && !isReceiptPhoto(s.slip_image_path))
       // 紐づく予定が無い/削除済みのものは出さない
       .filter((s) => s.deliveries && s.deliveries.deleted !== true)
       .map((s) => {

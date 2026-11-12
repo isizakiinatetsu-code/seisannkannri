@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Delivery, DeliverySlip } from '@/lib/supabase';
 import { getCategoryColor } from '@/lib/constants';
-import { processToScanStyle } from '@/lib/scanImage';
+import { processToScanStyle, compressImage } from '@/lib/scanImage';
 import { formatDateTimeJst } from '@/lib/format';
 
 interface Props {
@@ -32,13 +32,16 @@ export default function DeliveryModal({
   const [loadingSlips, setLoadingSlips] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [uploadingOrder, setUploadingOrder] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [orderDragOver, setOrderDragOver] = useState(false);
   const [slipDragOver, setSlipDragOver] = useState(false);
+  const [photoDragOver, setPhotoDragOver] = useState(false);
   const [previewId, setPreviewId] = useState<number | null>(null);
   const color = getCategoryColor(delivery.item);
-  // 発注書（工場の人が納入内容を確認するためのPDF）と納入伝票は同じ表に入っており、ファイル名の頭で区別する。
+  // 発注書(PDF)・荷下ろし確認写真・納入伝票は同じ表に入っており、ファイル名の頭で区別する。
   const orders = slips.filter(isOrderFile);
-  const receipts = slips.filter(sl => !isOrderFile(sl));
+  const photos = slips.filter(isReceiptPhoto);
+  const receipts = slips.filter(sl => !isOrderFile(sl) && !isReceiptPhoto(sl));
 
   useEffect(() => {
     fetch(`/api/deliveries/${delivery.id}/slips`, { cache: 'no-store' })
@@ -121,6 +124,42 @@ export default function DeliveryModal({
     setOrderDragOver(false);
     const files = Array.from(e.dataTransfer.files ?? []);
     if (files.length) uploadOrderFiles(files);
+  }
+
+  // 荷下ろし確認写真（荷受けの証拠。グレード審査用）。
+  // 伝票と違いスキャン加工はせず、現物の写真をそのまま軽量化して保存する。画像のみ。
+  async function uploadPhotos(files: File[]) {
+    const imgs = files.filter(f => /\.(jpe?g|png|webp)$/i.test(f.name));
+    if (imgs.length === 0) { alert('写真（JPG / PNG / WEBP）を選んでください'); return; }
+    if (imgs.length < files.length) alert('画像以外は添付できないため外しました');
+    setUploadingPhoto(true);
+    try {
+      for (const file of imgs) {
+        const processed = await compressImage(file);
+        const fd = new FormData();
+        fd.append('file', processed);
+        fd.append('kind', 'receipt');
+        const res = await fetch(`/api/deliveries/${delivery.id}/slips`, { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (data.id) setSlips(prev => [...prev, data]);
+        else { alert(data.error ?? 'アップロードに失敗しました'); break; }
+      }
+    } catch {
+      alert('アップロードに失敗しました。通信環境を確認するか、別の写真でお試しください。');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length) uploadPhotos(files);
+  }
+  function handlePhotoDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setPhotoDragOver(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) uploadPhotos(files);
   }
 
   async function handleDownloadPdf() {
@@ -329,6 +368,64 @@ export default function DeliveryModal({
             </div>
           )}
 
+          {/* 荷下ろし確認写真（荷受けの証拠。グレード審査用）。カメラでその場撮影が基本。 */}
+          {(photos.length > 0 || canEdit) && !loadingSlips && (
+            <div className="rounded-xl border border-green-200 bg-green-50/40 p-3">
+              <div className="text-xs font-bold text-green-900 mb-2">
+                📷 荷下ろし確認写真 {photos.length > 0 && `(${photos.length}枚)`}
+                <span className="font-normal text-green-900/60 ml-1">荷受けの証拠（グレード審査用）</span>
+              </div>
+              {photos.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {photos.map((p, i) => (
+                    <div key={p.id} className="relative border border-green-100 rounded-lg overflow-hidden bg-white">
+                      <a href={p.slip_image_path} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={p.slip_image_path}
+                          alt={`荷下ろし確認写真 ${i + 1}`}
+                          className="w-full h-32 object-cover bg-gray-50"
+                        />
+                      </a>
+                      {canEdit && (
+                        <button
+                          onClick={() => handleDeleteSlip(p.id, 'この写真')}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                          title="削除"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {canEdit && (
+                <label
+                  onDragOver={e => { e.preventDefault(); setPhotoDragOver(true); }}
+                  onDragLeave={() => setPhotoDragOver(false)}
+                  onDrop={handlePhotoDrop}
+                  className={`border-2 border-dashed rounded-lg p-3 flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-white transition-colors ${photoDragOver ? 'border-green-500 bg-green-50' : 'border-green-300 hover:border-green-500'}`}
+                >
+                  <span className="text-2xl">{uploadingPhoto ? '⏳' : photoDragOver ? '📥' : '📷'}</span>
+                  <span className="text-sm text-green-900/80">
+                    {uploadingPhoto ? 'アップロード中...' : photoDragOver ? 'ここにドロップ' : photos.length > 0 ? '写真を追加（カメラで撮影）' : '写真を撮る（荷受けの証拠）'}
+                  </span>
+                  <span className="text-xs text-green-900/50">タップでカメラが起動。写真を選ぶこともできます</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                    disabled={uploadingPhoto}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
           {/* Slip images */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -501,6 +598,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function isOrderFile(sl: DeliverySlip): boolean {
   return /\/order_[^/]*$/.test(sl.slip_image_path);
+}
+function isReceiptPhoto(sl: DeliverySlip): boolean {
+  return /\/recv_[^/]*$/.test(sl.slip_image_path);
 }
 function isPdfFile(sl: DeliverySlip): boolean {
   return /\.pdf(\?|$)/i.test(sl.slip_image_path);

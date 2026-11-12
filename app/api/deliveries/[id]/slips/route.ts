@@ -36,8 +36,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const { data: exists } = await getSupabase().from('deliveries').select('id').eq('id', id).maybeSingle();
       if (!exists) return NextResponse.json({ error: '予定が見つかりません' }, { status: 404 });
     }
-    // kind=order は「発注書」（工場の人が納入内容を確認するためのPDF）。伝票とはファイル名の頭で区別する。
-    const isOrder = formData.get('kind') === 'order';
+    // ファイル名の頭で3種類を区別する:
+    //  order_ = 発注書（工場の人が納入内容を確認するためのPDF）
+    //  recv_  = 荷下ろし確認写真（荷受けの証拠。グレード審査用）
+    //  slip_  = 納入伝票（既定）
+    const kind = formData.get('kind');
+    const isOrder = kind === 'order';
+    const isReceipt = kind === 'receipt';
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'ファイルが大きすぎます（最大15MB）' }, { status: 400 });
@@ -49,9 +54,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (isOrder && ext !== 'pdf') {
       return NextResponse.json({ error: '発注書はPDFを選んでください' }, { status: 400 });
     }
+    if (isReceipt && ext === 'pdf') {
+      return NextResponse.json({ error: '荷下ろし確認写真は画像（JPG/PNG/WEBP）を選んでください' }, { status: 400 });
+    }
 
     const supabase = getSupabase();
-    const filename = `${isOrder ? 'order' : 'slip'}_${id}_${Date.now()}.${ext}`;
+    const prefix = isOrder ? 'order' : isReceipt ? 'recv' : 'slip';
+    const filename = `${prefix}_${id}_${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await supabase.storage
@@ -82,7 +91,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const datePart = delivery?.delivery_date ?? new Date().toISOString().slice(0, 10);
       const projectPart = (delivery?.project_name ?? '物件未設定').replace(/[\\/:*?"<>|]/g, '_');
       const itemPart = (delivery?.item ?? '').replace(/[\\/:*?"<>|]/g, '_');
-      const driveName = `${datePart}_${projectPart}_${itemPart}_${isOrder ? '発注書' : '伝票'}${id}_${Date.now()}.${ext}`;
+      const kindLabel = isOrder ? '発注書' : isReceipt ? '荷下ろし確認写真' : '伝票';
+      const driveName = `${datePart}_${projectPart}_${itemPart}_${kindLabel}${id}_${Date.now()}.${ext}`;
       await uploadToDrive(buffer, driveName, CONTENT_TYPE[ext]);
     } catch (driveErr) {
       console.error('Drive 連携でエラー（無視して続行）', driveErr);
