@@ -9,10 +9,11 @@ import DeliveryForm from '@/components/DeliveryForm';
 import SearchPanel from '@/components/SearchPanel';
 import NotificationPanel from '@/components/NotificationPanel';
 import ContactPanel, { formatContact } from '@/components/ContactPanel';
+import SlipGallery from '@/components/SlipGallery';
 import { UNLOAD_LOCATIONS } from '@/lib/constants';
 import { normalizeName } from '@/lib/textNormalize';
 
-type Tab = 'calendar' | 'list';
+type Tab = 'calendar' | 'list' | 'slips';
 
 interface SearchFilters {
   q: string;
@@ -489,6 +490,7 @@ export default function HomePage() {
   const tabItems: { id: Tab; icon: string; label: string }[] = [
     { id: 'calendar', icon: '📅', label: 'カレンダー' },
     { id: 'list',     icon: '🔍', label: '検索' },
+    { id: 'slips',    icon: '🧾', label: '伝票' },
   ];
 
   return (
@@ -823,6 +825,10 @@ export default function HomePage() {
                     onVisibleMonthChange={setCalendarMonth}
                     canEdit={canEdit}
                   />
+                )}
+                {/* 納入伝票ギャラリー（納入日の新しい順・伝票だけ） */}
+                {tab === 'slips' && (
+                  <SlipGallery onOpenDelivery={openDeliveryById} />
                 )}
                 {/* PC/iPad: 検索結果（検索パネルは右側に常時表示） */}
                 {tab === 'list' && (
