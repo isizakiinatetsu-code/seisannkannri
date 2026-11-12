@@ -41,15 +41,25 @@
 - OCRタブは名前だけで、実際はOCR未実装（画像保存のみ）。
 - 作業ブランチ: `claude/analyze-repo-contents-vsl5Y`。
 
-## 保留中：常駐PCへの完全Docker移行（上長依頼・回答待ち）
-上長依頼：Vercel/Supabase をやめ、社内の常駐PC1台に Docker で構築し、そこへアクセスする方式にする（自分のPCで構築→そのまま配布）。
-- 済：アプリのDocker化（PR #150：Dockerfile / docker-compose.yml / Caddyfile / docs/DEPLOY-DOCKER.md）。
-- 追加で必要：Postgres をDocker同梱、Supabaseからデータ移行、伝票画像(約245MB)をローカル保存へ、Supabase依存コード置換、バックアップ仕組み。
-- 上長へ確認中（回答待ち）：
-  1. 外出先・現場からのアクセス（社内のみ / VPN / 外部公開）
-  2. HTTPS（ログインCookieが secure 固定のためHTTPS必須。社内LANなら自己署名 or 緩和）
-  3. 「配布」の意味（常駐PC1台のみ / 他拠点へも配布）
-  4. 常駐PCのOS・メモリ
-  5. バックアップ先（NAS / 外付けHDD / Googleドライブ）
-  6. Googleスプレッドシート連携の継続可否
-回答が来たら上記を前提に構築を再開する。
+## 自社サーバー移行（2026-11-12 決定・実装済み）
+Vercel をやめ、**アプリだけを社内の常駐PCへ移す**方針で確定。データ（DB・伝票画像）は **Supabase 併用のまま**（＝完全自己ホストの Phase B は見送り）。
+
+### 確定事項
+- **置き場所**: 社内の常駐PC（Windows 10/11）。IP は `192.168.1.252`（固定IP前提）。
+- **アクセス範囲**: 社内LANのみ（外部公開・固定グローバルIP・ドメインは不要）。
+- **HTTPS**: 社内LANのため Let's Encrypt は使えない → **HTTPで運用**し、ログインCookieの `secure` を環境変数で切替（B案）。
+- **データ**: Supabase（Postgres + Storage）をそのまま利用。
+
+### 実装済み（コミット eb570e1）
+- `app/api/auth/login/route.ts`: `secure` を `process.env.COOKIE_SECURE !== 'false'` に（既定 true、LAN運用時のみ `.env` で `COOKIE_SECURE=false`）。
+- `docker-compose.lan.yml`（新規）: Caddyなし・`80:3000` でHTTP直結。既存 `docker-compose.yml`（VPS/公開+HTTPS版）は将来用に温存。
+- `.env.example`: `COOKIE_SECURE` と社内LAN運用の注記を追加。
+- `docs/DEPLOY-DOCKER.md`: 「★社内LAN版（Windows常駐PC・HTTP）」の手順を追加。
+- 既存の Docker化は PR #150（Dockerfile / docker-compose.yml / Caddyfile / docs/DEPLOY-DOCKER.md）。
+
+### 残り（ユーザー側の実作業）
+常駐PCで: 固定IP化 → Docker Desktop導入（サインイン時に自動起動）→ `.env` 作成（Vercelの値＋`COOKIE_SECURE=false`）→ `docker compose -f docker-compose.lan.yml up -d --build` → 各端末から `http://192.168.1.252`。初回のWindowsファイアウォールは「プライベート」で許可。
+
+### 補足：Phase B（Supabase不使用・完全自己ホスト）について【見送り】
+「データも社外に出したくない」場合の選択肢として検討したが、今回は見送り。やる場合に必要なのは:
+Postgres をDocker同梱 / 約13本のAPIの `supabase.from(...)` を Postgres ドライバへ書き換え / 画像保存をローカル(またはMinIO)へ / Supabaseからデータ＋画像(約245MB)を移行 / バックアップ(pg_dump＋画像フォルダ)を自前構築。規模が大きいので、やるなら要件を詰めてから設計・計画に落とす。
