@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({ role });
   res.cookies.set(AUTH_COOKIE, token, {
     httpOnly: true,
-    secure: true,
+    // 既定は true（HTTPS必須）。社内LANなどHTTPで運用する場合のみ
+    // .env に COOKIE_SECURE=false を設定するとHTTPでもログインできる。
+    secure: process.env.COOKIE_SECURE !== 'false',
     sameSite: 'lax',
     path: '/',
     maxAge: MAX_AGE,

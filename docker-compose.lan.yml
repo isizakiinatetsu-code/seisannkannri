@@ -1,0 +1,23 @@
+# 納入管理システム 社内LAN運用構成（Caddyなし・HTTP直結）
+#
+# 社内LANの中だけで使う場合の構成です。インターネット公開・固定グローバルIP・
+# ドメイン・証明書はいずれも不要。各端末からは http://（常駐PCの固定ローカルIP）
+# （例: http://192.168.1.252）でアクセスします。
+#
+# 使い方:
+#   docker compose -f docker-compose.lan.yml up -d --build
+#   docker compose -f docker-compose.lan.yml ps
+#
+# ※ .env に COOKIE_SECURE=false を設定してください（HTTPでログインするため）。
+# ※ インターネット公開/HTTPS運用に戻す場合は、既存の docker-compose.yml を使います。
+services:
+  app:
+    build: .
+    image: seisannkannri:latest
+    env_file: .env
+    restart: unless-stopped        # 落ちても・PC再起動後も自動で立ち上がる
+    ports:
+      - "80:3000"                  # 社内LANにHTTPで直接公開（http://サーバーIP でアクセス）
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }   # ログが肥大化しないよう自動ローテーション

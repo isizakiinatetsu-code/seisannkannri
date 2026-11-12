@@ -1,7 +1,82 @@
-# 納入管理システム Docker 本番運用手順（Vercel → 自社サーバー / VPS）
+# 納入管理システム Docker 本番運用手順（Vercel → 自社サーバー）
 
 この手順で、Vercel をやめて自社で用意したサーバーに移せます。
 **データ（Supabase の DB・伝票画像）は今のまま**で、アプリ部分だけを移します。移行してもデータは消えません。
+
+運用方法は2通りあります。環境に合わせてどちらかを選んでください。
+
+| 方式 | 置き場所 | アクセス | HTTPS | 手順 |
+|---|---|---|---|---|
+| **社内LAN版** | 社内の常駐PC | 社内LANのみ | 不要（HTTP） | 下の「★社内LAN版」 |
+| インターネット公開版 | VPS 等 | 外出先・現場からも | 必須（Caddyが自動取得） | 「0. 全体像」以降 |
+
+> このプロジェクトの既定の移行先は **社内LAN版（常駐PC・HTTP）** です。
+> まずそちらを読んでください。VPS/公開版は将来インターネット公開したくなった時用に残しています。
+
+---
+
+## ★社内LAN版（Windows常駐PC・HTTP）
+
+社内LANの中だけで使う構成です。**インターネット公開・固定グローバルIP・ドメイン・証明書はすべて不要**。
+各端末（PC・スマホ）からは `http://（常駐PCの固定ローカルIP）` でアクセスします（例: `http://192.168.1.252`）。
+
+使うファイル: [`docker-compose.lan.yml`](../docker-compose.lan.yml)（Caddyなし・HTTP直結）。
+
+### 前提
+- 常駐PC（Windows 10/11）を1台用意し、**電源を入れっぱなし**にできること。
+- その常駐PCの **ローカルIPを固定**しておくこと（例: 192.168.1.252）。
+  DHCPのままだとIPが変わって全端末が繋がらなくなります。
+  - ルーター側で「DHCP予約（固定割当）」にする、または Windows の
+    「ネットワーク設定 → アダプターのオプション → IPv4 → IPアドレスを手動設定」で静的IPにする。
+
+### 1. Docker Desktop を入れる（常駐PC）
+1. [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) をインストール（WSL2 バックエンドの既定でOK）。
+2. インストール後に Docker Desktop を起動し、タスクトレイのクジラが安定（緑）になるまで待つ。
+3. Docker Desktop の設定 → General で **「Start Docker Desktop when you sign in to your computer」にチェック**（PC再起動後も自動で立ち上がる）。
+   - ※ Windows は「サインイン後」に Docker が起動します。常駐運用では、PC起動時に自動サインインする設定にしておくと、停電復帰後なども無人で復旧します。
+
+### 2. プログラムと設定を置く（常駐PC）
+1. このリポジトリを常駐PCに取得（`git clone` か、ZIPをダウンロードして展開）。
+2. フォルダ内の `.env.example` を `.env` という名前でコピーし、値を入れる。
+   - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `EDIT_PASSWORD` / `VIEW_PASSWORD` / `SESSION_SECRET` / Google 連携の値は、**今の Vercel の Settings → Environment Variables の値をそのまま写す**。
+   - **`COOKIE_SECURE=false` を設定する**（HTTPでログインできるようにするため。社内LAN版では必須）。
+   - `DOMAIN` は社内LAN版では使わないので空のままでよい。
+
+   > ⚠ `.env` にはパスワードや鍵が入ります。他人に渡さない・Git に入れない（.gitignore 済み）。
+
+### 3. 起動する（常駐PC）
+PowerShell かコマンドプロンプトでフォルダに移動して:
+```powershell
+docker compose -f docker-compose.lan.yml up -d --build
+docker compose -f docker-compose.lan.yml ps      # app が Up / healthy ならOK
+```
+
+初回の起動時、Windows Defender ファイアウォールが通信許可を聞いてきたら、
+**「プライベートネットワーク」にチェックを入れて許可**（社内LANの他端末から届くようにするため）。
+
+### 4. 各端末からアクセス
+ブラウザで `http://192.168.1.252`（= 常駐PCの固定IP）を開き、パスワードでログインできれば完了です。
+よく使う人はホーム画面に追加しておくと便利です。
+
+### 5. 日常の操作（社内LAN版）
+| やりたいこと | コマンド（フォルダ内で実行） |
+|---|---|
+| 状態を見る | `docker compose -f docker-compose.lan.yml ps` |
+| ログを見る | `docker compose -f docker-compose.lan.yml logs -f app` |
+| 再起動 | `docker compose -f docker-compose.lan.yml restart app` |
+| 停止 / 起動 | `docker compose -f docker-compose.lan.yml down` / `... up -d` |
+| 更新（改修を反映） | `git pull` の後 `docker compose -f docker-compose.lan.yml up -d --build` |
+
+### 6. 切り替え（Vercel から）
+1. 上記で社内LAN版を起動し、**ログイン・カレンダー表示・予定追加・画像アップロード・Sheets同期**を確認。
+2. 問題なければ利用者に新URL `http://192.168.1.252` を案内。
+3. 1〜2週間ほど並行運用し、問題が無ければ Vercel を停止。DBは共通なので、どちらで入力しても同じデータが見えます。
+
+> **補足**: データ（DB・伝票画像）は引き続き Supabase にあります。常駐PC が壊れても、`.env` さえ控えておけば別PCで上記をやり直すだけで復旧できます。`.env` は安全な場所に控えを保管してください。
+
+---
+
+> 以下「0. 全体像」以降は **インターネット公開版（VPS・HTTPS）** の手順です。社内LAN版だけで使う場合は読む必要はありません。
 
 ---
 
